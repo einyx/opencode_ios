@@ -122,11 +122,17 @@ final class URLSessionSSEHTTPOpener: SSEHTTPOpener, @unchecked Sendable {
     func open(_ request: URLRequest) async throws -> SSEHTTPResponse {
         let (bytes, response) = try await URLSession.shared.bytes(for: request)
         let http = response as? HTTPURLResponse
-        let handle = SSEReadHandle(task: bytes.task)
+        let handle = SSEConnectionCancel()
+        let responseTask = bytes.task
+        handle.bindResponse { responseTask.cancel() }
         let stream = AsyncThrowingStream<UInt8, Error> { continuation in
-            let reader = Task {
+            // This opener inherits MainActor from the project's default
+            // isolation. Keep per-byte forwarding off that executor: fast
+            // global event streams otherwise fall seconds behind the server.
+            let reader = Task.detached {
                 do {
                     for try await byte in bytes {
+                        try Task.checkCancellation()
                         continuation.yield(byte)
                     }
                     continuation.finish()
@@ -136,10 +142,11 @@ final class URLSessionSSEHTTPOpener: SSEHTTPOpener, @unchecked Sendable {
                     continuation.finish(throwing: error)
                 }
             }
-            handle.reader = reader
+            // Reuse the locked cancellation owner so cancellation before
+            // reader registration also stops this detached task and request.
+            handle.bindProducer(reader)
             continuation.onTermination = { _ in
-                reader.cancel()
-                handle.task.cancel()
+                handle.cancel()
             }
         }
         return SSEHTTPResponse(
@@ -148,20 +155,6 @@ final class URLSessionSSEHTTPOpener: SSEHTTPOpener, @unchecked Sendable {
             bytes: stream,
             cancel: { handle.cancel() }
         )
-    }
-}
-
-final class SSEReadHandle: @unchecked Sendable {
-    let task: URLSessionTask
-    var reader: Task<Void, Never>?
-
-    init(task: URLSessionTask) {
-        self.task = task
-    }
-
-    func cancel() {
-        reader?.cancel()
-        task.cancel()
     }
 }
 

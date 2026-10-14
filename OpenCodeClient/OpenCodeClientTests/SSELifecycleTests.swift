@@ -353,6 +353,60 @@ struct SSELifecycleTests {
         await second?.value
     }
 
+    @Test func burstFramesPreserveOrderAndUnicode() async throws {
+        let opener = RecordingSSEOpener()
+        let expected = (0..<512).map { "片段\($0) 🌙\nnext line" }
+        opener.body = try expected.reduce(into: Data()) { body, text in
+            let json = try JSONSerialization.data(withJSONObject: [
+                "payload": ["type": "message.part.delta", "properties": ["delta": text]]
+            ])
+            body.append(Data("data: ".utf8))
+            body.append(json)
+            body.append(Data("\r\n\r\n".utf8))
+        }
+        let client = SSEClient(opener: opener)
+        var received: [String] = []
+        for try await event in await client.connect(baseURL: "http://127.0.0.1:9") {
+            if let text = event.payload.properties?["delta"]?.value as? String {
+                received.append(text)
+            }
+        }
+        #expect(received == expected)
+        #expect(opener.cancelCount == 1)
+    }
+
+    @Test func detachedReaderCancelledBeforeRegistrationStillStops() async {
+        let owner = SSEConnectionCancel()
+        let response = TrackedSSEResponse()
+        owner.cancel()
+        owner.bindResponse { response.cancel() }
+        let reader = Task.detached {
+            while !Task.isCancelled { await Task.yield() }
+        }
+        owner.bindProducer(reader)
+        #expect(reader.isCancelled)
+        #expect(response.isCancelled)
+        // Ensure a failed expectation cannot leave a spinning test task.
+        reader.cancel()
+        await reader.value
+    }
+
+    @Test func detachedReaderAndResponseCancelTogether() async {
+        let owner = SSEConnectionCancel()
+        let response = TrackedSSEResponse()
+        let reader = Task.detached {
+            while !Task.isCancelled { await Task.yield() }
+        }
+        owner.bindResponse { response.cancel() }
+        owner.bindProducer(reader)
+        owner.cancel()
+        owner.cancel()
+        #expect(reader.isCancelled)
+        #expect(response.isCancelled)
+        reader.cancel()
+        await reader.value
+    }
+
     @Test func lateOpenClosesReturnedResource() async throws {
         let opener = LateOpenSSEOpener()
         await opener.gate.arm()
