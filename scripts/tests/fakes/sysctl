@@ -1,0 +1,2 @@
+#!/bin/bash
+case "$2" in hw.ncpu) printf '8\n';; vm.loadavg) printf '{ 0.1 0.1 0.1 }\n';; *) exit 98;; esac

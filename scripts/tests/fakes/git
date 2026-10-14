@@ -1,0 +1,26 @@
+#!/bin/bash
+# Does not delegate to real Git. The harness has a separate real-Git phase.
+set -eu
+[ "$1" = -C ] || exit 98
+directory=$2
+shift 2
+case "$1" in
+  rev-parse)
+    [ "$#" = 2 ] && [ "$2" = --show-toplevel ] || exit 98
+    if [ "${MOCK_NESTED_REPO:-0}" = 1 ] && [ "$directory" != "$MOCK_REPO" ]; then
+      printf '%s\n' "$directory"
+    else
+      printf '%s\n' "$MOCK_REPO"
+    fi
+    ;;
+  ls-files)
+    [ "$#" = 3 ] && [ "$2" = -- ] && [ "$3" = ':(literal).occlient' ] || exit 98
+    [ "${MOCK_TRACKED_OUTPUT:-0}" != 1 ] || printf '.occlient/tracked.log\n'
+    ;;
+  check-ignore)
+    [ "$#" = 4 ] && [ "$2" = -q ] && [ "$3" = -- ] || exit 98
+    [ "${MOCK_UNIGNORED_OUTPUT:-0}" != 1 ] || exit 1
+    case "$4" in .occlient/|.occlient/*/) exit 0;; *) exit 1;; esac
+    ;;
+  *) exit 98;;
+esac

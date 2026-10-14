@@ -1,0 +1,7 @@
+#!/bin/bash
+if [ "${MOCK_TEE_FAIL:-0}" = 1 ] || { [ "${MOCK_TEE_TEST_FAIL:-0}" = 1 ] && [[ "$1" = */test.log ]]; }; then
+  # Drain completely to avoid substituting SIGPIPE for the command's exit.
+  /usr/bin/tee "$@"
+  exit 9
+fi
+exec /usr/bin/tee "$@"

@@ -1,0 +1,23 @@
+#!/bin/bash
+set -eu
+printf '%s\n' "$@" >> "$MOCK_CALLS"
+printf '%s\n' "$@" > "$MOCK_CALLS.$1"
+printf 'command-begin %s\n' "$1"
+printf 'unfiltered diagnostic: stderr retained\n' >&2
+if [ "$1" = build-for-testing ]; then exit "${MOCK_BUILD_EXIT:-0}"; fi
+bundle=
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = -resultBundlePath ]; then bundle=$2; shift; fi
+  shift
+done
+printf 'first-unfiltered-line\n'
+if [ "${MOCK_HANG:-0}" = 1 ]; then
+  printf '%s\n' "$$" > "$MOCK_PID"
+  sleep 30 &
+  printf '%s\n' "$!" > "$MOCK_PID.child"
+  wait
+fi
+if [ "${MOCK_NO_BUNDLE:-0}" != 1 ]; then mkdir -p "$bundle"; fi
+for ((i=1;i<=160;i++)); do printf 'diagnostic-%s\n' "$i"; done
+printf 'Test Suite passed (not an exit status)\n'
+exit "${MOCK_TEST_EXIT:-0}"

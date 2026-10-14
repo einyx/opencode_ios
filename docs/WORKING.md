@@ -5,9 +5,21 @@
 ## 当前状态
 
 - **最后更新**：2026-10-14
-- **基线**：`feat/session-tree-status` / `c8173cd`，PR #207；本次 composer 活动说明作为后续增量，仍等待明确合并授权。
-- **编译/测试**：本次定向单测 36/36、全量单测 751/751（87 suites）通过；主线程独立复跑全量和设备构建通过，已原位安装并启动于 iPad/iPhone。独立 code/privacy 增量复核通过，未重跑 UI runner。
-- **Phase**：来源级确认、可信执行状态与列表/composer 单灯统一。
+- **基线**：PR #208 已合并，`master` / `b64de27`；`fix/test-runner-observability` 为 runner 增量。
+- **编译/测试**：本轮 shell 语法 9/9、runner 回归 43/43；首次真实定向单测 36/36但摘要字段不匹配正确返回65。修正后主线程独立端到端复验36/36通过，原始测试码、结果包解析及最终验收均为0，总计20秒。此前 composer 全量/设备验证见历史记录，不计入本轮。
+- **Phase**：P1 runner 可观测性与失败闭合验收；P2 附件 A/B 后移至父级蓝点修复之后执行。
+
+### 2026-10-14 — 测试 runner 实时日志与失败闭合验收
+
+将独立 review 后的 P1 稿落入两个 runner 及 `lib_test_observability.sh`。原 `lib_simulator.sh` 字节不变，app 源码和 XCTest 用例不改。保留已有 UUID/DerivedData/ONLY/REBUILD/launch skip 规则，移除日志过滤，增加完整实时 tee、阶段时间、原始码与最终验收分离、每轮独立日志及显式结果包。新增参数及 exit 0/65/73/74 边界详见 [tests.md](tests.md#日常-runner日志结果证据与退出码)。完整 stdout 仅用于本地开发；ignored 不保护公开控制台。
+
+`scripts/tests/test_runner_observability.sh` 从 repo 独立运行，无 workspace 私有路径；35 个 mock 场景及 8 个临时 repo 的真实 Git 边界场景均通过，覆盖原码保留、两入口结果证据失败闭合、实时日志、超时/中断及输出根保护。最终回归证据为系统临时目录 `occlient-runner-tests-MEDWvp`，不入库。
+
+真实验收只运行一次 `OPENCODE_TEST_ONLY=OpenCodeClientTests/SessionIndicatorTests`，显式指定已释放的 iPhone 16 / iOS 18.4 UUID，复用 `.occlient/DerivedData`，固定 Xcode 27.0 / 27A266a，阶段期限 180 秒。preflight 1 秒、build 19 秒、test 9 秒、xcresult 查询 0 秒，总计 29 秒；各阶段 command/tee/wrapper 均 0，36/36 单测通过。首次最终 acceptance 为 65：真实摘要字段是 `result`，而隔离 mock 先前假设 `testResult`。仅修正 parser 字段并抽出可离线验证的解析函数，新增去除设备身份、时间和路径的真实摘要子集 fixture，随后重跑离线 43/43。
+
+原始运行证据 `.occlient/test-runs/unit-20261014T045115Z-upLXrl/`（含完整 `invocation.txt`、日志、原始 state 和 xcresult）保持首次状态，不改写为成功。使用该 JSON 的新 parser 回放保存在 `.occlient/test-runs/schema-replay-eNXcbT/acceptance.tsv`：parsed / Passed、verification passed、acceptance 0。这是保留证据的离线验收，不是第二次真实 runner 执行。未运行 UI、全量测试、设备部署或附件 A/B；未操作 live server。
+
+主线程随后使用修正后的脚本独立运行同一36项suite，所有阶段及最终验收均为0；preflight/build/test/result耗时分别1/10/8/1秒，总20秒。真实证据在 `.occlient/test-runs/unit-20261014T045436Z-lZEijV/`，与首次失败记录分开保存。独立code/privacy复核通过，无剩余阻断；该验证没有改变UI附件策略。
 
 ### 2026-10-14 — iOS composer 恢复有用活动说明
 
