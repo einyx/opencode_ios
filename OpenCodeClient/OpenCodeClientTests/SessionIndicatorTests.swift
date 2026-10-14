@@ -85,8 +85,10 @@ struct SessionIndicatorTests {
         state.sessionStatuses["parent"] = Self.status("retry")
         #expect(state.rowIndicator(sessionID: "parent", attentionCount: 0) == .running)
         state.sessionStatuses["parent"] = Self.status("idle")
-        state.readStateStore.markViewed(sessionID: "parent", at: Date(timeIntervalSince1970: 200))
-        #expect(state.rowIndicator(sessionID: "parent", attentionCount: 0) == .unread)
+        state.selectSession(state.sessions[0])
+        state.selectSession(Self.session("other"))
+        #expect(state.rowIndicator(sessionID: "parent", attentionCount: 0) == nil)
+        #expect(state.rowIndicator(sessionID: "child", attentionCount: 0) == .unread)
         state.readStateStore.markViewed(sessionID: "child", at: Date(timeIntervalSince1970: 300))
         #expect(state.rowIndicator(sessionID: "parent", attentionCount: 0) == nil)
     }
@@ -228,8 +230,10 @@ struct SessionIndicatorTests {
         #expect(state.rowIndicator(sessionID: "parent", attentionCount: 0) == .unread)
         #expect(state.rowIndicator(sessionID: "grandchild", attentionCount: 0) == nil)
         #expect(state.rowIndicator(sessionID: "parent", attentionCount: 1) == .needsYou)
-        state.readStateStore.markViewed(sessionID: "parent", at: Date(timeIntervalSince1970: 200))
-        #expect(state.rowIndicator(sessionID: "parent", attentionCount: 0) == .unread)
+        state.selectSession(state.sessions[0])
+        state.selectSession(Self.session("other"))
+        #expect(state.rowIndicator(sessionID: "parent", attentionCount: 0) == nil)
+        #expect(state.rowIndicator(sessionID: "child", attentionCount: 0) == .unread)
     }
 
     @Test @MainActor func missingStatusIsUnknownUntilConfirmed() {
@@ -286,6 +290,123 @@ struct SessionIndicatorTests {
         #expect(state.sessionUnreadCounts["parent"] == 1)
         state.readStateStore.markFailed(sessionID: "grandchild", at: failure.addingTimeInterval(2))
         #expect(state.sessionFailureCounts["parent"] == 2)
+    }
+
+    @MainActor private static func reminderTree() -> AppState {
+        let state = Self.state()
+        state.sessions = [Self.session("a", updated: 0),
+                          Self.session("parent", parent: "a", updated: 0),
+                          Self.session("child", parent: "parent", updated: 100_000),
+                          Self.session("b", parent: "parent", updated: 200_000),
+                          Self.session("other", updated: 0)]
+        for session in state.sessions {
+            state.sessionStatuses[session.id] = Self.status("idle")
+            state.readStateStore.markViewed(sessionID: session.id, at: Date(timeIntervalSince1970: 0))
+        }
+        return state
+    }
+
+    @Test @MainActor func selectingParentConfirmsOnlyItsDisplayedReminderAndKeepsChildrenUnread() {
+        let state = Self.reminderTree()
+        #expect(state.sessionUnreadCounts["parent"] == 2)
+        let childViewed = state.readStateStore.lastViewedAt(for: "child")
+        state.selectSession(state.sessions[1])
+        state.selectSession(state.sessions[4])
+        #expect(state.rowIndicator(sessionID: "parent", attentionCount: 0) == nil)
+        #expect(state.rowIndicator(sessionID: "a", attentionCount: 0) == .unread)
+        #expect(state.rowIndicator(sessionID: "child", attentionCount: 0) == .unread)
+        #expect(state.rowIndicator(sessionID: "b", attentionCount: 0) == .unread)
+        #expect(state.readStateStore.lastViewedAt(for: "child") == childViewed)
+        #expect(state.readStateStore.blueAcknowledgements(for: "parent") == ["child": 100_000, "b": 200_000])
+        #expect(state.readStateStore.blueAcknowledgements(for: "a").isEmpty)
+        #expect(state.readStateStore.blueAcknowledgements(for: "child").isEmpty)
+        #expect(state.sessionUnreadCounts["a"] == 2)
+    }
+
+    @Test @MainActor func viewingSourceClearsItsContributionFromEveryAncestor() {
+        let state = Self.reminderTree()
+        state.selectSession(state.sessions[2])
+        state.selectSession(state.sessions[4])
+        #expect(state.sessionBlueReminderSources["parent"] == ["b": 200_000])
+        #expect(state.sessionBlueReminderSources["a"] == ["b": 200_000])
+        #expect(state.rowIndicator(sessionID: "child", attentionCount: 0) == nil)
+        #expect(state.rowIndicator(sessionID: "b", attentionCount: 0) == .unread)
+    }
+
+    @Test @MainActor func smallerSiblingNewTokenRelightsParentAndDoesNotAcknowledgeGrandparent() {
+        let state = Self.reminderTree()
+        state.selectSession(state.sessions[1])
+        state.selectSession(state.sessions[4])
+        state.sessions[2] = Self.session("child", parent: "parent", updated: 101_000)
+        #expect(state.sessionBlueReminderSources["parent"] == ["child": 101_000])
+        #expect(state.rowIndicator(sessionID: "parent", attentionCount: 0) == .unread)
+        #expect(state.sessionUnreadCounts["a"] == 2)
+        // Same-version metadata replay does not undo the older sibling's confirmation.
+        state.sessions[3] = Self.session("b", parent: "parent", updated: 200_000)
+        #expect(state.sessionUnreadCounts["parent"] == 1)
+    }
+
+    @Test @MainActor func paginationKeepsAcknowledgementsAndNewChildIsNotImplicitlyConfirmed() {
+        let state = Self.reminderTree()
+        state.selectSession(state.sessions[1])
+        state.selectSession(state.sessions[4])
+        let child = state.sessions.remove(at: 2)
+        #expect(state.readStateStore.blueAcknowledgements(for: "parent")["child"] == 100_000)
+        state.sessions.append(child)
+        #expect(state.rowIndicator(sessionID: "parent", attentionCount: 0) == nil)
+        state.sessions.append(Self.session("grandchild", parent: "parent", updated: 50_000))
+        #expect(state.sessionBlueReminderSources["parent"] == ["grandchild": 50_000])
+        #expect(state.rowIndicator(sessionID: "parent", attentionCount: 0) == .unread)
+    }
+
+    @Test @MainActor func parentOwnNewContentIsNotHiddenByChildAcknowledgements() {
+        let state = Self.reminderTree()
+        state.selectSession(state.sessions[1])
+        state.selectSession(state.sessions[4])
+        let future = Int(Date().addingTimeInterval(10).timeIntervalSince1970 * 1000)
+        state.sessions[1] = Self.session("parent", parent: "a", updated: future)
+        #expect(state.sessionBlueReminderSources["parent"] == ["parent": future])
+        #expect(state.rowIndicator(sessionID: "parent", attentionCount: 0) == .unread)
+    }
+
+    @Test @MainActor func childUpdateWhileParentCurrentSurvivesDisappearanceAndExit() {
+        let state = Self.reminderTree()
+        state.selectSession(state.sessions[1])
+        state.sessions[2] = Self.session("child", parent: "parent", updated: 101_000)
+        #expect(state.rowIndicator(sessionID: "parent", attentionCount: 0) == nil)
+        state.markCurrentSessionViewed()
+        state.selectSession(state.sessions[1]) // Current-row reselection has no displayed blue to confirm.
+        state.selectSession(state.sessions[4])
+        #expect(state.readStateStore.blueAcknowledgements(for: "parent")["child"] == 100_000)
+        #expect(state.rowIndicator(sessionID: "parent", attentionCount: 0) == .unread)
+    }
+
+    @Test(arguments: ["yellow", "red", "busy", "retry", "unknown", "stale", "disconnected", "archived"])
+    @MainActor func selectingNonBlueParentDoesNotSwallowLatentReminders(kind: String) {
+        let state = Self.reminderTree()
+        switch kind {
+        case "yellow": state.pendingPermissions = PermissionController.fromPendingRequests([Self.permission("p", session: "child")])
+        case "red": state.readStateStore.markFailed(sessionID: "child", at: Date())
+        case "busy", "retry", "unknown": state.sessionStatuses["b"] = Self.status(kind)
+        case "stale": state.statusConfirmedAt["b"] = Date().addingTimeInterval(-61)
+        case "disconnected": state.statusStreamConnected = false
+        case "archived": state.sessions[1] = Self.session("parent", parent: "a", updated: 0, archived: true)
+        default: break
+        }
+        #expect(state.sessionIndicatorPresentations["parent"]?.indicator != .unread)
+        state.selectSession(state.sessions[1])
+        state.selectSession(state.sessions[4])
+        #expect(state.readStateStore.blueAcknowledgements(for: "parent").isEmpty)
+        #expect(state.readStateStore.lastViewedAt(for: "child") == Date(timeIntervalSince1970: 0))
+        if kind == "yellow" { #expect(state.pendingPermissions.count == 1) }
+        if kind == "red" { #expect(state.sessionFailureCounts["parent"] == 1) }
+        state.pendingPermissions = []
+        state.readStateStore.clearFailed(sessionID: "child")
+        state.sessionStatuses["b"] = Self.status("idle")
+        state.statusConfirmedAt["b"] = Date()
+        state.statusStreamConnected = true
+        state.sessions[1] = Self.session("parent", parent: "a", updated: 0)
+        #expect(state.rowIndicator(sessionID: "parent", attentionCount: 0) == .unread)
     }
 
     @Test @MainActor func mixedTreeKeepsExecutionSummaryAndLastChildEndsAtomically() {
