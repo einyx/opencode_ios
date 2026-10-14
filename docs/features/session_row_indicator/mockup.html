@@ -1,189 +1,22 @@
-<!DOCTYPE html>
-<html lang="zh">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Session Row Indicator — 视觉草案</title>
+<!doctype html>
+<html lang="zh"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Session 单灯合同</title>
 <style>
-  :root {
-    --bg: #FBFBFC; --surface: #F0F1F3; --text: #15171A; --muted: #60656B;
-    --tertiary: #9BA1A8; --divider: #E6E8EA; --sel: rgba(59,130,246,.08);
-    --blue: #3B82F6; --gold: #D9A621; --red: #E5484D;
-  }
-  html.dark {
-    --bg: #0B0C0E; --surface: #1A1D21; --text: #E6E8EB; --muted: #9BA1A8;
-    --tertiary: #5A6066; --divider: #23272B; --sel: rgba(59,130,246,.08);
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--bg); color: var(--text);
-    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC", sans-serif;
-    padding: 32px 20px 64px;
-  }
-  .wrap { max-width: 980px; margin: 0 auto; }
-  h1 { font-size: 22px; font-weight: 700; margin: 0 0 4px; }
-  .sub { color: var(--muted); font-size: 13px; margin: 0 0 20px; }
-  .bar { display: flex; gap: 8px; align-items: center; margin-bottom: 24px; flex-wrap: wrap; }
-  button {
-    background: var(--surface); color: var(--text); border: 1px solid var(--divider);
-    border-radius: 8px; padding: 6px 12px; font-size: 13px; cursor: pointer;
-  }
-  h2 { font-size: 15px; font-weight: 600; margin: 32px 0 10px; }
-  .legend { display: flex; gap: 20px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
-  .legend span { display: inline-flex; align-items: center; gap: 8px; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
-  .dot.blue { background: var(--blue); }
-  .dot.blue.small { width: 6px; height: 6px; }                    /* A′：未读更小（6pt）*/
-  .dot.gold { background: var(--gold); }                         /* 默认静态（决定 7）*/
-  .dot.gold.demo-pulse { animation: pulse 1.2s ease-in-out infinite; }
-  .dot.red  { background: var(--red); }
-  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
-  @media (prefers-reduced-motion: reduce) { .dot.gold.demo-pulse { animation: none; } }
-
-  .panels { display: grid; grid-template-columns: 1fr; gap: 24px; }
-  @media (min-width: 760px) { .panels { grid-template-columns: 1fr 1fr; } }
-  .card { border: 1px solid var(--divider); border-radius: 12px; overflow: hidden; background: var(--bg); }
-  .card h3 { margin: 0; padding: 10px 16px; font-size: 12px; font-weight: 600; color: var(--muted);
-    border-bottom: 1px solid var(--divider); background: var(--surface); }
-  .list { padding: 6px 8px; }
-
-  .row { display: flex; align-items: center; gap: 8px; padding: 8px 8px; border-radius: 12px; position: relative; }
-  .row.sel { background: var(--sel); }
-  .row.sel::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px;
-    border-radius: 2px; background: var(--blue); }
-  .gutter { width: 28px; flex: none; display: flex; align-items: center; justify-content: center;
-    color: var(--tertiary); font-size: 11px; }
-  .dotcol { width: 14px; flex: none; display: flex; align-items: flex-start; justify-content: center; padding-top: 5px; }
-  .body { min-width: 0; flex: 1; }
-  .title { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
-  .meta .sep { color: var(--tertiary); }
-  .child .title { font-weight: 400; font-size: 14px; }
-  .child .gutter { padding-left: 12px; }
-  .hint { font-size: 12px; color: var(--tertiary); margin: 4px 0 0; }
-  .bad { background: var(--surface); border-radius: 8px; padding: 10px 14px; font-size: 13px; color: var(--muted); }
+:root{color-scheme:light dark;--bg:#fbfbfc;--fg:#15171a;--muted:#60656b;--border:#e6e8ea;--green:#167c45;--surface:#f0f1f3}
+@media(prefers-color-scheme:dark){:root{--bg:#0b0c0e;--fg:#e6e8eb;--muted:#9ba1a8;--border:#23272b;--green:#4cbf82;--surface:#1a1d21}}
+body{font:15px/1.6 system-ui,sans-serif;background:var(--bg);color:var(--fg);max-width:900px;margin:32px auto;padding:0 20px}h1{font-size:24px}h2{font-size:18px}.muted,small{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px}.panel{border:1px solid var(--border);border-radius:12px;padding:16px}.row{display:flex;align-items:center;gap:8px;padding:12px 0;border-bottom:1px solid var(--border)}.gutter{width:20px}.child{padding-left:24px}.dot{display:inline-block;border-radius:50%;width:8px;height:8px;flex:none}.slot{width:12px;display:flex;justify-content:center}.yellow{background:#d9a621}.red{background:#e5484d}.green{background:var(--green);width:6px;height:6px;animation:breathe 2.6s ease-in-out infinite}.blue{background:#3b82f6;width:6px;height:6px}.selected{background:rgba(59,130,246,.08)}small{display:block}.composer{margin-top:64px;background:var(--surface);padding:12px;border-radius:12px}.status{display:flex;align-items:center;gap:8px;color:var(--muted)}textarea{box-sizing:border-box;width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--fg);margin-top:8px}button{padding:8px;margin-top:12px}@keyframes breathe{0%,100%{opacity:1}50%{opacity:.40}}@media(prefers-reduced-motion:reduce){.green{animation:none}}
 </style>
-</head>
-<body>
-<div class="wrap">
-  <h1>Session 行状态指示点 — 视觉草案</h1>
-  <p class="sub">只读调研产出，非实现。点是主通道（是否需要我），小字是副通道（agent 在做什么）。优先级：需要你 &gt; 失败 &gt; 未读 &gt; 无。</p>
-
-  <div class="bar">
-    <button id="toggle">切换浅色 / 深色</button>
-    <div class="legend">
-      <span><i class="dot blue"></i>未读</span>
-      <span><i class="dot gold"></i>需要你（权限/提问，静态）</span>
-      <span><i class="dot red"></i>上一轮失败</span>
-      <span><i class="dot" style="background:transparent"></i>无点 = 无需处理</span>
-    </div>
-  </div>
-
-  <div class="panels">
-    <!-- iOS -->
-    <div class="card">
-      <h3>iOS（iPhone 抽屉 / iPad sidebar，共用 SessionRowView）</h3>
-      <div class="list">
-        <div class="row">
-          <div class="gutter">▾</div><div class="dotcol"><i class="dot gold"></i></div>
-          <div class="body"><div class="title">Deploy the new API gateway</div><div class="meta">2m ago <span class="sep">·</span> Running</div></div>
-        </div>
-        <div class="row">
-          <div class="gutter">▾</div><div class="dotcol"><i class="dot red"></i></div>
-          <div class="body"><div class="title">Refactor auth module</div><div class="meta">18m ago</div></div>
-        </div>
-        <div class="row">
-          <div class="gutter">▸</div><div class="dotcol"><i class="dot blue"></i></div>
-          <div class="body"><div class="title">Nightly data export</div><div class="meta">1h ago <span class="sep">·</span> 2 subagents running</div></div>
-        </div>
-        <div class="row child">
-          <div class="gutter">·</div><div class="dotcol"><i class="dot blue"></i></div>
-          <div class="body"><div class="title">export-writer (@general)</div><div class="meta">1h ago</div></div>
-        </div>
-        <div class="row sel">
-          <div class="gutter">▾</div><div class="dotcol"></div>
-          <div class="body"><div class="title">Polish the settings screen</div><div class="meta">3h ago <span class="sep">·</span> Running</div></div>
-        </div>
-        <div class="row">
-          <div class="gutter"></div><div class="dotcol"></div>
-          <div class="body"><div class="title">Scratch notes</div><div class="meta">Yesterday</div></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Android -->
-    <div class="card">
-      <h3>Android（SwipeRevealRow）</h3>
-      <div class="list">
-        <div class="row">
-          <div class="gutter">▾</div><div class="dotcol"><i class="dot gold"></i></div>
-          <div class="body"><div class="title">Deploy the new API gateway</div><div class="meta">2m ago <span class="sep">·</span> Running</div></div>
-        </div>
-        <div class="row">
-          <div class="gutter">▾</div><div class="dotcol"><i class="dot red"></i></div>
-          <div class="body"><div class="title">Refactor auth module</div><div class="meta">18m ago</div></div>
-        </div>
-        <div class="row">
-          <div class="gutter">▸</div><div class="dotcol"><i class="dot blue"></i></div>
-          <div class="body"><div class="title">Nightly data export</div><div class="meta">1h ago <span class="sep">·</span> 2 subagents running</div></div>
-        </div>
-        <div class="row child">
-          <div class="gutter">·</div><div class="dotcol"><i class="dot blue"></i></div>
-          <div class="body"><div class="title">export-writer (@general)</div><div class="meta">1h ago</div></div>
-        </div>
-        <div class="row sel">
-          <div class="gutter">▾</div><div class="dotcol"></div>
-          <div class="body"><div class="title">Polish the settings screen</div><div class="meta">3h ago <span class="sep">·</span> Running</div></div>
-        </div>
-        <div class="row">
-          <div class="gutter"></div><div class="dotcol"></div>
-          <div class="body"><div class="title">Scratch notes</div><div class="meta">Yesterday</div></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <h2>优先级：一行最多一个点</h2>
-  <div class="bad">同一行同时「子代理失败 + 父会话有新输出 + 有待批权限」 → 只显示金点（需要你）。处理掉权限后，若失败仍未查看，降级显示红点；失败也确认后，若还有未读，显示蓝点。</div>
-
-  <p class="hint">色值：未读 <code>#3B82F6</code> · 需要你 <code>#D9A621</code> · 失败 <code>#E5484D</code>。尺寸 8pt/8dp；无点时保留占位列，标题左对齐不变。</p>
-
-  <h2>未读配色：A（满饱和）vs A′（降饱和，推荐）</h2>
-  <div class="panels">
-    <div class="card">
-      <h3>A · 未读满饱和（8pt）</h3>
-      <div class="list">
-        <div class="row"><div class="gutter">▸</div><div class="dotcol"><i class="dot blue"></i></div>
-          <div class="body"><div class="title">Nightly data export</div><div class="meta">1h ago</div></div></div>
-        <div class="row"><div class="gutter">▸</div><div class="dotcol"><i class="dot blue"></i></div>
-          <div class="body"><div class="title">Index rebuild</div><div class="meta">2h ago</div></div></div>
-        <div class="row"><div class="gutter">▸</div><div class="dotcol"><i class="dot blue"></i></div>
-          <div class="body"><div class="title">Log cleanup</div><div class="meta">4h ago</div></div></div>
-        <div class="row"><div class="gutter">▾</div><div class="dotcol"><i class="dot gold"></i></div>
-          <div class="body"><div class="title">Deploy gateway</div><div class="meta">2m ago <span class="sep">·</span> Running</div></div></div>
-      </div>
-    </div>
-    <div class="card">
-      <h3>A′ · 未读缩小（6pt，推荐），响亮只给「要动手」</h3>
-      <div class="list">
-        <div class="row"><div class="gutter">▸</div><div class="dotcol"><i class="dot blue small"></i></div>
-          <div class="body"><div class="title">Nightly data export</div><div class="meta">1h ago</div></div></div>
-        <div class="row"><div class="gutter">▸</div><div class="dotcol"><i class="dot blue small"></i></div>
-          <div class="body"><div class="title">Index rebuild</div><div class="meta">2h ago</div></div></div>
-        <div class="row"><div class="gutter">▸</div><div class="dotcol"><i class="dot blue small"></i></div>
-          <div class="body"><div class="title">Log cleanup</div><div class="meta">4h ago</div></div></div>
-        <div class="row"><div class="gutter">▾</div><div class="dotcol"><i class="dot gold"></i></div>
-          <div class="body"><div class="title">Deploy gateway</div><div class="meta">2m ago <span class="sep">·</span> Running</div></div></div>
-      </div>
-    </div>
-  </div>
-  <p class="hint">A′ 里未读退成安静的中性点，一眼扫过去只有金/红在"说话"——符合 cockpit「正常安静、异常醒目」。上面的金点用脉冲演示动效；正式方案默认静态（P2）。</p>
-</div>
-
-<script>
-  const root = document.documentElement;
-  root.classList.toggle('dark', window.matchMedia('(prefers-color-scheme: dark)').matches);
-  document.getElementById('toggle').addEventListener('click', () => root.classList.toggle('dark'));
-</script>
-</body>
+<h1>Session 单灯：黄 → 红 → 绿 → 蓝</h1>
+<p class="muted">列表与输入框上方共用语义。绿表示执行未结束，不保证进展或成功；蓝只表示已停止执行后的未读更新。</p>
+<p class="muted">灯与完整标题/副文字块垂直居中；iOS 保留 6/8pt，Android 可采用 5/6dp。两端呼吸均为 2.6 秒、opacity 0.40–1.0，减少动态效果时常亮。</p>
+<div class="grid"><section class="panel"><h2>会话树</h2>
+<div class="row"><span class="gutter">▸</span><span class="slot"><i class="dot yellow"></i></span><div>等待权限的树<small><span aria-label="2 个后代执行未结束">⑂ 2</span></small></div></div>
+<div class="row"><span class="gutter">▸</span><span class="slot"><i class="dot red"></i></span><div>失败尚未确认<small><span aria-label="1 个后代执行未结束">⑂ 1</span></small></div></div>
+<div class="row selected"><span class="gutter">▾</span><span class="slot"><i class="dot green"></i></span><div>当前父会话<small><span aria-label="1 个后代执行未结束">⑂ 1</span></small></div></div>
+<div class="row child"><span class="gutter">·</span><span class="slot"><i class="dot green"></i></span><div>子会话<small>重试中</small></div></div>
+<div class="row"><span class="gutter"></span><span class="slot"><i class="dot blue"></i></span><div>已停止，仍有未读更新</div></div>
+<div class="row"><span class="gutter"></span><span class="slot"></span><div>尚未确认执行状态<small>状态待同步</small></div></div>
+</section><section class="panel"><h2>当前聊天</h2><p>当前 session 只豁免蓝。黄红仍可来自后代；查看父不替代查看子。</p><div class="composer"><div class="muted">↗ 子会话标题（保留原导航）</div><div class="status"><i class="dot green" aria-label="执行未结束"></i></div><textarea aria-label="消息输入框" placeholder="输入消息…"></textarea></div><p class="muted">状态栏保留灯及必要重试、待同步、语音提示，不放后代数量或重复执行文案。分支图标+数字仅用于列表。</p></section></div>
+<h2>来源级确认</h2><p>父 P、自身失败；子 C 失败；兄弟 D 失败。查看 C 后，P 只扣掉 C 的贡献，仍保留 P 和 D 的提醒。查看 P 只确认 P，不能清除 D。孙来源同样一次从所有祖先减去。后续干净运行结束不能自动确认旧失败，权限回复非 2xx 不能清除 pending。</p>
+<p>断线或超过确认有效期：停止绿色呼吸，不亮蓝；保留黄红并加“状态待同步”。请求未完成或失败不是 idle；只有同 host/project 的成功完整快照缺项才可确认不活跃。</p>
 </html>

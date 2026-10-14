@@ -179,7 +179,10 @@ struct ContentView: View {
     @ViewBuilder
     private var standardFixtureBody: some View {
         #if DEBUG
-        if UITestFixtures.hasUITestWebPreviewRetryFixture {
+        if ProcessInfo.processInfo.arguments.contains("UITEST_SESSION_INDICATOR_FIXTURE") {
+            SessionIndicatorFixtureView()
+                .preferredColorScheme(Self.webPreviewFixtureColorScheme)
+        } else if UITestFixtures.hasUITestWebPreviewRetryFixture {
             webPreviewRetryFixtureView
                 .preferredColorScheme(Self.webPreviewFixtureColorScheme)
         } else if UITestFixtures.hasUITestWebPreviewModeFixture {
@@ -557,8 +560,7 @@ private struct TabletSessionsColumn: View {
     }
 
     var body: some View {
-        let unreadCounts = state.sessionUnreadCounts
-        let failureCounts = state.sessionFailureCounts
+        let presentations = state.sessionIndicatorPresentations
         NavigationStack {
             Group {
                 if showSettings {
@@ -576,7 +578,7 @@ private struct TabletSessionsColumn: View {
                         }
 
                         if activeExpanded {
-                            sessionNodes(activeNodes, archived: false, attentionCounts: state.sessionAttentionCounts, descendantBusyCounts: state.sessionDescendantBusyCounts, unreadCounts: unreadCounts, failureCounts: failureCounts)
+                            sessionNodes(activeNodes, archived: false, presentations: presentations)
                         }
 
                         SessionSectionHeader(title: L10n.t(.sessionsArchived), isExpanded: archivedExpanded) {
@@ -584,7 +586,7 @@ private struct TabletSessionsColumn: View {
                         }
 
                         if archivedExpanded {
-                            sessionNodes(archivedNodes, archived: true, attentionCounts: state.sessionAttentionCounts, descendantBusyCounts: state.sessionDescendantBusyCounts, unreadCounts: unreadCounts, failureCounts: failureCounts)
+                            sessionNodes(archivedNodes, archived: true, presentations: presentations)
                         }
 
                         if state.isLoadingMoreSessions {
@@ -673,16 +675,14 @@ private struct TabletSessionsColumn: View {
         .alert(L10n.t(.chatCreateDisabledHint), isPresented: $showCreateDisabledAlert) {
             Button(L10n.t(.commonOk)) {}
         }
+        .modifier(SessionStatusRefresh(state: state))
     }
 
     private func sessionNodes(
         _ nodes: [SessionNode],
         archived: Bool,
         depth: Int = 0,
-        attentionCounts: [String: Int],
-        descendantBusyCounts: [String: Int],
-        unreadCounts: [String: Int],
-        failureCounts: [String: Int]
+        presentations: [String: SessionIndicatorPresentation]
     ) -> AnyView {
         AnyView(
             ForEach(nodes) { node in
@@ -692,9 +692,8 @@ private struct TabletSessionsColumn: View {
                 SessionRowView(
                     session: session,
                     status: status,
-                    indicator: state.rowIndicator(session: session, attentionCount: attentionCounts[session.id, default: 0], unreadCounts: unreadCounts, failureCounts: failureCounts),
-                    attentionCount: attentionCounts[session.id, default: 0],
-                    busyDescendantCount: descendantBusyCounts[session.id, default: 0],
+                    indicator: presentations[session.id]?.indicator,
+                    presentation: presentations[session.id],
                     isSelected: state.currentSessionID == session.id,
                     isMutating: mutatingSessionID == session.id,
                     isArchived: archived,
@@ -736,10 +735,7 @@ private struct TabletSessionsColumn: View {
                         node.children,
                         archived: archived,
                         depth: depth + 1,
-                        attentionCounts: attentionCounts,
-                        descendantBusyCounts: descendantBusyCounts,
-                        unreadCounts: unreadCounts,
-                        failureCounts: failureCounts
+                        presentations: presentations
                     )
                 }
             }

@@ -19,7 +19,22 @@ struct SessionNode: Identifiable {
 }
 
 enum SessionIndicator {
-    case needsYou, failed, unread
+    case needsYou, failed, running, unread
+}
+
+struct SessionIndicatorPresentation {
+    var indicator: SessionIndicator?
+    var needsSync: Bool
+    var ownIsRetrying: Bool
+    var activeDescendantCount: Int
+
+    var statusText: String? {
+        let parts = [ownIsRetrying ? L10n.t(.sessionsStatusRetry) : nil,
+                     needsSync ? SessionIndicatorCopy.syncing : nil].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    var hasDetails: Bool { ownIsRetrying || needsSync || activeDescendantCount > 0 }
 }
 
 @Observable
@@ -500,6 +515,22 @@ final class AppState {
     let statsStore: SessionStatsStore
     let readStateStore: SessionReadStateStore
     var pendingSessionErrorAt: [String: Date] = [:]
+    var statusStreamConnected = false
+    var statusConfirmedAt: [String: Date] = [:]
+    var statusDirectories: [String: String] = [:]
+    var statusRevisions: [String: UInt64] = [:]
+    var statusRevision: UInt64 = 0
+    var statusKnowledgeRevision: UInt64 = 0
+    var statusPollID: UUID?
+    var statusLastAttemptAt: Date?
+    var statusLastAttemptDirectory: String?
+    var statusEvaluationDate = Date()
+    var permissionRevision: UInt64 = 0
+    var questionRevision: UInt64 = 0
+    var permissionPollID: UUID?
+    var questionPollID: UUID?
+    var pendingRequestEpoch: UInt64 = 0
+    var abortingSessionIDs: Set<String> = []
     /// Sessions whose stats must be reset from the post-revert window on the
     /// next `loadMessages` (revert truncates history beyond window visibility).
     var revertResetPendingSessionIDs: Set<String> = []
@@ -1018,8 +1049,7 @@ final class AppState {
     }
 
     nonisolated static func settled(_ status: SessionStatus?) -> Bool {
-        guard let status else { return true }
-        return status.type == "idle"
+        status?.type == "idle"
     }
 
     nonisolated static func unreadSessionIDs(
@@ -1028,7 +1058,9 @@ final class AppState {
         lastViewedAt: [String: Date]
     ) -> [String] {
         sessions.filter {
-            settled(statuses[$0.id])
+            // This is only a content candidate. Missing execution knowledge
+            // remains unknown and cannot produce blue in the presentation.
+            (statuses[$0.id]?.type == nil || settled(statuses[$0.id]))
                 && Date(timeIntervalSince1970: Double($0.time.updated) / 1000)
                     > (lastViewedAt[$0.id] ?? .distantPast)
         }.map(\.id)
@@ -1047,7 +1079,7 @@ final class AppState {
             var sessionID: String? = sourceID
             var visited: Set<String> = []
             while let id = sessionID, visited.insert(id).inserted {
-                if updated > (lastViewedAt[id] ?? .distantPast) {
+                if updated > (lastViewedAt[sourceID] ?? .distantPast) {
                     counts[id, default: 0] += 1
                 }
                 sessionID = sessionsByID[id]?.parentID
@@ -1060,7 +1092,7 @@ final class AppState {
         let viewed = Dictionary(uniqueKeysWithValues: sessions.compactMap { session in
             readStateStore.lastViewedAt(for: session.id).map { (session.id, $0) }
         })
-        // A child already viewed in its own tab can still be unread for its parent.
+        // Acknowledgement belongs to the source, never to each ancestor.
         let settledIDs = Self.unreadSessionIDs(sessions: sessions, statuses: sessionStatuses, lastViewedAt: [:])
         return Self.unreadCountsBySession(sessions: sessions, unreadIDs: settledIDs, lastViewedAt: viewed)
     }
@@ -1076,7 +1108,7 @@ final class AppState {
             var sessionID: String? = sourceID
             var visited: Set<String> = []
             while let id = sessionID, visited.insert(id).inserted {
-                if failed > (lastViewedAt[id] ?? .distantPast) {
+                if failed > (lastViewedAt[sourceID] ?? .distantPast) {
                     counts[id, default: 0] += 1
                 }
                 sessionID = sessionsByID[id]?.parentID
@@ -1095,17 +1127,55 @@ final class AppState {
         return Self.failureCountsBySession(sessions: sessions, failedAt: failed, lastViewedAt: viewed)
     }
 
-    func rowIndicator(
-        session: Session,
-        attentionCount: Int,
-        unreadCounts: [String: Int],
-        failureCounts: [String: Int]
-    ) -> SessionIndicator? {
-        guard !session.isArchived else { return nil }
-        if attentionCount > 0 { return .needsYou }
-        if failureCounts[session.id, default: 0] > 0 { return .failed }
-        guard Self.settled(sessionStatuses[session.id]), session.id != currentSessionID else { return nil }
-        return unreadCounts[session.id, default: 0] > 0 ? .unread : nil
+    /// One derivation per rendering boundary; cells consume values only.
+    var sessionIndicatorPresentations: [String: SessionIndicatorPresentation] {
+        let now = max(Date(), statusEvaluationDate)
+        let unread = sessionUnreadCounts
+        let failures = sessionFailureCounts
+        let attention = sessionAttentionCounts
+        let known = Dictionary(uniqueKeysWithValues: sessions.map { ($0.id, $0) })
+        var active: [String: SessionStatus] = [:]
+        var unknownIDs: [String] = []
+        for session in sessions {
+            let fresh = statusStreamConnected && isConnected && statusConfirmedAt[session.id].map { now.timeIntervalSince($0) < 60 } == true
+            let type = sessionStatuses[session.id]?.type
+            if !fresh || (type != nil && type != "idle" && type != "busy" && type != "retry") {
+                unknownIDs.append(session.id)
+            } else if let status = sessionStatuses[session.id], isBusySession(status) {
+                active[session.id] = status
+            }
+        }
+        let descendants = Self.descendantBusyCountsBySession(sessions: sessions, sessionStatuses: active)
+        let unknown = Self.attentionCountsBySession(sessions: sessions, attentionSessionIDs: unknownIDs)
+        // An active ID without metadata cannot safely be assigned to a tree.
+        let directory = effectiveProjectDirectory ?? serverCurrentProjectWorktree
+        let unplacedActive = sessionStatuses.contains { id, status in
+            guard isConnected, statusStreamConnected, isBusySession(status),
+                  let directory,
+                  (statusDirectories[id] ?? known[id]?.directory) == directory,
+                  statusConfirmedAt[id].map({ now.timeIntervalSince($0) < 60 }) == true else { return false }
+            var next: String? = id
+            var visited: Set<String> = []
+            while let source = next, visited.insert(source).inserted {
+                guard let session = known[source] else { return true }
+                next = session.parentID
+            }
+            return next != nil // Broken or cyclic active ancestry cannot prove a tree stopped.
+        }
+        return Dictionary(uniqueKeysWithValues: sessions.map { session in
+            let own = active[session.id]
+            let count = descendants[session.id, default: 0]
+            let needsSync = unknown[session.id, default: 0] > 0 || unplacedActive
+            let indicator: SessionIndicator?
+            if session.isArchived { indicator = nil }
+            else if attention[session.id, default: 0] > 0 { indicator = .needsYou }
+            else if failures[session.id, default: 0] > 0 { indicator = .failed }
+            else if own != nil || count > 0 { indicator = .running }
+            else if !needsSync && session.id != currentSessionID && unread[session.id, default: 0] > 0 { indicator = .unread }
+            else { indicator = nil }
+            return (session.id, SessionIndicatorPresentation(indicator: indicator, needsSync: needsSync,
+                        ownIsRetrying: own?.type == "retry", activeDescendantCount: count))
+        })
     }
 
     nonisolated static func attentionCountsBySession(
@@ -1128,8 +1198,8 @@ final class AppState {
 
     /// Aggregates running descendant subagents up the `parentID` chain: each
     /// session gets the count of busy sessions strictly below it in the loaded
-    /// tree. Counting walks ancestors and stops at the first non-busy node, so
-    /// a session never contributes to its own count and a running chain is
+    /// tree. Counting walks through idle intermediate ancestors, so
+    /// a session never contributes to its own count in a valid tree and a running chain is
     /// counted once per ancestor. Cycle-safe; scoped to the loaded `sessions`
     /// list (the global status map may carry other projects).
     nonisolated static func descendantBusyCountsBySession(

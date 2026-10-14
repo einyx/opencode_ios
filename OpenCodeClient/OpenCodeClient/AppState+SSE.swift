@@ -7,7 +7,9 @@ import os
 /// event implies the current session was deleted server-side.
 extension AppState {
     func connectSSE() {
-        pendingSessionErrorAt = [:]
+        statusStreamConnected = false
+        invalidateSessionStatusKnowledge()
+        invalidatePendingRequestEpoch()
         sseTask?.cancel()
         sseWatchdogTask?.cancel()
         sseWatchdogTask = nil
@@ -59,6 +61,7 @@ extension AppState {
             let shouldContinue = await withTaskCancellationHandler {
                 guard !Task.isCancelled, isOwnedSSEConnection(token, host) else { return false }
                 do {
+                    statusStreamConnected = true
                     await bootstrapSyncCurrentSession(reason: "sse.reconnect")
                     guard !Task.isCancelled, isOwnedSSEConnection(token, host) else { return false }
                     sseLastFrameAt = Date()
@@ -71,14 +74,18 @@ extension AppState {
                     }
                     guard !Task.isCancelled, isOwnedSSEConnection(token, host) else { return false }
                     stopOwnedSSEWatchdog(token: token)
-                    pendingSessionErrorAt = [:]
+                    statusStreamConnected = false
+                    invalidateSessionStatusKnowledge()
+                    invalidatePendingRequestEpoch()
                     attempt += 1
                     await sseReconnectSleep(sseBackoffDelay(attempt))
                     return true
                 } catch {
                     guard !Task.isCancelled, isOwnedSSEConnection(token, host) else { return false }
                     stopOwnedSSEWatchdog(token: token)
-                    pendingSessionErrorAt = [:]
+                    statusStreamConnected = false
+                    invalidateSessionStatusKnowledge()
+                    invalidatePendingRequestEpoch()
                     if let failure = error as? SSEStreamFailure, failure.pausesAutomaticRetry {
                         pauseSSEAfterAuthenticationFailure(failure)
                         return false
@@ -94,7 +101,7 @@ extension AppState {
             if !shouldContinue { break }
         }
         if sseConnectionToken == token {
-            pendingSessionErrorAt = [:]
+            statusStreamConnected = false
             stopOwnedSSEWatchdog(token: token)
             sseTask = nil
         }
@@ -154,12 +161,20 @@ extension AppState {
     }
 
     func disconnectSSE() {
-        pendingSessionErrorAt = [:]
+        statusStreamConnected = false
+        invalidateSessionStatusKnowledge()
+        invalidatePendingRequestEpoch()
         sseConnectionToken &+= 1
         sseTask?.cancel()
         sseTask = nil
         sseWatchdogTask?.cancel()
         sseWatchdogTask = nil
+    }
+
+    func invalidateSessionStatusKnowledge() {
+        statusConfirmedAt = [:]
+        statusKnowledgeRevision &+= 1
+        statusLastAttemptAt = nil
     }
 
     // Note: AppState is typically held for the app's lifetime (as @State in root view),
@@ -175,6 +190,14 @@ extension AppState {
 
         switch type {
         case "server.connected":
+            let host = captureHostRequestSnapshot()
+            invalidatePendingRequestEpoch()
+            let epoch = pendingRequestEpoch
+            statusStreamConnected = true
+            await refreshPendingPermissions()
+            guard isCurrentHostRequest(host), pendingRequestEpoch == epoch else { return }
+            await refreshPendingQuestions()
+            guard isCurrentHostRequest(host), pendingRequestEpoch == epoch else { return }
             await syncSessionStatusesFromPoll(markMissingBusyAsIdle: true)
         case "session.status":
             if let sessionID = props["sessionID"]?.value as? String,
@@ -182,6 +205,13 @@ extension AppState {
                 if let status = try? JSONSerialization.data(withJSONObject: statusObj),
                     let decoded = try? JSONDecoder().decode(SessionStatus.self, from: status) {
                     let prev = sessionStatuses[sessionID]
+                    statusDirectories[sessionID] = event.directory
+                        ?? sessions.first(where: { $0.id == sessionID })?.directory
+                        ?? statusDirectories[sessionID]
+                    statusRevision &+= 1
+                    statusRevisions[sessionID] = statusRevision
+                    statusConfirmedAt[sessionID] = Date()
+                    sessionStatusUpdatedAt[sessionID] = Date()
                     reconcileSessionFailure(sessionID: sessionID, previous: prev, current: decoded)
                     guard prev != decoded else { return }
 
@@ -368,18 +398,22 @@ extension AppState {
             // heartbeat never silently falls through to `default`.
             break
         case "permission.asked":
+            permissionRevision &+= 1
             if let perm = PermissionController.parseAskedEvent(properties: props),
                !pendingPermissions.contains(where: { $0.id == perm.id }) {
                 pendingPermissions.append(perm)
             }
         case "permission.replied":
+            permissionRevision &+= 1
             PermissionController.applyRepliedEvent(properties: props, to: &pendingPermissions)
         case "question.asked":
+            questionRevision &+= 1
             if let question = QuestionController.parseAskedEvent(properties: props),
                !pendingQuestions.contains(where: { $0.id == question.id }) {
                 pendingQuestions.append(question)
             }
         case "question.replied", "question.rejected":
+            questionRevision &+= 1
             QuestionController.applyResolvedEvent(properties: props, to: &pendingQuestions)
         case "todo.updated":
             if let sessionID = props["sessionID"]?.value as? String,
@@ -393,7 +427,14 @@ extension AppState {
             let eventSessionID = props["sessionID"]?.value as? String
             let reason = Self.sessionErrorDisplayReason(properties: props)
             if let eventSessionID {
-                pendingSessionErrorAt[eventSessionID] = Date()
+                statusRevision &+= 1
+                statusRevisions[eventSessionID] = statusRevision
+                let error = props["error"]?.value as? [String: Any]
+                if error?["name"] as? String != "AbortError" {
+                    pendingSessionErrorAt[eventSessionID] = Date()
+                } else {
+                    abortingSessionIDs.insert(eventSessionID)
+                }
                 if let pendingID = messageStore.oldestPendingOutboundID(
                     hostProfileID: currentHostProfileID,
                     sessionID: eventSessionID
@@ -482,57 +523,37 @@ extension AppState {
         } else if current.type == "idle" {
             if let failedAt = pendingSessionErrorAt[sessionID] {
                 readStateStore.markFailed(sessionID: sessionID, at: failedAt)
-            } else if isBusySession(previous) {
-                readStateStore.clearFailed(sessionID: sessionID)
             }
+            abortingSessionIDs.remove(sessionID)
             pendingSessionErrorAt[sessionID] = nil
         }
     }
 
-    func mergePolledSessionStatuses(_ statuses: [String: SessionStatus]) {
-        mergePolledSessionStatuses(statuses, markMissingBusyAsIdle: true)
-    }
-
-    func mergePolledSessionStatuses(
-        _ statuses: [String: SessionStatus],
-        markMissingBusyAsIdle: Bool
-    ) {
+    /// Only a successful snapshot of this project may interpret missing IDs as idle.
+    /// An SSE confirmation (even identical) after request start always wins.
+    func applyStatusSnapshot(_ statuses: [String: SessionStatus], revisionsAtStart: [String: UInt64],
+                             directory: String?, markMissingAsIdle: Bool = true) {
+        guard let directory else { return }
         let now = Date()
-        for (sid, st) in statuses {
-            if let updatedAt = sessionStatusUpdatedAt[sid], now.timeIntervalSince(updatedAt) < 5 {
-                continue
+        let scoped = sessions.filter { $0.directory == directory }
+        let recorded = statusDirectories.compactMap { $0.value == directory ? $0.key : nil }
+        let ids = Set(scoped.map(\.id)).union(recorded).union(statuses.keys)
+        for sid in ids {
+            guard statusRevisions[sid, default: 0] == revisionsAtStart[sid, default: 0] else { continue }
+            guard let next = statuses[sid] ?? (markMissingAsIdle ? SessionStatus(type: "idle", attempt: nil, message: nil, next: nil) : nil) else { continue }
+            let previous = sessionStatuses[sid]
+            // A snapshot proves inactivity, not successful completion. It must not
+            // erase a prior failure after a missed error or a local abort.
+            if isBusySession(next) {
+                pendingSessionErrorAt[sid] = nil
+            } else if next.type == "idle", let failed = pendingSessionErrorAt.removeValue(forKey: sid) {
+                readStateStore.markFailed(sessionID: sid, at: failed)
             }
-            let prev = sessionStatuses[sid]
-            reconcileSessionFailure(sessionID: sid, previous: prev, current: st)
-            guard prev != st else { continue }
-
-            sessionStatuses[sid] = st
-            updateSessionActivity(sessionID: sid, previous: prev, current: st)
-            if prev?.type != st.type {
-                Self.logger.debug(
-                    "session.status(poll) session=\(sid, privacy: .public) prev=\(prev?.type ?? "nil", privacy: .public) next=\(st.type, privacy: .public)"
-                )
-            }
-        }
-
-        guard markMissingBusyAsIdle else { return }
-
-        let existingSnapshot = sessionStatuses
-        for (sid, prev) in existingSnapshot {
-            guard statuses[sid] == nil else { continue }
-            guard prev.type == "busy" || prev.type == "retry" else { continue }
-            if let updatedAt = sessionStatusUpdatedAt[sid], now.timeIntervalSince(updatedAt) < 5 {
-                continue
-            }
-
-            let idle = SessionStatus(type: "idle", attempt: nil, message: nil, next: nil)
-            reconcileSessionFailure(sessionID: sid, previous: prev, current: idle)
-            sessionStatuses[sid] = idle
-            updateSessionActivity(sessionID: sid, previous: prev, current: idle)
-
-            Self.logger.debug(
-                "session.status(poll) session=\(sid, privacy: .public) prev=\(prev.type, privacy: .public) next=idle (missing from poll)"
-            )
+            sessionStatuses[sid] = next
+            statusDirectories[sid] = directory
+            statusConfirmedAt[sid] = now
+            updateSessionActivity(sessionID: sid, previous: previous, current: next)
+            if next.type == "idle" { abortingSessionIDs.remove(sid) }
         }
     }
 
@@ -590,6 +611,7 @@ extension AppState {
 
     func clearSessionScopedCaches(sessionID: String) {
         sessionStatuses[sessionID] = nil
+        statusDirectories[sessionID] = nil
         sessionTodos[sessionID] = nil
         sessionScope.remove(sessionID: sessionID)
         messageStore.removeTimings(forSession: sessionID)
@@ -615,7 +637,6 @@ extension AppState {
         guard currentSessionID == sessionID else { return }
         clearCurrentSessionViewState()
         currentSessionID = nil
-        pendingPermissions = []
     }
 
     func isSessionNotFoundError(_ error: Error) -> Bool {
@@ -672,7 +693,6 @@ extension AppState {
 
         if currentSessionID == nil || currentSessionID == sessionID {
             currentSessionID = nil
-            pendingPermissions = []
             return
         }
         if deletedCurrentSession {
@@ -680,9 +700,6 @@ extension AppState {
             await loadSessionDiff()
             await loadSessionTodos()
             syncModelFromMessageHistory()
-        } else {
-            let validSessionIDs = Set(sessions.map(\.id))
-            pendingPermissions.removeAll { !validSessionIDs.contains($0.sessionID) }
         }
     }
 

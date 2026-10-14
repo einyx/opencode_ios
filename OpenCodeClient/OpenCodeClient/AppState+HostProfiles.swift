@@ -484,6 +484,21 @@ extension AppState {
         sessionDiffs = []
         fileTreeRoot = []
         sessionStatuses = [:]
+        statusStreamConnected = false
+        statusConfirmedAt = [:]
+        statusDirectories = [:]
+        statusRevisions = [:]
+        statusRevision = 0
+        statusKnowledgeRevision &+= 1
+        statusPollID = nil
+        statusLastAttemptAt = nil
+        statusLastAttemptDirectory = nil
+        permissionPollID = nil
+        questionPollID = nil
+        permissionRevision &+= 1
+        questionRevision &+= 1
+        pendingRequestEpoch &+= 1
+        abortingSessionIDs = []
         pendingSessionErrorAt = [:]
         readStateStore.selectHost(currentHostProfileID)
         sessionTodos = [:]

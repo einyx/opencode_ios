@@ -4,12 +4,46 @@
 
 ## 当前状态
 
-- **最后更新**：2026-10-08
-- **分支**：`fix/chat-session-scroll-anchor`
-- **编译/测试**：`OpenCodeClientTests` 全绿（569 条，含新增 subagent 聚合 6 条）。UI：`SessionScrollAnchorUITests` 2/2 与 `ToolCardsUITests` 1/1 通过（iPhone 16 Pro `3EB51FEF-C951-4485-AD0F-33463C66DBEB`，iOS 18.4）。
-- **Phase**：后台 subagent 活动在父行与聊天页可见
+- **最后更新**：2026-10-14
+- **基线**：`master` / `55b8643`；本轮通过独立审查后准备 PR，未经用户验收批准不合并。
+- **编译/测试**：最终工作树由主线程独立运行全量单测 747/747（87 suites）通过；设备构建通过，已原位安装并启动于 iPad 和 iPhone。M1–M3 及当前呈现合同独立复核通过，代码与隐私阻断为零；此前 UI 结果收集挂起限制仍保留，最终设备观感待用户验收。
+- **Phase**：来源级确认、可信执行状态与列表/composer 单灯统一。
+
+### 2026-10-14 — 独立审查 M1–M3 与最终呈现收敛
+
+M1：按 SSE `event.directory`、已加载元数据或快照 directory 保存状态来源范围。未知 active 只在同 scope 且新鲜时阻止蓝，跨 project 的旧 busy 不再全局污染。成功完整快照覆盖当前 scope 的已加载 ID、已记录未知 ID 和返回 ID；缺项可收敛为 idle，逐项 revision 保留请求后新到的 SSE，不补载全树。
+
+M2：断线或新连接 epoch 递增 pending revision，并释放两类 GET 的逻辑槽，保留旧 pending 显示等待新快照。旧响应没有写入资格，旧 defer 不能清新槽；无 current 的同 host 重连照常同步。测试覆盖 permission/question 各自的旧 GET 悬停、新重连快照成功、旧结果最后返回，以及另一个新请求仍在途时的槽所有权。
+
+M3：可见前台界面增加独立的 5 秒轻量过期 tick，与网络 await 分离；不发网络请求，不逐帧重算。正常主线程调度下，60 秒确认在随后一次 tick 变为 unknown。可控时钟测试在 status GET 持续悬停时推进至 61 秒，确认撤绿、保留黄红及待同步提示，网络请求数保持 1。
+
+用户后续真机决定：浅色绿色统一为 Android 同值 `#167C45`，深色 `#4CBF82`、iOS 6/8pt、2.6 秒 0.40–1.0 不变，不再按旧低谷 3:1 目标擅自加深。列表正常自身执行只显示灯，后代以分支图标加数字呈现，0 不显示，读屏仍提供完整本地化说明。composer 不新增后代数量或重复执行文案，仅保留灯、重试/待同步/必要语音状态；原后台任务导航保留目标标题与点击动作。呈现读取结构化字段，不解析 summary 字符串。
+
+验证：M1–M3 定向 31/31，随后一次全量 746/746；最终呈现改动新增断言后定向 32/32。主线程最终全量复跑 747/747，并完成设备构建及 iPad/iPhone 原位安装、启动。日志位于 `tmp/session_indicator_review_fixes/targeted-unit.log`、`full-unit.log`、`targeted-final.log`；设备构建日志 `device-build-final.log`。没有重跑 UI runner。最新紧凑呈现与配色尚待用户真机验收；已有截图记录的是此前版本。独立审查前的问题与旧验证过程保留在下方历史记录，不作为当前规则。
+
+### 2026-10-14 — Session 单灯与来源级确认（初轮历史记录）
+
+当前有效合同在 [mini PRD / RFC](features/session_row_indicator/design.md)，视觉草图同步为 [mockup](features/session_row_indicator/mockup.html)。历史三态与祖先独立查看规则已替换：先按 source 自身的 lastViewedAt 过滤红蓝来源，再上卷。查看子只减该来源，查看父不确认所有后代。绿优先蓝，黄红盖绿时保留中性执行摘要，当前 session 仅豁免蓝。
+
+可信状态由逐项确认时间与 SSE revision 支撑。快照请求捕获 host/project/revision，显式传 directory，成功且同范围才以缺项确认 idle；同值 SSE 也阻止旧快照回滚。断线或 60 秒未确认时不绿不蓝，保留黄红并显示状态待同步。可见前台界面共享单在途状态同步，每 30 秒校验，避免心跳正常而漏 idle 后永久绿。无 current 的重连也同步两类 pending；回复与 SSE 更新使旧 pending 快照失效，切 host 丢弃旧响应。
+
+呼吸使用独立绿色 token 与 Core Animation 图层，共享 2.6 秒相位。根据后续真机反馈，opacity 从初版 0.75–1.0 扩大为 **0.40–1.0**；Reduce Motion 常亮，离屏/后台停止。状态树不参与逐帧动画。保留浅色 `#14733F` / 深色 `#4CBF82`，不是 success token。新幅度的 0.40 低谷在浅灰/深灰选中底约为 1.76:1 / 2.21:1，峰值约为 4.80:1 / 6.66:1；不再声称整个呼吸周期都满足 3:1。
+
+后续收敛：灯列移到完整文字 VStack 外，与标题、时间及运行副文字整体垂直居中，无绝对 y 偏移；保留原 chevron、缩进及 44pt 触控区。iOS 维持 6/8pt，Android 5/6dp 作为平台光学适配差异记录，语义和动效一致。删除 SSE 干净 busy→idle 自动清除已提交 `failedAt` 的路径，旧失败只能通过来源级查看确认；真实 APIClient 非 2xx 权限回复已验证抛错并保留 pending/revision。
+
+范围限制：只保证已加载的父链；无法归属的 active ID 保守阻止蓝。离线期间完全漏掉的失败尚不能从历史消息恢复。REST idle 不清旧失败，主动 abort 不宣称成功。未执行任何设备安装、服务重启或 Git 写操作。
+
+验证结果：`./scripts/test_unit.sh` 最终全量 742/742（87 suites）通过，包含本功能 28 项测试。定向 UI 曾因选择器把可折叠行误当作 Other 失败（实际为 Button），修正为类型无关后，串行执行的浅/深色列表→composer→断线两项用例全部断言通过。两次直接串行运行仍在测试结束后的 Xcode 结果收集阶段挂起，限时终止；没有完整成功的 UI xcresult，不能将其报告为 runner 通过。运行中还报告了进入现有 Chat 时的状态更新 warning，尚未定位，不据此宣称 UI 无警告。
+
+后续最终验证：`./scripts/test_unit.sh` **743/743** 通过。仅再跑一轮 75 秒硬上限的串行 UI：浅/深两项用例均通过，新增五种行的灯中心与完整文字块中心误差 ≤1.5pt、灯在文字左侧、chevron 44×44pt 断言；用例约 26 秒结束，runner 仍未正常收集结果，按上限终止且不再重跑。日志为 `tmp/session_indicator_followup/unit-test.log`、`ui-test.log`；新截图为同目录 `light-list.png`、`dark-list.png`。
+
+Chat warning 已定位：短时诊断日志在旧 `ChatComposerTextView.updateMarkedTextState` 的 `hasMarkedText` 绑定赋值前后包夹记录到 SwiftUI warning。证据为 `tmp/session_indicator_followup/warning-events.log`；临时诊断代码已移除，`ChatComposerTextView.swift` 与 HEAD 无差异。新状态派生 getter 不写 Observable；不扩改旧桥接系统。上段“尚未定位”仅为初轮历史状态。
+
+离线视觉证据在 `tmp/session_indicator_evidence/`：`light-list.png`、`dark-list.png`、`light-composer.png`、`dark-composer.png`、`reduce-motion-list.png`、`dark-disconnected.png`。已逐张读回，确认黄红绿蓝混排、原有 chevron/缩进、选中底、composer 灯位及断线无绿无蓝；无用户会话数据。Reduce Motion 图使用 debug fixture 注入相同的动画禁用分支，系统设置路径另有纯策略测试；未做物理设备验证。单测输出保留于同目录 `unit-test.log`，包含现有工具链的 isolation warnings 与偶发“command exit 0 but no further output”诊断，最终测试汇总通过。
 
 ### 2026-10-08 — 主会话 idle 时后台 subagent 仍运行，UI 不显示
+
+此段为历史记录；其中独立后代呈现与状态配色已由 2026-10-14 单灯合同取代。
 
 - **现象**：把任务派给 background subagent 后，父会话这一轮结束、状态变 `idle`，而 subagent 在它自己的子会话里 `busy`。会话列表父行显示 Idle，聊天页也没有任何进行中的迹象，看起来像什么都没在跑。
 - **原因**：状态是按会话（runner）存的（`session/status.ts`：`idle` 时从 map 删除），父 runner 结束即父 idle；subagent 有自己的 runner。客户端两边都把 `sessionStatuses` 存成全局 map，子的 busy 数据拿得到，但呈现只到单会话一层：列表父行只读 `statuses[父.id]`，子行默认收起且在折叠的嵌套里；聊天页 `isBusy` 只看当前会话。

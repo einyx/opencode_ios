@@ -572,30 +572,18 @@ struct ChatTabView: View {
         }
     }
 
-    private var composerStatusText: String? {
-        let agentStatus = state.isBusy ? (runningTurnActivity?.text ?? L10n.t(.chatAgentRunning)) : nil
-        let parts = [agentStatus, voiceStatusText].compactMap { $0 }
-        guard !parts.isEmpty else { return nil }
-        return parts.joined(separator: " · ")
+    private var currentIndicatorPresentation: SessionIndicatorPresentation? {
+        guard let id = state.currentSessionID else { return nil }
+        return state.sessionIndicatorPresentations[id]
     }
 
-    /// Running descendant subagent sessions of the current session. Empty while
-    /// the current session is itself busy: its own activity line already covers
-    /// the turn, and a second "subagent running" segment would compete with it.
+    /// Navigation targets for freshly confirmed descendants, including while
+    /// the current session executes. The single lamp carries execution state.
     private var runningBackgroundSubagents: [Session] {
-        guard !state.isBusy, let sid = state.currentSessionID else { return [] }
-        return state.runningDescendantSessions(of: sid)
-    }
-
-    /// Label for the background-tasks segment: a single running subagent shows
-    /// its own title, several fall back to a count.
-    private var backgroundTasksText: String? {
-        let subs = runningBackgroundSubagents
-        guard !subs.isEmpty else { return nil }
-        if subs.count == 1, let title = subs.first?.title, !title.isEmpty {
-            return title
+        guard state.isConnected, state.statusStreamConnected, let sid = state.currentSessionID else { return [] }
+        return state.runningDescendantSessions(of: sid).filter { session in
+            state.statusConfirmedAt[session.id].map { Date().timeIntervalSince($0) < 60 } == true
         }
-        return L10n.chatBackgroundTasks(subs.count)
     }
 
     private var voiceRailTransportIcon: String {
@@ -613,52 +601,37 @@ struct ChatTabView: View {
     /// the bottom line but moved to the always-visible top line, so it no
     /// longer disappears (and duplicates) once the turn completes.
     private var quietComposerStatus: some View {
+        let presentation = currentIndicatorPresentation
         // 6pt gap: xs (4) read as cramped between the two lines.
-        VStack(alignment: .leading, spacing: 6) {
+        return VStack(alignment: .leading, spacing: 6) {
             sessionStatsLine
-            if hasBackgroundTasks {
-                backgroundTasksRow
+            if let first = runningBackgroundSubagents.first {
+                backgroundTaskNavigationRow(first)
             }
-            if hasTransientComposerStatus {
-                quietComposerStatusRow()
+            if voiceStatusText != nil || presentation?.indicator != nil || presentation?.statusText != nil {
+                quietComposerStatusRow(presentation: presentation)
             }
         }
         .padding(.horizontal, DesignSpacing.xs)
         .padding(.top, DesignSpacing.xs)
         .padding(.bottom, DesignSpacing.xs)
+        .modifier(SessionStatusRefresh(state: state))
     }
 
-    private var hasBackgroundTasks: Bool {
-        !runningBackgroundSubagents.isEmpty
-    }
-
-    /// Delegated work is still in flight while this session is idle. Rendered on
-    /// its own line, visually apart from the session's own "Agent running" state:
-    /// a branch icon in the info color, the subagent title (or a count), and a
-    /// chevron. Tap opens the running subagent session. Deliberately no stopwatch
-    /// and no interrupt control — those belong to the subagent's own session, not
-    /// this turn's clock.
-    private var backgroundTasksRow: some View {
+    /// Preserve the existing jump action without duplicating the list's count.
+    private func backgroundTaskNavigationRow(_ session: Session) -> some View {
         Button {
-            guard let sub = runningBackgroundSubagents.first else { return }
-            Task { await state.openReferencedSession(sessionID: sub.id) }
+            Task { await state.openReferencedSession(sessionID: session.id) }
         } label: {
             HStack(spacing: DesignSpacing.sm) {
                 Image(systemName: "arrow.triangle.branch")
-                    .font(DesignTypography.meta)
-                    .foregroundStyle(DesignColors.Semantic.info)
-
-                Text(backgroundTasksText ?? "")
-                    .font(DesignTypography.meta)
-                    .foregroundStyle(DesignColors.Neutral.textSecondary)
+                Text(session.title.isEmpty ? L10n.t(.sessionsUntitled) : session.title)
                     .lineLimit(1)
-
                 Spacer(minLength: 0)
-
                 Image(systemName: "chevron.right")
-                    .font(DesignTypography.micro.weight(.semibold))
-                    .foregroundStyle(DesignColors.Neutral.textTertiary)
             }
+            .font(DesignTypography.meta)
+            .foregroundStyle(DesignColors.Neutral.textSecondary)
             .frame(minHeight: 24)
             .contentShape(Rectangle())
         }
@@ -669,23 +642,25 @@ struct ChatTabView: View {
 
     /// The transient (bottom) line only renders when it has content; an
     /// empty line would just add height to the always-visible composer block.
-    private var hasTransientComposerStatus: Bool {
-        composerStatusText != nil || state.isBusy
-    }
-
-    private func quietComposerStatusRow() -> some View {
+    private func quietComposerStatusRow(presentation: SessionIndicatorPresentation?) -> some View {
         HStack(spacing: DesignSpacing.sm) {
-            if state.isBusy {
-                Circle()
-                    .fill(DesignColors.Brand.gold)
-                    .frame(width: 6, height: 6)
-                    .shadow(color: DesignColors.Brand.gold.opacity(0.25), radius: 4)
+            if let indicator = presentation?.indicator {
+                SessionIndicatorDot(indicator: indicator)
+                    .accessibilityIdentifier("composer-session-indicator")
             }
 
-            Text(composerStatusText ?? "")
-                .font(DesignTypography.meta)
-                .foregroundStyle(DesignColors.Neutral.textSecondary)
-                .lineLimit(1)
+            if let text = presentation?.statusText {
+                Text(text)
+                    .font(DesignTypography.meta)
+                    .foregroundStyle(DesignColors.Neutral.textSecondary)
+                    .lineLimit(2)
+            }
+            if let voiceStatusText {
+                Text(voiceStatusText)
+                    .font(DesignTypography.meta)
+                    .foregroundStyle(DesignColors.Neutral.textSecondary)
+                    .lineLimit(2)
+            }
 
             Spacer(minLength: 0)
 
@@ -714,7 +689,7 @@ struct ChatTabView: View {
     /// persistent session counters (top line) or transient turn state
     /// (bottom line). Without this the counters would vanish while idle.
     private var shouldShowComposerStatus: Bool {
-        composerStatusText != nil || sessionStats != nil || hasBackgroundTasks
+        state.currentSessionID != nil || voiceStatusText != nil || sessionStats != nil
     }
 
     private var voiceRailTrailingAction: some View {
