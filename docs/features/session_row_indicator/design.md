@@ -19,7 +19,7 @@
 | 7 | 金点**不脉冲** | 默认静态；动效等真机验证后再议 |
 | 8 | 点列对齐间距 token、随字号缩放 | 点列 16pt（`lg`），尺寸并入 `DesignControls`，iOS `@ScaledMetric` / Android `fontScale`，clamp 上限 |
 
-**本轮实现范围：只做 iOS**（可立即在真机验证）。Android 按同一口径 follow-up；本文 Android 部分保留为实现规格，在其实现前不作为既成事实。
+**实现范围：iOS 与 Android 均已实现**（2026-10-13，iOS PR #206 / Android PR #132）。两端口径一致；Android 的差异见 §12。
 
 ## Bottom Line
 
@@ -363,7 +363,7 @@ func settled(status) = (status == nil || status.type == "idle")
 3. **点列宽 12→18pt**（`DesignSpacing.md` 起、clamp）。为控制 iPhone 窄抽屉对标题的挤压，未采用更宽的 16→24。折叠 chevron 与子行缩进标记保持在原 gutter，未改动。
 4. **金点静态**（决定 7）：本轮未实现脉冲。
 
-待办（Android follow-up）：同口径移植；届时统一两端的失败红。
+Android（2026-10-13，PR #132）：同口径移植，与 iOS 行为一致。差异仅限平台惯例：点尺寸按用户字体缩放（`fontScale`）而非 `@ScaledMetric`；读状态存于 `SharedPreferences`，同样按 host-profile namespace；失败红的 token 复用同值 `StopRed #E5484D`。失败的两条额外来源同样列为 future。
 
 ## 附录：代码接点索引
 
