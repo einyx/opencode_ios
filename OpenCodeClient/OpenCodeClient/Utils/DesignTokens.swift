@@ -22,9 +22,8 @@ enum DesignColors {
         /// language. Electric blue #3B82F6, used for every interactive/branded
         /// element (send, selection, links, the user-message left bar).
         static let primary = Color(red: 0.231, green: 0.510, blue: 0.965)
-        /// Gold accent #D9A621 — the ONLY secondary emphasis, reserved strictly
-        /// for the transient "AI is working" state, and needs-you indicators
-        /// on the session list's triage surface.
+        /// Gold accent #D9A621. Session triage uses gold for pending user requests;
+        /// execution uses the dedicated SessionIndicator.running token.
         static let gold = Color(red: 0.851, green: 0.651, blue: 0.129)
     }
 
@@ -39,6 +38,8 @@ enum DesignColors {
 
     enum SessionIndicator {
         static let failed = Color(red: 229.0 / 255, green: 72.0 / 255, blue: 77.0 / 255)
+        static let runningLight = Color(red: 22.0 / 255, green: 124.0 / 255, blue: 69.0 / 255)
+        static let runningDark = Color(red: 76.0 / 255, green: 191.0 / 255, blue: 130.0 / 255)
     }
 
     // MARK: Neutral (warm-tinted gray scale, less blue than system grays)

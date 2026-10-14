@@ -149,6 +149,40 @@ actor MockAPIClient: APIClientProtocol {
     var fileListRequests: [(path: String, directory: String?)] = []
     var fileContentRequests: [(path: String, directory: String?)] = []
     var abortSessionIDs: [String] = []
+    var indicatorStatuses: [String: SessionStatus] = [:]
+    var indicatorPermissions: [APIClient.PermissionRequest] = []
+    var indicatorQuestions: [QuestionRequest] = []
+    var suspendIndicatorRequests = false
+    var indicatorRequestCount = 0
+    var indicatorWaiters: [CheckedContinuation<Void, Never>] = []
+    var indicatorRequestsFail = false
+    func setIndicatorRequestsFail(_ fail: Bool) { indicatorRequestsFail = fail }
+
+    func configureIndicators(statuses: [String: SessionStatus] = [:], permissions: [APIClient.PermissionRequest] = [], questions: [QuestionRequest] = [], suspended: Bool = false) {
+        indicatorStatuses = statuses
+        indicatorPermissions = permissions
+        indicatorQuestions = questions
+        suspendIndicatorRequests = suspended
+    }
+
+    func resumeIndicatorRequests() {
+        suspendIndicatorRequests = false
+        let waiters = indicatorWaiters
+        indicatorWaiters = []
+        waiters.forEach { $0.resume() }
+    }
+
+    func resumeFirstIndicatorRequest() {
+        guard !indicatorWaiters.isEmpty else { return }
+        indicatorWaiters.removeFirst().resume()
+    }
+
+    private func indicatorGate() async {
+        indicatorRequestCount += 1
+        if suspendIndicatorRequests {
+            await withCheckedContinuation { indicatorWaiters.append($0) }
+        }
+    }
 
     func setHealthError(_ error: Error?) {
         healthError = error
@@ -413,12 +447,36 @@ actor MockAPIClient: APIClientProtocol {
     func abort(sessionID: String) async throws {
         abortSessionIDs.append(sessionID)
     }
-    func sessionStatus() async throws -> [String: SessionStatus] { [:] }
-    func pendingPermissions() async throws -> [APIClient.PermissionRequest] { [] }
-    func respondPermission(sessionID: String, permissionID: String, response: APIClient.PermissionResponse) async throws {}
-    func pendingQuestions() async throws -> [QuestionRequest] { [] }
-    func replyQuestion(requestID: String, answers: [[String]]) async throws {}
-    func rejectQuestion(requestID: String) async throws {}
+    func sessionStatus() async throws -> [String: SessionStatus] {
+        let snapshot = indicatorStatuses
+        await indicatorGate()
+        if indicatorRequestsFail { throw URLError(.cannotConnectToHost) }
+        return snapshot
+    }
+    func pendingPermissions() async throws -> [APIClient.PermissionRequest] {
+        let snapshot = indicatorPermissions
+        await indicatorGate()
+        if indicatorRequestsFail { throw URLError(.cannotConnectToHost) }
+        return snapshot
+    }
+    func respondPermission(sessionID: String, permissionID: String, response: APIClient.PermissionResponse) async throws {
+        if indicatorRequestsFail { throw URLError(.cannotConnectToHost) }
+        indicatorPermissions.removeAll { $0.id == permissionID && $0.sessionID == sessionID }
+    }
+    func pendingQuestions() async throws -> [QuestionRequest] {
+        let snapshot = indicatorQuestions
+        await indicatorGate()
+        if indicatorRequestsFail { throw URLError(.cannotConnectToHost) }
+        return snapshot
+    }
+    func replyQuestion(requestID: String, answers: [[String]]) async throws {
+        if indicatorRequestsFail { throw URLError(.cannotConnectToHost) }
+        indicatorQuestions.removeAll { $0.id == requestID }
+    }
+    func rejectQuestion(requestID: String) async throws {
+        if indicatorRequestsFail { throw URLError(.cannotConnectToHost) }
+        indicatorQuestions.removeAll { $0.id == requestID }
+    }
     func providers() async throws -> ProvidersResponse {
         try JSONDecoder().decode(ProvidersResponse.self, from: Data("{\"providers\":[]}".utf8))
     }

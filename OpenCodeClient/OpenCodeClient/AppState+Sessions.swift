@@ -426,7 +426,6 @@ extension AppState {
             currentSessionID: sessionID,
             remainingSessions: sessions
         ) else {
-            pendingPermissions = []
             return
         }
 
@@ -478,15 +477,22 @@ extension AppState {
     }
 
     func bootstrapSyncCurrentSession(reason: String) async {
+        let host = captureHostRequestSnapshot()
+        let epoch = pendingRequestEpoch
+        await refreshPendingPermissions()
+        guard isCurrentHostRequest(host), pendingRequestEpoch == epoch else { return }
+        await refreshPendingQuestions()
+        guard isCurrentHostRequest(host), pendingRequestEpoch == epoch else { return }
+        await syncSessionStatusesFromPoll()
+        guard isCurrentHostRequest(host) else { return }
         guard currentSessionID != nil else { return }
         let start = Date()
 
         await validateAndRecoverCurrentSession()
+        guard isCurrentHostRequest(host) else { return }
 
         await loadMessages()
-        await refreshPendingPermissions()
-        await refreshPendingQuestions()
-        await syncSessionStatusesFromPoll()
+        guard isCurrentHostRequest(host) else { return }
         let elapsedMs = Int(Date().timeIntervalSince(start) * 1000)
         Self.logger.debug("bootstrapSync reason=\(reason, privacy: .public) elapsedMs=\(elapsedMs, privacy: .public) messages=\(self.messages.count, privacy: .public) permissions=\(self.pendingPermissions.count, privacy: .public)")
     }
@@ -504,21 +510,68 @@ extension AppState {
     }
 
     func syncSessionStatusesFromPoll(markMissingBusyAsIdle: Bool = true) async {
-        guard isConnected else { return }
-        guard let statuses = try? await apiClient.sessionStatus() else { return }
-        mergePolledSessionStatuses(statuses, markMissingBusyAsIdle: markMissingBusyAsIdle)
+        guard isConnected, statusPollID == nil else { return }
+        let id = UUID()
+        statusPollID = id
+        let host = captureHostRequestSnapshot()
+        let directory = effectiveProjectDirectory ?? serverCurrentProjectWorktree
+        let revisions = statusRevisions
+        let knowledgeRevision = statusKnowledgeRevision
+        statusLastAttemptAt = Date()
+        statusLastAttemptDirectory = directory
+        defer {
+            if statusPollID == id { statusPollID = nil; statusEvaluationDate = Date() }
+        }
+        guard let statuses = try? await apiClient.sessionStatus(directory: directory),
+              isCurrentHostRequest(host), statusPollID == id,
+              knowledgeRevision == statusKnowledgeRevision,
+              directory == (effectiveProjectDirectory ?? serverCurrentProjectWorktree) else { return }
+        applyStatusSnapshot(statuses, revisionsAtStart: revisions, directory: directory,
+                            markMissingAsIdle: markMissingBusyAsIdle)
+    }
+
+    func refreshVisibleSessionStatus() async {
+        statusEvaluationDate = Date()
+        if statusLastAttemptDirectory != (effectiveProjectDirectory ?? serverCurrentProjectWorktree) {
+            statusLastAttemptAt = nil
+        }
+        guard statusLastAttemptAt.map({ Date().timeIntervalSince($0) >= 29 }) ?? true else { return }
+        let host = captureHostRequestSnapshot()
+        await syncSessionStatusesFromPoll()
+        guard isCurrentHostRequest(host) else { return }
+        await refreshPendingPermissions()
+        guard isCurrentHostRequest(host) else { return }
+        await refreshPendingQuestions()
+    }
+
+    /// A lightweight visible/foreground clock, independent of all network awaits.
+    /// Injection keeps the production scheduling path testable without waiting a minute.
+    func runSessionStatusExpiryTicks(
+        now: () -> Date = { Date() },
+        sleep: () async throws -> Void = { try await Task.sleep(for: .seconds(5)) }
+    ) async {
+        while !Task.isCancelled {
+            statusEvaluationDate = now()
+            do { try await sleep() } catch { return }
+        }
     }
 
     func abortSession() async {
         guard let sessionID = currentSessionID else { return }
+        let host = captureHostRequestSnapshot()
+        abortingSessionIDs.insert(sessionID)
         do {
             try await apiClient.abort(sessionID: sessionID)
         } catch {
+            guard isCurrentHostRequest(host) else { return }
+            abortingSessionIDs.remove(sessionID)
             if await recoverFromMissingCurrentSessionIfNeeded(error: error, requestedSessionID: sessionID) {
                 return
             }
             connectionError = error.localizedDescription
         }
+
+        guard isCurrentHostRequest(host) else { return }
 
         await syncSessionStatusesFromPoll(markMissingBusyAsIdle: true)
         await loadMessages()

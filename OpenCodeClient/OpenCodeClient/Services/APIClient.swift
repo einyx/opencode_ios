@@ -450,7 +450,12 @@ actor APIClient {
     }
 
     func sessionStatus() async throws -> [String: SessionStatus] {
-        let (data, _) = try await makeRequest(path: "/session/status")
+        try await sessionStatus(directory: nil)
+    }
+
+    func sessionStatus(directory: String?) async throws -> [String: SessionStatus] {
+        let query = directory.map { [URLQueryItem(name: "directory", value: $0)] } ?? []
+        let (data, _) = try await makeRequest(path: "/session/status", queryItems: query)
         return try JSONDecoder().decode([String: SessionStatus].self, from: data)
     }
 
@@ -954,6 +959,7 @@ protocol APIClientProtocol: Actor {
     func promptStructured(sessionID: String, messageID: String?, text: String, system: String, format: StructuredOutputFormat, agent: String, model: Message.ModelInfo) async throws -> MessageWithParts
     func abort(sessionID: String) async throws
     func sessionStatus() async throws -> [String: SessionStatus]
+    func sessionStatus(directory: String?) async throws -> [String: SessionStatus]
     func pendingPermissions() async throws -> [APIClient.PermissionRequest]
     func respondPermission(sessionID: String, permissionID: String, response: APIClient.PermissionResponse) async throws
     func pendingQuestions() async throws -> [QuestionRequest]
@@ -981,6 +987,9 @@ protocol FileDirectorySearching: APIClientProtocol {
 extension APIClient: FileDirectorySearching {}
 
 extension APIClientProtocol {
+    func sessionStatus(directory: String?) async throws -> [String: SessionStatus] {
+        try await sessionStatus()
+    }
     func promptStructured(
         sessionID: String,
         text: String,

@@ -132,6 +132,20 @@ struct HTTPStatusAcceptanceTests {
         }
     }
 
+    @Test(arguments: [302, 400, 403, 409, 500]) @MainActor
+    func permissionHTTPFailurePreservesPendingAndRevision(status: Int) async {
+        // Exercise the real URLSession/APIClient boundary, not a throwing mock.
+        let client = makeClient(status: status, body: Data("rejected".utf8))
+        let state = makeIsolatedAppState(apiClient: client)
+        let permission = PendingPermission(sessionID: "child", permissionID: "p1", permission: "edit",
+                                           patterns: [], allowAlways: false, tool: nil, description: "Synthetic request")
+        state.pendingPermissions = [permission]
+        await state.respondPermission(permission, response: .once)
+        #expect(state.pendingPermissions.map(\.id) == [permission.id])
+        #expect(state.permissionRevision == 0)
+        #expect(state.connectionError != nil)
+    }
+
     @Test func healthDistinguishesHTTPErrorFromDecodeError() async throws {
         try await expectSuccess(status: 200, body: Data("{\"healthy\":true}".utf8)) {
             let health = try await $0.health()
