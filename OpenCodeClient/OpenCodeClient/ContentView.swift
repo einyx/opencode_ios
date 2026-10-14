@@ -557,6 +557,8 @@ private struct TabletSessionsColumn: View {
     }
 
     var body: some View {
+        let unreadCounts = state.sessionUnreadCounts
+        let failureCounts = state.sessionFailureCounts
         NavigationStack {
             Group {
                 if showSettings {
@@ -574,7 +576,7 @@ private struct TabletSessionsColumn: View {
                         }
 
                         if activeExpanded {
-                            sessionNodes(activeNodes, archived: false, attentionCounts: state.sessionAttentionCounts, descendantBusyCounts: state.sessionDescendantBusyCounts)
+                            sessionNodes(activeNodes, archived: false, attentionCounts: state.sessionAttentionCounts, descendantBusyCounts: state.sessionDescendantBusyCounts, unreadCounts: unreadCounts, failureCounts: failureCounts)
                         }
 
                         SessionSectionHeader(title: L10n.t(.sessionsArchived), isExpanded: archivedExpanded) {
@@ -582,7 +584,7 @@ private struct TabletSessionsColumn: View {
                         }
 
                         if archivedExpanded {
-                            sessionNodes(archivedNodes, archived: true, attentionCounts: state.sessionAttentionCounts, descendantBusyCounts: state.sessionDescendantBusyCounts)
+                            sessionNodes(archivedNodes, archived: true, attentionCounts: state.sessionAttentionCounts, descendantBusyCounts: state.sessionDescendantBusyCounts, unreadCounts: unreadCounts, failureCounts: failureCounts)
                         }
 
                         if state.isLoadingMoreSessions {
@@ -678,7 +680,9 @@ private struct TabletSessionsColumn: View {
         archived: Bool,
         depth: Int = 0,
         attentionCounts: [String: Int],
-        descendantBusyCounts: [String: Int]
+        descendantBusyCounts: [String: Int],
+        unreadCounts: [String: Int],
+        failureCounts: [String: Int]
     ) -> AnyView {
         AnyView(
             ForEach(nodes) { node in
@@ -688,6 +692,7 @@ private struct TabletSessionsColumn: View {
                 SessionRowView(
                     session: session,
                     status: status,
+                    indicator: state.rowIndicator(session: session, attentionCount: attentionCounts[session.id, default: 0], unreadCounts: unreadCounts, failureCounts: failureCounts),
                     attentionCount: attentionCounts[session.id, default: 0],
                     busyDescendantCount: descendantBusyCounts[session.id, default: 0],
                     isSelected: state.currentSessionID == session.id,
@@ -732,7 +737,9 @@ private struct TabletSessionsColumn: View {
                         archived: archived,
                         depth: depth + 1,
                         attentionCounts: attentionCounts,
-                        descendantBusyCounts: descendantBusyCounts
+                        descendantBusyCounts: descendantBusyCounts,
+                        unreadCounts: unreadCounts,
+                        failureCounts: failureCounts
                     )
                 }
             }

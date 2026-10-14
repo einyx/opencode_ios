@@ -23,8 +23,8 @@ enum DesignColors {
         /// element (send, selection, links, the user-message left bar).
         static let primary = Color(red: 0.231, green: 0.510, blue: 0.965)
         /// Gold accent #D9A621 — the ONLY secondary emphasis, reserved strictly
-        /// for the transient "AI is working" state (working pulse, context ring
-        /// near capacity). It must not appear anywhere else.
+        /// for the transient "AI is working" state, and needs-you indicators
+        /// on the session list's triage surface.
         static let gold = Color(red: 0.851, green: 0.651, blue: 0.129)
     }
 
@@ -35,6 +35,10 @@ enum DesignColors {
         static let success = Color(red: 0.20, green: 0.65, blue: 0.35)
         static let warning = Color.orange
         static let info = Color(red: 0.25, green: 0.47, blue: 0.85)
+    }
+
+    enum SessionIndicator {
+        static let failed = Color(red: 229.0 / 255, green: 72.0 / 255, blue: 77.0 / 255)
     }
 
     // MARK: Neutral (warm-tinted gray scale, less blue than system grays)
@@ -162,6 +166,12 @@ enum DesignSpacing {
 // MARK: - Control Sizes
 
 enum DesignControls {
+    static let indicatorSize: CGFloat = 6
+    static let indicatorSizeEmphasis: CGFloat = 8
+    static let indicatorColumnWidth: CGFloat = DesignSpacing.md
+    static let indicatorColumnWidthMaximum: CGFloat = 18
+    static let indicatorSizeMaximum: CGFloat = 9
+    static let indicatorSizeEmphasisMaximum: CGFloat = 12
 
     #if os(visionOS)
     /// Larger chat composer action buttons for gaze interaction on Apple Vision Pro.

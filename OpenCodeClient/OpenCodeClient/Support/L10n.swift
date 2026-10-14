@@ -397,6 +397,9 @@ enum L10n {
         case sessionsFilesOne
         case sessionsFilesMany
         case sessionsStatusBusy
+        case sessionsIndicatorNeedsYou
+        case sessionsIndicatorFailed
+        case sessionsIndicatorUnread
         case sessionsStatusRetry
         case sessionsStatusIdle
         case sessionsStatusNeedAttention
@@ -849,6 +852,9 @@ enum L10n {
         Key.sessionsFilesOne.rawValue: "%d file",
         Key.sessionsFilesMany.rawValue: "%d files",
         Key.sessionsStatusBusy.rawValue: "Running",
+        Key.sessionsIndicatorNeedsYou.rawValue: "Needs your attention",
+        Key.sessionsIndicatorFailed.rawValue: "Last turn failed",
+        Key.sessionsIndicatorUnread.rawValue: "Unread",
         Key.sessionsStatusRetry.rawValue: "Retrying",
         Key.sessionsStatusIdle.rawValue: "Idle",
         Key.sessionsStatusNeedAttention.rawValue: "Need attention",
@@ -1305,6 +1311,9 @@ enum L10n {
         Key.sessionsFilesOne.rawValue: "%d 个文件",
         Key.sessionsFilesMany.rawValue: "%d 个文件",
         Key.sessionsStatusBusy.rawValue: "运行中",
+        Key.sessionsIndicatorNeedsYou.rawValue: "需要你处理",
+        Key.sessionsIndicatorFailed.rawValue: "上一轮失败",
+        Key.sessionsIndicatorUnread.rawValue: "有新内容未读",
         Key.sessionsStatusRetry.rawValue: "重试中",
         Key.sessionsStatusIdle.rawValue: "空闲",
         Key.sessionsStatusNeedAttention.rawValue: "需要关注",

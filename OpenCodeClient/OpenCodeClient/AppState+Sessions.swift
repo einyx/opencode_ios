@@ -290,6 +290,7 @@ extension AppState {
     }
 
     func selectSession(_ session: Session) {
+        readStateStore.markViewed(sessionID: session.id, at: Date())
         guard currentSessionID != session.id else { return }
 
         // Generate new loading ID to invalidate any in-flight tasks from previous session
@@ -366,6 +367,7 @@ extension AppState {
 
             upsertSession(session)
             currentSessionID = session.id
+            readStateStore.markViewed(sessionID: session.id, at: Date())
             if let m = selectedModel {
                 selectedModelIDBySessionID[session.id] = m.id
                 persistSelectedModelMap()
@@ -393,6 +395,7 @@ extension AppState {
 
             upsertSession(forked)
             currentSessionID = forked.id
+            readStateStore.markViewed(sessionID: forked.id, at: Date())
             messages = []
             partsByMessage = [:]
             await loadMessages()
@@ -428,6 +431,7 @@ extension AppState {
         }
 
         currentSessionID = nextSessionID
+        readStateStore.markViewed(sessionID: nextSessionID, at: Date())
         applySavedModelForCurrentSession()
         await loadMessages()
         guard currentSessionID == nextSessionID else { return }

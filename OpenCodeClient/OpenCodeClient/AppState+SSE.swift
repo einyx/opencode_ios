@@ -7,6 +7,7 @@ import os
 /// event implies the current session was deleted server-side.
 extension AppState {
     func connectSSE() {
+        pendingSessionErrorAt = [:]
         sseTask?.cancel()
         sseWatchdogTask?.cancel()
         sseWatchdogTask = nil
@@ -70,12 +71,14 @@ extension AppState {
                     }
                     guard !Task.isCancelled, isOwnedSSEConnection(token, host) else { return false }
                     stopOwnedSSEWatchdog(token: token)
+                    pendingSessionErrorAt = [:]
                     attempt += 1
                     await sseReconnectSleep(sseBackoffDelay(attempt))
                     return true
                 } catch {
                     guard !Task.isCancelled, isOwnedSSEConnection(token, host) else { return false }
                     stopOwnedSSEWatchdog(token: token)
+                    pendingSessionErrorAt = [:]
                     if let failure = error as? SSEStreamFailure, failure.pausesAutomaticRetry {
                         pauseSSEAfterAuthenticationFailure(failure)
                         return false
@@ -91,6 +94,7 @@ extension AppState {
             if !shouldContinue { break }
         }
         if sseConnectionToken == token {
+            pendingSessionErrorAt = [:]
             stopOwnedSSEWatchdog(token: token)
             sseTask = nil
         }
@@ -150,6 +154,7 @@ extension AppState {
     }
 
     func disconnectSSE() {
+        pendingSessionErrorAt = [:]
         sseConnectionToken &+= 1
         sseTask?.cancel()
         sseTask = nil
@@ -177,6 +182,7 @@ extension AppState {
                 if let status = try? JSONSerialization.data(withJSONObject: statusObj),
                     let decoded = try? JSONDecoder().decode(SessionStatus.self, from: status) {
                     let prev = sessionStatuses[sessionID]
+                    reconcileSessionFailure(sessionID: sessionID, previous: prev, current: decoded)
                     guard prev != decoded else { return }
 
                     sessionStatuses[sessionID] = decoded
@@ -387,6 +393,7 @@ extension AppState {
             let eventSessionID = props["sessionID"]?.value as? String
             let reason = Self.sessionErrorDisplayReason(properties: props)
             if let eventSessionID {
+                pendingSessionErrorAt[eventSessionID] = Date()
                 if let pendingID = messageStore.oldestPendingOutboundID(
                     hostProfileID: currentHostProfileID,
                     sessionID: eventSessionID
@@ -469,6 +476,19 @@ extension AppState {
         )
     }
 
+    func reconcileSessionFailure(sessionID: String, previous: SessionStatus?, current: SessionStatus) {
+        if isBusySession(current) {
+            pendingSessionErrorAt[sessionID] = nil
+        } else if current.type == "idle" {
+            if let failedAt = pendingSessionErrorAt[sessionID] {
+                readStateStore.markFailed(sessionID: sessionID, at: failedAt)
+            } else if isBusySession(previous) {
+                readStateStore.clearFailed(sessionID: sessionID)
+            }
+            pendingSessionErrorAt[sessionID] = nil
+        }
+    }
+
     func mergePolledSessionStatuses(_ statuses: [String: SessionStatus]) {
         mergePolledSessionStatuses(statuses, markMissingBusyAsIdle: true)
     }
@@ -483,6 +503,7 @@ extension AppState {
                 continue
             }
             let prev = sessionStatuses[sid]
+            reconcileSessionFailure(sessionID: sid, previous: prev, current: st)
             guard prev != st else { continue }
 
             sessionStatuses[sid] = st
@@ -505,6 +526,7 @@ extension AppState {
             }
 
             let idle = SessionStatus(type: "idle", attempt: nil, message: nil, next: nil)
+            reconcileSessionFailure(sessionID: sid, previous: prev, current: idle)
             sessionStatuses[sid] = idle
             updateSessionActivity(sessionID: sid, previous: prev, current: idle)
 
@@ -573,6 +595,8 @@ extension AppState {
         messageStore.removeTimings(forSession: sessionID)
         messageStore.removePartTypes(forSession: sessionID)
         statsStore.remove(sessionID: sessionID)
+        readStateStore.remove(sessionID: sessionID)
+        pendingSessionErrorAt[sessionID] = nil
         revertResetPendingSessionIDs.remove(sessionID)
         removeHostPreference(sessionID: sessionID)
     }

@@ -23,6 +23,8 @@ struct SessionListView: View {
     }
 
     var body: some View {
+        let unreadCounts = state.sessionUnreadCounts
+        let failureCounts = state.sessionFailureCounts
         VStack(spacing: 0) {
             HStack {
                 Button(L10n.t(.sessionsClose)) { dismiss() }
@@ -78,7 +80,7 @@ struct SessionListView: View {
                         }
 
                         if activeExpanded {
-                            sessionNodes(activeNodes, archived: false, attentionCounts: state.sessionAttentionCounts, descendantBusyCounts: state.sessionDescendantBusyCounts)
+                            sessionNodes(activeNodes, archived: false, attentionCounts: state.sessionAttentionCounts, descendantBusyCounts: state.sessionDescendantBusyCounts, unreadCounts: unreadCounts, failureCounts: failureCounts)
                         }
 
                         SessionSectionHeader(title: L10n.t(.sessionsArchived), isExpanded: archivedExpanded) {
@@ -86,7 +88,7 @@ struct SessionListView: View {
                         }
 
                         if archivedExpanded {
-                            sessionNodes(archivedNodes, archived: true, attentionCounts: state.sessionAttentionCounts, descendantBusyCounts: state.sessionDescendantBusyCounts)
+                            sessionNodes(archivedNodes, archived: true, attentionCounts: state.sessionAttentionCounts, descendantBusyCounts: state.sessionDescendantBusyCounts, unreadCounts: unreadCounts, failureCounts: failureCounts)
                         }
 
                         if state.isLoadingMoreSessions {
@@ -139,7 +141,9 @@ struct SessionListView: View {
         archived: Bool,
         depth: Int = 0,
         attentionCounts: [String: Int],
-        descendantBusyCounts: [String: Int]
+        descendantBusyCounts: [String: Int],
+        unreadCounts: [String: Int],
+        failureCounts: [String: Int]
     ) -> AnyView {
         AnyView(
             ForEach(nodes) { node in
@@ -149,6 +153,7 @@ struct SessionListView: View {
                 SessionRowView(
                     session: session,
                     status: status,
+                    indicator: state.rowIndicator(session: session, attentionCount: attentionCounts[session.id, default: 0], unreadCounts: unreadCounts, failureCounts: failureCounts),
                     attentionCount: attentionCounts[session.id, default: 0],
                     busyDescendantCount: descendantBusyCounts[session.id, default: 0],
                     isSelected: state.currentSessionID == session.id,
@@ -193,7 +198,9 @@ struct SessionListView: View {
                         archived: archived,
                         depth: depth + 1,
                         attentionCounts: attentionCounts,
-                        descendantBusyCounts: descendantBusyCounts
+                        descendantBusyCounts: descendantBusyCounts,
+                        unreadCounts: unreadCounts,
+                        failureCounts: failureCounts
                     )
                 }
             }
@@ -275,6 +282,7 @@ struct LoadMoreSessionsRow: View {
 struct SessionRowView: View {
     let session: Session
     let status: SessionStatus?
+    var indicator: SessionIndicator? = nil
     var attentionCount: Int = 0
     /// Number of running descendant subagent sessions. Shown only when this
     /// session is itself idle, so the parent row stops reading "Idle" while
@@ -290,16 +298,20 @@ struct SessionRowView: View {
     var onToggleCollapse: (() -> Void)? = nil
 
     @Environment(\.colorScheme) private var colorScheme
+    @ScaledMetric(relativeTo: .headline) private var scaledIndicatorColumnWidth = DesignControls.indicatorColumnWidth
+
+    private var indicatorColumnWidth: CGFloat {
+        min(max(scaledIndicatorColumnWidth, DesignControls.indicatorColumnWidth), DesignControls.indicatorColumnWidthMaximum)
+    }
     
     private var isBusy: Bool {
         guard let status else { return false }
         return status.type == "busy" || status.type == "retry"
     }
 
-    /// The row falls back to the descendant-subagent signal only when it has
-    /// no stronger state of its own (attention > own busy/retry > descendants).
+    /// Own running/retry text takes priority over descendant activity.
     private var showsDescendantBusy: Bool {
-        attentionCount == 0 && !isBusy && busyDescendantCount > 0
+        !isBusy && busyDescendantCount > 0
     }
 
     @ViewBuilder
@@ -346,36 +358,41 @@ struct SessionRowView: View {
             }
 
             VStack(alignment: .leading, spacing: DesignSpacing.xs) {
-                Text(session.title.isEmpty ? L10n.t(.sessionsUntitled) : session.title)
-                    .font(depth > 0 ? DesignTypography.body : DesignTypography.headline)
-                    .foregroundStyle(titleColor(depth: depth, isBusy: isBusy))
-                    .lineLimit(1)
+                HStack(spacing: DesignSpacing.sm) {
+                    ZStack {
+                        if let indicator {
+                            SessionIndicatorDot(indicator: indicator)
+                                .accessibilityIdentifier("session-indicator-\(session.id)")
+                        }
+                    }
+                    .frame(width: indicatorColumnWidth)
+
+                    Text(session.title.isEmpty ? L10n.t(.sessionsUntitled) : session.title)
+                        .font(depth > 0 ? DesignTypography.body : DesignTypography.headline)
+                        .foregroundStyle(titleColor(depth: depth, isBusy: isBusy))
+                        .lineLimit(1)
+                }
 
                 HStack(spacing: DesignSpacing.sm) {
                     Text(formattedDate(session.time.updated))
                         .font(DesignTypography.meta)
                         .foregroundStyle(isArchived ? DesignColors.Neutral.textTertiary : DesignColors.Neutral.textSecondary)
 
-                    if attentionCount > 0 || status != nil || showsDescendantBusy {
-                        if showsDescendantBusy {
-                            // Delegated work still in flight under an idle session:
-                            // a heterogeneous signal (branch icon + neutral color)
-                            // so it reads apart from the session's own Running, which
-                            // uses the brand primary color.
-                            HStack(spacing: 3) {
-                                Image(systemName: "arrow.triangle.branch")
-                                Text(L10n.sessionsSubagentsRunning(busyDescendantCount))
-                            }
-                            .font(DesignTypography.meta)
-                            .foregroundStyle(DesignColors.Neutral.textSecondary)
-                            .lineLimit(1)
-                        } else {
-                            Text(statusLabel(status, attentionCount: attentionCount))
-                                .font(DesignTypography.meta)
-                                .foregroundStyle(statusColor(status, attentionCount: attentionCount))
+                    if showsDescendantBusy {
+                        HStack(spacing: 3) {
+                            Image(systemName: "arrow.triangle.branch")
+                            Text(L10n.sessionsSubagentsRunning(busyDescendantCount))
                         }
+                        .font(DesignTypography.meta)
+                        .foregroundStyle(DesignColors.Neutral.textSecondary)
+                        .lineLimit(1)
+                    } else if let label = statusLabel(status) {
+                        Text(label)
+                            .font(DesignTypography.meta)
+                            .foregroundStyle(statusColor())
                     }
                 }
+                .padding(.leading, indicatorColumnWidth + DesignSpacing.sm)
             }
 
             Spacer()
@@ -409,29 +426,59 @@ struct SessionRowView: View {
         return formatter.localizedString(for: date, relativeTo: Date())
     }
 
-    private func statusLabel(_ status: SessionStatus?, attentionCount: Int) -> String {
-        if attentionCount > 0 {
-            let label = L10n.t(.sessionsStatusNeedAttention)
-            return attentionCount > 1 ? "\(label) · \(attentionCount)" : label
-        }
+    private func statusLabel(_ status: SessionStatus?) -> String? {
         switch status?.type {
         case "busy": return L10n.t(.sessionsStatusBusy)
         case "retry": return L10n.t(.sessionsStatusRetry)
-        default: return L10n.t(.sessionsStatusIdle)
+        default: return nil
         }
     }
 
-    private func statusColor(_ status: SessionStatus?, attentionCount: Int) -> Color {
-        if attentionCount > 0 { return DesignColors.Semantic.error }
-        switch status?.type {
-        case "busy", "retry": return DesignColors.Brand.primary
-        default: return DesignColors.Neutral.textSecondary
-        }
+    private func statusColor() -> Color {
+        DesignColors.Neutral.textSecondary
     }
 
     private func titleColor(depth: Int, isBusy: Bool) -> Color {
         if isArchived { return DesignColors.Neutral.textSecondary }
         if depth > 0 { return DesignColors.Neutral.textSecondary }
         return DesignColors.Neutral.text
+    }
+}
+
+private struct SessionIndicatorDot: View {
+    let indicator: SessionIndicator
+    @ScaledMetric(relativeTo: .headline) private var unreadSize = DesignControls.indicatorSize
+    @ScaledMetric(relativeTo: .headline) private var emphasisSize = DesignControls.indicatorSizeEmphasis
+
+    private var diameter: CGFloat {
+        switch indicator {
+        case .unread:
+            min(max(unreadSize, DesignControls.indicatorSize), DesignControls.indicatorSizeMaximum)
+        case .needsYou, .failed:
+            min(max(emphasisSize, DesignControls.indicatorSizeEmphasis), DesignControls.indicatorSizeEmphasisMaximum)
+        }
+    }
+
+    private var color: Color {
+        switch indicator {
+        case .needsYou: DesignColors.Brand.gold
+        case .failed: DesignColors.SessionIndicator.failed
+        case .unread: DesignColors.Brand.primary
+        }
+    }
+
+    private var label: String {
+        switch indicator {
+        case .needsYou: L10n.t(.sessionsIndicatorNeedsYou)
+        case .failed: L10n.t(.sessionsIndicatorFailed)
+        case .unread: L10n.t(.sessionsIndicatorUnread)
+        }
+    }
+
+    var body: some View {
+        Circle()
+            .fill(color)
+            .frame(width: diameter, height: diameter)
+            .accessibilityLabel(label)
     }
 }

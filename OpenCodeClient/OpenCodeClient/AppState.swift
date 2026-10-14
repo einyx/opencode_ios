@@ -18,6 +18,10 @@ struct SessionNode: Identifiable {
     var id: String { session.id }
 }
 
+enum SessionIndicator {
+    case needsYou, failed, unread
+}
+
 @Observable
 @MainActor
 final class AppState {
@@ -206,6 +210,7 @@ final class AppState {
         // (test-isolated) defaults or suites would leak stepTimings across.
         self.messageStore = MessageStore(defaults: userDefaults)
         self.statsStore = SessionStatsStore(defaults: userDefaults)
+        self.readStateStore = SessionReadStateStore(defaults: userDefaults)
         self.apiClient = apiClient
         self.sseClient = sseClient
         self.sshTunnelManager = sshTunnelManager ?? SSHTunnelManager()
@@ -493,6 +498,8 @@ final class AppState {
     let fileStore = FileStore()
     let todoStore = TodoStore()
     let statsStore: SessionStatsStore
+    let readStateStore: SessionReadStateStore
+    var pendingSessionErrorAt: [String: Date] = [:]
     /// Sessions whose stats must be reset from the post-revert window on the
     /// next `loadMessages` (revert truncates history beyond window visibility).
     var revertResetPendingSessionIDs: Set<String> = []
@@ -510,7 +517,20 @@ final class AppState {
     var sessionTree: [SessionNode] {
         Self.buildSessionTree(from: sessions)
     }
-    var currentSessionID: String? { get { sessionStore.currentSessionID } set { sessionStore.currentSessionID = newValue } }
+    var currentSessionID: String? {
+        get { sessionStore.currentSessionID }
+        set {
+            if sessionStore.currentSessionID != newValue {
+                markCurrentSessionViewed()
+            }
+            sessionStore.currentSessionID = newValue
+        }
+    }
+
+    func markCurrentSessionViewed(at date: Date = Date()) {
+        guard let id = currentSessionID, sessions.contains(where: { $0.id == id }) else { return }
+        readStateStore.markViewed(sessionID: id, at: date)
+    }
     var sessionStatuses: [String: SessionStatus] { get { sessionStore.sessionStatuses } set { sessionStore.sessionStatuses = newValue } }
 
     var messages: [MessageWithParts] { get { messageStore.messages } set { messageStore.messages = newValue } }
@@ -995,6 +1015,97 @@ final class AppState {
         roots.append(contentsOf: orphans)
         roots.sort { $0.session.time.updated > $1.session.time.updated }
         return roots
+    }
+
+    nonisolated static func settled(_ status: SessionStatus?) -> Bool {
+        guard let status else { return true }
+        return status.type == "idle"
+    }
+
+    nonisolated static func unreadSessionIDs(
+        sessions: [Session],
+        statuses: [String: SessionStatus],
+        lastViewedAt: [String: Date]
+    ) -> [String] {
+        sessions.filter {
+            settled(statuses[$0.id])
+                && Date(timeIntervalSince1970: Double($0.time.updated) / 1000)
+                    > (lastViewedAt[$0.id] ?? .distantPast)
+        }.map(\.id)
+    }
+
+    nonisolated static func unreadCountsBySession(
+        sessions: [Session],
+        unreadIDs: [String],
+        lastViewedAt: [String: Date] = [:]
+    ) -> [String: Int] {
+        let sessionsByID = Dictionary(uniqueKeysWithValues: sessions.map { ($0.id, $0) })
+        var counts: [String: Int] = [:]
+        for sourceID in unreadIDs {
+            guard let source = sessionsByID[sourceID] else { continue }
+            let updated = Date(timeIntervalSince1970: Double(source.time.updated) / 1000)
+            var sessionID: String? = sourceID
+            var visited: Set<String> = []
+            while let id = sessionID, visited.insert(id).inserted {
+                if updated > (lastViewedAt[id] ?? .distantPast) {
+                    counts[id, default: 0] += 1
+                }
+                sessionID = sessionsByID[id]?.parentID
+            }
+        }
+        return counts
+    }
+
+    var sessionUnreadCounts: [String: Int] {
+        let viewed = Dictionary(uniqueKeysWithValues: sessions.compactMap { session in
+            readStateStore.lastViewedAt(for: session.id).map { (session.id, $0) }
+        })
+        // A child already viewed in its own tab can still be unread for its parent.
+        let settledIDs = Self.unreadSessionIDs(sessions: sessions, statuses: sessionStatuses, lastViewedAt: [:])
+        return Self.unreadCountsBySession(sessions: sessions, unreadIDs: settledIDs, lastViewedAt: viewed)
+    }
+
+    nonisolated static func failureCountsBySession(
+        sessions: [Session],
+        failedAt: [String: Date],
+        lastViewedAt: [String: Date]
+    ) -> [String: Int] {
+        let sessionsByID = Dictionary(uniqueKeysWithValues: sessions.map { ($0.id, $0) })
+        var counts: [String: Int] = [:]
+        for (sourceID, failed) in failedAt {
+            var sessionID: String? = sourceID
+            var visited: Set<String> = []
+            while let id = sessionID, visited.insert(id).inserted {
+                if failed > (lastViewedAt[id] ?? .distantPast) {
+                    counts[id, default: 0] += 1
+                }
+                sessionID = sessionsByID[id]?.parentID
+            }
+        }
+        return counts
+    }
+
+    var sessionFailureCounts: [String: Int] {
+        let failed = Dictionary(uniqueKeysWithValues: sessions.compactMap { session in
+            readStateStore.failedAt(for: session.id).map { (session.id, $0) }
+        })
+        let viewed = Dictionary(uniqueKeysWithValues: sessions.compactMap { session in
+            readStateStore.lastViewedAt(for: session.id).map { (session.id, $0) }
+        })
+        return Self.failureCountsBySession(sessions: sessions, failedAt: failed, lastViewedAt: viewed)
+    }
+
+    func rowIndicator(
+        session: Session,
+        attentionCount: Int,
+        unreadCounts: [String: Int],
+        failureCounts: [String: Int]
+    ) -> SessionIndicator? {
+        guard !session.isArchived else { return nil }
+        if attentionCount > 0 { return .needsYou }
+        if failureCounts[session.id, default: 0] > 0 { return .failed }
+        guard Self.settled(sessionStatuses[session.id]), session.id != currentSessionID else { return nil }
+        return unreadCounts[session.id, default: 0] > 0 ? .unread : nil
     }
 
     nonisolated static func attentionCountsBySession(
