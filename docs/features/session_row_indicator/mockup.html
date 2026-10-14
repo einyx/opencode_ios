@@ -16,7 +16,7 @@ body{font:15px/1.6 system-ui,sans-serif;background:var(--bg);color:var(--fg);max
 <div class="row child"><span class="gutter">·</span><span class="slot"><i class="dot green"></i></span><div>子会话<small>重试中</small></div></div>
 <div class="row"><span class="gutter"></span><span class="slot"><i class="dot blue"></i></span><div>已停止，仍有未读更新</div></div>
 <div class="row"><span class="gutter"></span><span class="slot"></span><div>尚未确认执行状态<small>状态待同步</small></div></div>
-</section><section class="panel"><h2>当前聊天</h2><p>当前 session 只豁免蓝。黄红仍可来自后代；查看父不替代查看子。</p><div class="composer"><div class="muted">↗ 子会话标题（保留原导航）</div><div class="status"><i class="dot green" aria-label="执行未结束"></i></div><textarea aria-label="消息输入框" placeholder="输入消息…"></textarea></div><p class="muted">状态栏保留灯及必要重试、待同步、语音提示，不放后代数量或重复执行文案。分支图标+数字仅用于列表。</p></section></div>
+</section><section class="panel"><h2>当前聊天</h2><p>当前 session 只豁免蓝。黄红仍可来自后代；查看父不替代查看子。</p><div class="composer"><div class="muted">↗ 子会话标题（保留原导航）</div><div class="status"><i class="dot green" aria-hidden="true"></i>思考中</div><textarea aria-label="消息输入框" placeholder="输入消息…"></textarea></div><p class="muted">iOS 状态栏恢复有用的当前活动说明；缺失时显示“处理中”，仅后代执行时显示“子代理正在运行”。保留重试、待同步、语音提示，不放后代数量或重复执行长句。分支图标+数字仅用于列表。</p></section></div>
 <h2>来源级确认</h2><p>父 P、自身失败；子 C 失败；兄弟 D 失败。查看 C 后，P 只扣掉 C 的贡献，仍保留 P 和 D 的提醒。查看 P 只确认 P，不能清除 D。孙来源同样一次从所有祖先减去。后续干净运行结束不能自动确认旧失败，权限回复非 2xx 不能清除 pending。</p>
 <p>断线或超过确认有效期：停止绿色呼吸，不亮蓝；保留黄红并加“状态待同步”。请求未完成或失败不是 idle；只有同 host/project 的成功完整快照缺项才可确认不活跃。</p>
 </html>

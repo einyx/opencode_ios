@@ -27,6 +27,7 @@ struct SessionIndicatorPresentation {
     var needsSync: Bool
     var ownIsRetrying: Bool
     var activeDescendantCount: Int
+    var ownIsActive: Bool = false
 
     var statusText: String? {
         let parts = [ownIsRetrying ? L10n.t(.sessionsStatusRetry) : nil,
@@ -1174,7 +1175,7 @@ final class AppState {
             else if !needsSync && session.id != currentSessionID && unread[session.id, default: 0] > 0 { indicator = .unread }
             else { indicator = nil }
             return (session.id, SessionIndicatorPresentation(indicator: indicator, needsSync: needsSync,
-                        ownIsRetrying: own?.type == "retry", activeDescendantCount: count))
+                        ownIsRetrying: own?.type == "retry", activeDescendantCount: count, ownIsActive: own != nil))
         })
     }
 

@@ -15,9 +15,13 @@
 | 4 | 蓝，常亮 | 整个已知子树确认不活跃，且存在来源级未读更新 |
 | 5 | 无 | 无上述信号，或执行状态未知 |
 
-当前 session 只豁免蓝，不豁免黄、红、绿。正常自身执行只由灯表达，不再显示 Execution active / Running。列表有 active 后代时，以中性 `arrow.triangle.branch` 图标加数字显示所有已知 active 后代计数；不显示 0，不再写 N descendants active / subagents running。黄红覆盖绿时仍保留该列表计数。自身 retry 保留“重试中”，未知保留“状态待同步”。busy 可能在等待工具、I/O 或用户，不能译成持续取得进展。
+当前 session 只豁免蓝，不豁免黄、红、绿。列表的正常自身执行只由灯表达，不再显示 Execution active / Running。列表有 active 后代时，以中性 `arrow.triangle.branch` 图标加数字显示所有已知 active 后代计数；不显示 0，不再写 N descendants active / subagents running。黄红覆盖绿时仍保留该列表计数。自身 retry 保留“重试中”，未知保留“状态待同步”。busy 可能在等待工具、I/O 或用户，不能译成持续取得进展。
 
-composer 状态栏不新增后代计数、不重复普通执行文案，只保留统一灯、真正重试、待同步和必要语音状态。既有后台任务导航保留为可点击的目标标题，不重复堆放计数。列表分支数字的读屏名称仍为完整本地化说明（例如“2 个后代执行未结束”）。这些内容由 presentation 的结构化字段驱动，不解析文案反推状态。
+composer 状态栏不新增后代计数，但绿色不能孤立显示为一颗无说明的灯。iOS 在可信的自身执行态下优先复用 `runningTurnActivity.text`，没有 turn 时复用仍为 running 的现有 activity tracker 文本，如 Thinking、Running commands；不在新 UI 中猜测工具类型。没有可用活动时兜底“处理中 / Agent working”。自身不执行而只有已知后代执行时，显示“子代理正在运行 / Subagent running”，不带数字。当前自身是否在执行来自同一 presentation 的可信 `ownIsActive`，不能只读 raw busy 或复用过期活动。
+
+明确的待处理、失败、重试、待同步文字优先于普通活动说明；必要语音状态合并到同一文本，相同片段去重。已有活动说明时不再附加第二句同义的“运行中”。文本已有状态语义时，composer 的装饰灯不重复进入读屏标签。既有后台任务导航保留为可点击的目标标题，不重复堆放计数。列表分支数字的读屏名称仍为完整本地化说明（例如“2 个后代执行未结束”）。
+
+有用的短活动说明不同于此前删除的冗余长句：它解释当前正在思考、调用工具还是等待重试；不恢复 Execution active · N descendants active，也不改变列表紧凑合同。上述 iOS composer 补充来自实际设备验收反馈，不要求修改已验收的其他平台。
 
 无可信状态时不从绿回落为蓝：显示无彩灯与灰色“状态待同步”。黄红提醒仍保留，并追加同步提示。已确认的一个 active 来源足以点绿；另一分支未知时同时提示待同步。
 
@@ -75,6 +79,8 @@ ownPending[s] = 属于 s 的当前未解决请求数
 ## 验收与范围限制
 
 单测覆盖来源级父子/多级/兄弟及父自身确认、黄红盖绿时的摘要、最后后代结束、current 蓝豁免、unknown→快照确认、断线/过期、同值 SSE 与旧快照、跨 host 迟到响应、无 current 的 pending 重连、resolved 后旧快照，以及呼吸/Reduce Motion/离屏策略。UI 使用 `UITEST_SESSION_INDICATOR_FIXTURE`，只含合成 session，截图使用真实行及真实 composer。
+
+composer 活动文本另有定向测试：具体活动复用、无活动 fallback、仅后代执行、过期活动拒绝、重试/待处理/失败优先及语音合并。ActivityTracker 没有映射的工具只能显示既有 tracker fallback 或 Agent working；活动文字是当前已观测线索，不是持续进展或任务成功保证。
 
 已知父链来自已加载的 session 元数据。同 scope 且新鲜的未知 active ID 无法归属时保守阻止蓝并提示同步，可由随后完整快照缺项收敛；缺失、从未被加载或来源 scope 未知的后代无法保证全量覆盖。无灯与蓝均不表示服务端全局成功。不会为每行发请求，也没有新增全量祖先补载。
 

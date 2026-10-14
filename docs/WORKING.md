@@ -5,9 +5,17 @@
 ## 当前状态
 
 - **最后更新**：2026-10-14
-- **基线**：`master` / `55b8643`；本轮通过独立审查后准备 PR，未经用户验收批准不合并。
-- **编译/测试**：最终工作树由主线程独立运行全量单测 747/747（87 suites）通过；设备构建通过，已原位安装并启动于 iPad 和 iPhone。M1–M3 及当前呈现合同独立复核通过，代码与隐私阻断为零；此前 UI 结果收集挂起限制仍保留，最终设备观感待用户验收。
+- **基线**：`feat/session-tree-status` / `c8173cd`，PR #207；本次 composer 活动说明作为后续增量，仍等待明确合并授权。
+- **编译/测试**：本次定向单测 36/36、全量单测 751/751（87 suites）通过；主线程独立复跑全量和设备构建通过，已原位安装并启动于 iPad/iPhone。独立 code/privacy 增量复核通过，未重跑 UI runner。
 - **Phase**：来源级确认、可信执行状态与列表/composer 单灯统一。
+
+### 2026-10-14 — iOS composer 恢复有用活动说明
+
+用户实际使用发现 composer 在其他信息为空时只剩绿灯，缺少可读解释。仅在 iOS composer 恢复当前活动文字：可信自身执行优先复用 running turn / activity tracker 文本；缺失时显示“处理中 / Agent working”。仅后代在执行时显示“子代理正在运行”，不显示数量。待处理、失败、重试与待同步保留明确说明，语音状态合并并去除相同片段；文本已有语义时不重复朗读装饰灯。
+
+presentation 增加可信 `ownIsActive`，防止因后代绿灯或过期 raw busy 而冒用自身旧活动。列表仍是灯＋分支图标数字，不恢复冗余 Execution active / N descendants active。原后台任务标题导航保持不变。活动映射沿用既有 tracker，不新增工具猜测；未知工具和缺失的消息窗口可能只能给出通用 fallback，不保证持续进展。
+
+验证：通过 `./scripts/test_unit.sh` 运行定向 36/36，再运行一次全量 751/751（87 suites）；主线程独立全量复跑和设备构建也通过，并完成 iPad/iPhone 原位安装、启动。新增四项测试覆盖具体活动、通用 fallback、仅后代、过期拒绝、明确状态优先及语音去重。已有 UI 测试选择器改为状态文字，避免依赖不再重复暴露给读屏的装饰灯；本次未执行 UI runner。日志：`tmp/composer_activity/targeted-unit.log`、`full-unit.log`、`device-build.log`。
 
 ### 2026-10-14 — 独立审查 M1–M3 与最终呈现收敛
 

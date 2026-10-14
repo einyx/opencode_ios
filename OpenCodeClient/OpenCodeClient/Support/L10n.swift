@@ -258,6 +258,7 @@ enum L10n {
         case chatSpeechDiscardAudio
         case chatAbortAgent
         case chatAgentRunning
+        case chatAgentWorking
         case chatBackgroundTasksOne
         case chatBackgroundTasksMany
         case chatBackgroundTasksAccessibility
@@ -713,6 +714,7 @@ enum L10n {
         Key.chatSpeechDiscardAudio.rawValue: "Discard audio",
         Key.chatAbortAgent.rawValue: "Interrupt agent",
         Key.chatAgentRunning.rawValue: "Agent running",
+        Key.chatAgentWorking.rawValue: "Agent working",
         Key.chatBackgroundTasksOne.rawValue: "Subagent running",
         Key.chatBackgroundTasksMany.rawValue: "%d subagents running",
         Key.chatBackgroundTasksAccessibility.rawValue: "Subagent running in background. Tap to open subagent session.",
@@ -1172,6 +1174,7 @@ enum L10n {
         Key.chatSpeechDiscardAudio.rawValue: "丢弃音频",
         Key.chatAbortAgent.rawValue: "中断智能体",
         Key.chatAgentRunning.rawValue: "智能体正在运行",
+        Key.chatAgentWorking.rawValue: "处理中",
         Key.chatBackgroundTasksOne.rawValue: "子代理正在运行",
         Key.chatBackgroundTasksMany.rawValue: "%d 个子代理正在运行",
         Key.chatBackgroundTasksAccessibility.rawValue: "后台子代理正在运行，轻点打开子代理会话",

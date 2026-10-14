@@ -86,6 +86,40 @@ private struct BottomMarkerMinYPreferenceKey: PreferenceKey {
     }
 }
 
+/// Composer-only explanation. The list keeps its compact lamp/count layout.
+enum ComposerActivityText {
+    static func text(presentation: SessionIndicatorPresentation?, activity: String?, voice: String?) -> String? {
+        var parts: [String] = []
+        func append(_ text: String?) {
+            guard let value = text?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty,
+                  !parts.contains(where: { $0.caseInsensitiveCompare(value) == .orderedSame }) else { return }
+            parts.append(value)
+        }
+        if let presentation {
+            switch presentation.indicator {
+            case .needsYou: append(L10n.t(.sessionsIndicatorNeedsYou))
+            case .failed: append(L10n.t(.sessionsIndicatorFailed))
+            default: break
+            }
+            if presentation.ownIsRetrying {
+                append(L10n.t(.sessionsStatusRetry))
+            } else if presentation.indicator == .running {
+                if presentation.ownIsActive {
+                    let detail = activity?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    append(detail?.isEmpty == false ? detail : L10n.t(.chatAgentWorking))
+                } else if presentation.activeDescendantCount > 0 {
+                    append(L10n.t(.chatBackgroundTasksOne))
+                } else {
+                    append(SessionIndicatorCopy.syncing)
+                }
+            }
+            if presentation.needsSync { append(SessionIndicatorCopy.syncing) }
+        }
+        append(voice)
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+}
+
 struct ChatTabView: View {
     static let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "OpenCodeClient",
@@ -602,14 +636,19 @@ struct ChatTabView: View {
     /// longer disappears (and duplicates) once the turn completes.
     private var quietComposerStatus: some View {
         let presentation = currentIndicatorPresentation
+        let currentActivity = state.currentSessionActivity
+        let activity = presentation?.ownIsActive == true
+            ? (runningTurnActivity?.text ?? (currentActivity?.state == .running ? currentActivity?.text : nil))
+            : nil
+        let text = ComposerActivityText.text(presentation: presentation, activity: activity, voice: voiceStatusText)
         // 6pt gap: xs (4) read as cramped between the two lines.
         return VStack(alignment: .leading, spacing: 6) {
             sessionStatsLine
             if let first = runningBackgroundSubagents.first {
                 backgroundTaskNavigationRow(first)
             }
-            if voiceStatusText != nil || presentation?.indicator != nil || presentation?.statusText != nil {
-                quietComposerStatusRow(presentation: presentation)
+            if text != nil || presentation?.indicator != nil {
+                quietComposerStatusRow(presentation: presentation, text: text)
             }
         }
         .padding(.horizontal, DesignSpacing.xs)
@@ -642,24 +681,20 @@ struct ChatTabView: View {
 
     /// The transient (bottom) line only renders when it has content; an
     /// empty line would just add height to the always-visible composer block.
-    private func quietComposerStatusRow(presentation: SessionIndicatorPresentation?) -> some View {
+    private func quietComposerStatusRow(presentation: SessionIndicatorPresentation?, text: String?) -> some View {
         HStack(spacing: DesignSpacing.sm) {
             if let indicator = presentation?.indicator {
                 SessionIndicatorDot(indicator: indicator)
                     .accessibilityIdentifier("composer-session-indicator")
+                    .accessibilityHidden(text != nil)
             }
 
-            if let text = presentation?.statusText {
+            if let text {
                 Text(text)
                     .font(DesignTypography.meta)
                     .foregroundStyle(DesignColors.Neutral.textSecondary)
                     .lineLimit(2)
-            }
-            if let voiceStatusText {
-                Text(voiceStatusText)
-                    .font(DesignTypography.meta)
-                    .foregroundStyle(DesignColors.Neutral.textSecondary)
-                    .lineLimit(2)
+                    .accessibilityIdentifier("composer-activity-text")
             }
 
             Spacer(minLength: 0)

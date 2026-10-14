@@ -328,6 +328,56 @@ struct SessionIndicatorTests {
         #expect(state.sessionIndicatorPresentations["parent"]?.statusText == SessionIndicatorCopy.syncing)
     }
 
+    @Test @MainActor func composerReusesSpecificActivityButListRemainsCompact() {
+        let state = Self.state()
+        state.sessions = [Self.session("parent"), Self.session("child", parent: "parent")]
+        state.sessionStatuses = ["parent": Self.status("busy"), "child": Self.status("busy")]
+        let presentation = state.sessionIndicatorPresentations["parent"]!
+        #expect(presentation.ownIsActive)
+        #expect(presentation.statusText == nil) // No verbose list label.
+        let activity = L10n.t(.activityRunningCommands)
+        #expect(ComposerActivityText.text(presentation: presentation, activity: activity, voice: nil) == activity)
+        #expect(ComposerActivityText.text(presentation: presentation, activity: L10n.t(.activityThinking), voice: nil) == L10n.t(.activityThinking))
+    }
+
+    @Test @MainActor func composerBareGreenHasWorkingOrSubagentFallbackWithoutCount() {
+        let state = Self.state()
+        state.sessions = [Self.session("parent"), Self.session("child", parent: "parent")]
+        state.sessionStatuses = ["parent": Self.status("busy"), "child": Self.status("busy")]
+        #expect(ComposerActivityText.text(presentation: state.sessionIndicatorPresentations["parent"], activity: " \n ", voice: nil) == L10n.t(.chatAgentWorking))
+        state.sessionStatuses["parent"] = Self.status("idle")
+        let descendantsOnly = state.sessionIndicatorPresentations["parent"]!
+        #expect(!descendantsOnly.ownIsActive && descendantsOnly.activeDescendantCount == 1)
+        #expect(ComposerActivityText.text(presentation: descendantsOnly, activity: "stale tool text", voice: nil) == L10n.t(.chatBackgroundTasksOne))
+    }
+
+    @Test @MainActor func composerUnknownDoesNotReuseStaleActivityAndMergesVoice() {
+        let state = Self.state()
+        state.sessions = [Self.session("a")]
+        state.sessionStatuses["a"] = Self.status("busy")
+        state.statusConfirmedAt["a"] = Date().addingTimeInterval(-61)
+        let presentation = state.sessionIndicatorPresentations["a"]!
+        #expect(!presentation.ownIsActive)
+        let voice = L10n.t(.chatSpeechTranscribing)
+        #expect(ComposerActivityText.text(presentation: presentation, activity: "stale tool text", voice: voice) == "\(SessionIndicatorCopy.syncing) · \(voice)")
+        #expect(ComposerActivityText.text(presentation: nil, activity: "stale tool text", voice: voice) == voice)
+    }
+
+    @Test @MainActor func composerExplicitStatesTakePriorityAndDoNotDuplicateRetryVoice() {
+        let state = Self.state()
+        state.sessions = [Self.session("a")]
+        state.sessionStatuses["a"] = Self.status("retry")
+        let retry = L10n.t(.sessionsStatusRetry)
+        #expect(ComposerActivityText.text(presentation: state.sessionIndicatorPresentations["a"], activity: "Thinking", voice: retry) == retry)
+        state.readStateStore.markFailed(sessionID: "a", at: Date())
+        #expect(ComposerActivityText.text(presentation: state.sessionIndicatorPresentations["a"], activity: "Thinking", voice: nil) == "\(L10n.t(.sessionsIndicatorFailed)) · \(retry)")
+        state.pendingPermissions = PermissionController.fromPendingRequests([Self.permission("p", session: "a")])
+        state.sessionStatuses["a"] = Self.status("busy")
+        #expect(ComposerActivityText.text(presentation: state.sessionIndicatorPresentations["a"], activity: "Thinking", voice: nil) == L10n.t(.sessionsIndicatorNeedsYou))
+        state.disconnectSSE()
+        #expect(ComposerActivityText.text(presentation: state.sessionIndicatorPresentations["a"], activity: "Thinking", voice: nil) == "\(L10n.t(.sessionsIndicatorNeedsYou)) · \(SessionIndicatorCopy.syncing)")
+    }
+
     @Test @MainActor func disconnectAndExpiredConfirmationSuppressGreenAndBlueButKeepRed() {
         let state = Self.state()
         state.sessions = [Self.session("a")]
