@@ -1154,6 +1154,9 @@ struct ChatTabView: View {
                     syncDraftFromState(sessionID: state.currentSessionID)
                 }
             }
+            .onDisappear {
+                state.markCurrentSessionViewed()
+            }
             .onChange(of: state.currentSessionID) { oldID, newID in
                 composerRevision &+= 1
                 let draftText = inputText
@@ -1188,6 +1191,7 @@ struct ChatTabView: View {
             }
             .onChange(of: scenePhase) { _, newPhase in
                 guard newPhase == .background else { return }
+                state.markCurrentSessionViewed()
                 Task { await stopSpeechForBackground() }
             }
             .onChange(of: sizeClass) { _, newValue in

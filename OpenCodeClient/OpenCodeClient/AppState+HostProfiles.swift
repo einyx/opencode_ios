@@ -121,6 +121,7 @@ extension AppState {
     }
 
     func applyCurrentHostProfileToRuntime(persistLegacy: Bool = true) {
+        readStateStore.selectHost(currentHostProfileID)
         guard let profile = currentHostProfile else { return }
 
         _serverURL = profile.serverURL
@@ -293,6 +294,7 @@ extension AppState {
 
     func beginHostTransportTransition(to id: UUID) {
         guard hostProfiles.contains(where: { $0.id == id }) else { return }
+        markCurrentSessionViewed()
         invalidateLocalCarTurn()
         clearCarLastKnownServerWorktree()
         invalidateDeepLinkRoute(keepPending: true)
@@ -482,6 +484,8 @@ extension AppState {
         sessionDiffs = []
         fileTreeRoot = []
         sessionStatuses = [:]
+        pendingSessionErrorAt = [:]
+        readStateStore.selectHost(currentHostProfileID)
         sessionTodos = [:]
         sessionScope.resetAll()
         agents = []

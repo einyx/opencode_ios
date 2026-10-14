@@ -57,6 +57,7 @@ extension AppState {
                 applyProjectDirectory(for: session)
                 upsertSession(session)
                 selectedTab = RootTab.chat.rawValue
+                readStateStore.markViewed(sessionID: session.id, at: Date())
 
                 if currentSessionID == session.id {
                     deepLinkRouteState = .idle
