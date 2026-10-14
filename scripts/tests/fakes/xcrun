@@ -1,0 +1,31 @@
+#!/bin/bash
+set -eu
+case "$1" in
+  simctl)
+    if [ "${MOCK_PREFLIGHT_FAIL:-0}" = 1 ]; then exit 1; fi
+    case "$2" in
+      list) printf '    iPhone Mock (AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE) (Booted)\n';;
+      io) : > "${@: -1}";;
+      boot) :;;
+      *) exit 98;;
+    esac
+    ;;
+  xcresulttool)
+    expected_path= previous=
+    while IFS= read -r argument; do
+      if [ "$previous" = -resultBundlePath ]; then expected_path=$argument; fi
+      previous=$argument
+    done < "$MOCK_CALLS.test-without-building"
+    [ "$#" -eq 6 ] && [ "$2" = get ] && [ "$3" = test-results ] && \
+      [ "$4" = summary ] && [ "$5" = --path ] && [ -d "$6" ] && \
+      [ "$6" = "$expected_path" ] && [[ "$6" = */test.xcresult ]] || exit 98
+    [ "${MOCK_PARSE_FAIL:-0}" != 1 ] || exit 65
+    if [ "${MOCK_UNKNOWN_SCHEMA:-0}" = 1 ]; then printf '{"testResult":"Passed"}\n'; exit 0; fi
+    if [ -n "${MOCK_RESULT:-}" ]; then
+      printf '{"result":"%s"}\n' "$MOCK_RESULT"
+    else
+      cat "$MOCK_SUMMARY_FIXTURE"
+    fi
+    ;;
+  *) exit 98;;
+esac

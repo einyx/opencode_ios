@@ -56,6 +56,28 @@
 - `skills/ui_test_tasks.md`
 - `skills/ui_test_prompts/01_read_card_visible.md`
 
+## 日常 runner：日志、结果证据与退出码
+
+单测使用 `./scripts/test_unit.sh`，UI 使用 `./scripts/test_ui.sh`。两者保留既有 simulator pin、15 秒截图预检、专用 DerivedData、增量 `build-for-testing` → `test-without-building` 顺序，以及 ONLY / REBUILD / UI launch-perf skip 规则。显式 destination 不代表设备独占；运行前先确认该设备和构建目录已释放。
+
+```bash
+OPENCODE_TEST_DESTINATION="platform=iOS Simulator,id=$SIM_UUID" \
+OPENCODE_TEST_ONLY='OpenCodeClientTests/SessionIndicatorTests' \
+OPENCODE_TEST_PHASE_TIMEOUT_SECONDS=180 ./scripts/test_unit.sh
+```
+
+新增参数：`OPENCODE_TEST_OUTPUT_ROOT` 默认是 repo 内 `.occlient/test-runs/`；自定义根也必须规范化到本 repo 的 `.occlient/` 内、受 Git ignore 保护，且 `.occlient/` 下不能存在 tracked 文件。拒绝外部根、symlink/`..` 越界、未忽略目录和嵌套 repo，在写完整日志前返回 73。每轮用独立随机目录，不覆盖旧证据。`OPENCODE_TEST_PHASE_TIMEOUT_SECONDS` 默认 0（不限时），正整数分别约束 preflight/build/test，每阶段超时可再有 5 秒终止宽限；不要把定向测试的 90 秒预算设成约 5.5 分钟全 UI suite 的默认值。结果包的 xcresulttool 查询单独限时 15 秒；随后的本地小 JSON 解析不在该计时器内。
+
+每轮有完整实时合流的 `preflight.log`、`build.log`、`test.log`，显式 `test.xcresult`，以及 `events.tsv`、各阶段 `*.status.tsv` 和最终 `state.tsv`。状态分别保存原始 command_exit、tee_exit、阶段 wrapper_exit、最终 acceptance_exit；普通非零测试码原样保留，tee 单独失败返回 74。测试原始码 0 但包缺失、不可解析、schema 不认识或结果非 Passed 时，最终 runner 返回 65，不能让仅判断退出码的调用者假通过。返回 0 要求 test 阶段成功且本轮结果包可解析为 Passed；仍需审阅选择的用例及数量是否正确。stdout 的 passed 文本和截图均不替代这一验收。
+
+TSV 是数据，不要 source/eval。value 对 `%`、tab、CR、LF 编码为 `%25`、`%09`、`%0D`、`%0A`，解码时最后处理 `%25`。超时或中断时来不及取得的原始码写 unknown，不伪造 xcodebuild 退出码；清理仅针对本轮进程组。
+
+完整 stdout/stderr 可能含私密路径或 app 输出。ignored 只防 Git 收录，不保护控制台。本 runner 的完整输出用于本地开发；公开 CI 必须采用私有日志/工件及对外脱敏摘要，不把实时 tee 直接公开。原始运行目录和结果包不提交。
+
+离线回归入口是 `bash scripts/tests/test_runner_observability.sh`：复制实际 runner 到新临时目录，通过 fake Xcode/设备命令覆盖错误路径，再在临时 Git repo 中检查真实 ignore、tracked、嵌套 repo 和 symlink 边界。不启动真实设备、安装依赖或修改当前 repo 的 index；证据路径在末尾输出。该脚本保留临时证据供检查。
+
+2026-10-14 验证：9 个 shell 文件语法检查、43/43 回归场景通过（35 个 mock + 8 个真实 Git 边界场景）。一次真实 `SessionIndicatorTests` 36/36 通过，preflight/build/test/query 分别 1/19/9/0 秒、原始码均为 0，总计 29 秒。初始 parser 因错误字段名返回 acceptance 65；真实 Xcode 27.0 / 27A266a 的摘要使用顶层 `result: Passed`，已做最小修正。保留本轮 JSON离线回放后 parse=parsed、acceptance=0；未第二次运行 Xcode，也不改写首次失败状态。脱敏后的摘要子集保存在 `scripts/tests/fixtures/xcresult-summary-passed.json`，未知 schema 分支继续拒绝。
+
 ## Tier 1：unit / contract
 
 Tier 1 专注于纯逻辑与数据契约测试，既不需要依赖真实 server，也不涉及 UI 操作。测试位于 `OpenCodeClientTests`，采用 Swift Testing 框架。
