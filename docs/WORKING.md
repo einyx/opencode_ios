@@ -5,9 +5,19 @@
 ## 当前状态
 
 - **最后更新**：2026-10-14
-- **基线**：PR #208 已合并，`master` / `b64de27`；`fix/test-runner-observability` 为 runner 增量。
-- **编译/测试**：本轮 shell 语法 9/9、runner 回归 43/43；首次真实定向单测 36/36但摘要字段不匹配正确返回65。修正后主线程独立端到端复验36/36通过，原始测试码、结果包解析及最终验收均为0，总计20秒。此前 composer 全量/设备验证见历史记录，不计入本轮。
-- **Phase**：P1 runner 可观测性与失败闭合验收；P2 附件 A/B 后移至父级蓝点修复之后执行。
+- **基线**：PR #209 已合并，`master` / `d0045e6`；本轮分支 `fix/parent-unread-acknowledgement`。
+- **编译/测试**：父行蓝色提醒确认定向 43 项通过；一次全量 763 项、87 suites 通过（Swift Testing 汇总口径）。xcodebuild、wrapper 及结果包验收均为 0。
+- **Phase**：父级蓝点独立 code/privacy review 通过，主线程定向复跑及设备构建通过；按授权合并后部署 iPad，附件 A/B 随后执行。
+
+### 2026-10-14 — 父行蓝色提醒按来源版本确认
+
+P 的子 C/D 未读时，打开 P 再切走不再重复显示同一批蓝色提醒；C/D 内容仍保持未读。实现涉及 `AppState.swift`、`AppState+Sessions.swift`、`Stores/SessionReadStateStore.swift`：每行保存正数 updated 的逐来源确认，仅在 `selectSession` 开始时该行确实显示蓝且状态可信才同步捕获、提交快照。确认只影响该行，不停止向更高祖先传播；C=100、D=200 确认后 C=101 仍重新提醒。current 期间的新后代版本不在退出时确认。
+
+`lastViewedAt`/`failedAt` 与来源未读谓词保留；不把打开父理解为读过子。可选字典兼容旧 JSON，按设备本地 host profile 隔离，分页移出不清理，确定删除清理行及来源引用。本轮只修复汇总提醒，仍继承来源 `updated > lastViewedAt` 的时钟局限及相同 updated 无法区分内容变化的局限；未实现 self 版本迁移、消息 revision 或服务端协议变更。有效合同见 [设计](features/session_row_indicator/design.md#内容已读与父行提醒确认)。
+
+两个测试文件为 `SessionIndicatorTests.swift` 与 `SessionReadStateStoreTests.swift`。定向通过 43 项，证据 `.occlient/test-runs/unit-20261014T045654Z-MrJ8zA/`；随后一次全量通过 763 项、87 suites，证据 `.occlient/test-runs/unit-20261014T045728Z-IuLjlH/`。两个 runner 与 xcodebuild 均 exit 0，xcresult parsed/Passed。覆盖原问题、子未读、祖先独立、来源已读清除祖先贡献、兄弟乱序新 token、补载及分页、父自身更新、current 期间更新退出不吞、非蓝状态、旧 JSON、host 隔离和删除引用。
+
+主线程独立复跑43项定向测试，xcodebuild、wrapper与结果包验收均为0；证据 `.occlient/test-runs/unit-20261014T045918Z-6I7UDt/`。独立code/privacy审查无HIGH/MEDIUM阻断，设备构建通过（`.occlient/parent-unread-device-build.log`）。本轮未运行UI runner，Android未改；按用户授权先合并再部署iPad。此前runner工作保留如下。
 
 ### 2026-10-14 — 测试 runner 实时日志与失败闭合验收
 

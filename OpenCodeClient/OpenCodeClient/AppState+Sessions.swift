@@ -290,6 +290,13 @@ extension AppState {
     }
 
     func selectSession(_ session: Session) {
+        // Capture and commit synchronously on the main actor, before markViewed/current/load
+        // can change the displayed reminder. No later response or exit expands this snapshot.
+        let presentation = sessionIndicatorPresentations[session.id]
+        if presentation?.indicator == .unread, presentation?.needsSync == false {
+            let sources = sessionBlueReminderSources[session.id] ?? [:]
+            readStateStore.acknowledgeBlue(sessionID: session.id, sources: sources)
+        }
         readStateStore.markViewed(sessionID: session.id, at: Date())
         guard currentSessionID != session.id else { return }
 

@@ -1,6 +1,6 @@
 # Session 单灯状态：mini PRD / RFC
 
-状态：当前产品合同与 iOS 实现说明，2026-10-14。本文取代此前三色点、祖先独立确认与 composer 金色工作灯规则。Android 的实现与验收由其仓库独立维护。
+状态：当前产品合同与 iOS 实现说明，2026-10-14。本文取代此前三色点与 composer 金色工作灯规则；父行蓝色提醒确认补充在下文。Android 的实现与验收由其仓库独立维护，本轮未同步该改动。
 
 ## 目标与展示合同
 
@@ -12,7 +12,7 @@
 | 1 | 黄，常亮 | 自身或已知后代存在真正 pending 的权限或问题 |
 | 2 | 红，常亮 | 自身或已知后代存在来源级未确认失败 |
 | 3 | 绿，呼吸 | 自身或任一已知后代有可信、新鲜的 busy / retry 确认 |
-| 4 | 蓝，常亮 | 整个已知子树确认不活跃，且存在来源级未读更新 |
+| 4 | 蓝，常亮 | 整个已知子树确认不活跃，且存在本行尚未确认的来源级未读提醒 |
 | 5 | 无 | 无上述信号，或执行状态未知 |
 
 当前 session 只豁免蓝，不豁免黄、红、绿。列表的正常自身执行只由灯表达，不再显示 Execution active / Running。列表有 active 后代时，以中性 `arrow.triangle.branch` 图标加数字显示所有已知 active 后代计数；不显示 0，不再写 N descendants active / subagents running。黄红覆盖绿时仍保留该列表计数。自身 retry 保留“重试中”，未知保留“状态待同步”。busy 可能在等待工具、I/O 或用户，不能译成持续取得进展。
@@ -25,20 +25,29 @@ composer 状态栏不新增后代计数，但绿色不能孤立显示为一颗�
 
 无可信状态时不从绿回落为蓝：显示无彩灯与灰色“状态待同步”。黄红提醒仍保留，并追加同步提示。已确认的一个 active 来源足以点绿；另一分支未知时同时提示待同步。
 
-## 来源级确认
+## 内容已读与父行提醒确认
 
-事件属于 source session，祖先行只是聚合展示，不是第二个确认账户。
+针对父会话 P 在其子会话 C/D 存在未读蓝时，打开 P 再切走父行立即恢复变蓝的问题，当前已落地本地最小修复，将内容已读与父行提醒已确认分离。会话来源本身的 `lastViewedAt`、`failedAt` 与原未读谓词保持不变：仅在 `updated` 时间晚于来源查看时间且来源为 idle 或状态缺失时产出未读候选；缺失状态仅作为候选，最终展示仍须状态可信。蓝灯判定先针对各 source 进行过滤，再沿着已知 parent 链路做防环上卷汇总。
 
 ```text
 ownFailure[s] = failedAt[s] > lastViewedAt[s]
-ownUnread[s]  = updatedAt[s] > lastViewedAt[s]，且来源不处于 busy/retry
+ownUnread[s]  = updatedAt[s] > lastViewedAt[s]，且来源为 idle 或状态缺失（展示仍需可信）
 ownPending[s] = 属于 s 的当前未解决请求数
 
-先过滤来源，再将有效来源贡献给自身及所有已知祖先。
-祖先自己的 lastViewedAt 不过滤子来源。
+先过滤来源，再将有效来源贡献给自身及所有已知祖先 R。
+蓝色在 R != s 且 blueAckBySource[R][s] == 当前正数 updated token 时，仅跳过 R。
+继续向更高祖先传播；祖先自己的 lastViewedAt 不过滤子来源。
 ```
 
-查看孙 session 后，它给父、祖父的红蓝贡献同时消失；兄弟来源和父自身的贡献保留。查看父只确认父的内容，不代替查看后代。展开/折叠不确认、不停止执行。`lastViewedAt`、`failedAt` 保留按 host-profile namespace 持久化；冷启动自动选中不自动确认。
+每行新增持久化映射 `blueAckBySource[sourceID]`，记录确认时已接纳的正数 `time.updated` 整数 token。仅当该映射中记录的值与当前 source 版本完全相等时，才在当前祖先行抑制该 source 的蓝色提醒；此抑制不作用于 source 自身，也不阻断未读信号向更高层祖先行传播。不使用全子树 max 或本机 now 作为 ACK 阈值。父行无蓝不再意味着所有后代内容已读。
+
+`selectSession` 是唯一新增确认入口：仅在目标行确实展示为蓝且 `needsSync == false` 时，同步捕获并提交当时已知的 source 版本快照。捕获发生在 `markViewed`、current 切换及异步 load 发起之前。捕获与存储在同一 MainActor 调用中完成，中间没有 await，确认不会延迟到其他 host；异步加载回调不写 ACK。该持久化映射不包含 self，source 自身的已读仍走原有机制。例如 P 确认了 `[C: 100, D: 200]` 后，C 产生新版本 101 时 P 仍可再次变蓝，父自身的新数据也不会被子会话 ACK 掩盖。
+
+在 P 为 current 期间收到 C 的新版本，不确认该版本；退出、`onDisappear`、重选当前无显示蓝行都不新增后代确认。黄、红、绿、unknown 及归档等非蓝状态不会顺带确认后代。查看孙 session 后，它给父、祖父的红蓝来源贡献同时消失；兄弟来源和父自身的贡献保留。查看父只将父的内容标为已读，并确认父行当时显示的蓝色提醒，不代替查看后代，也不替祖父行确认。展开/折叠不确认、不停止执行；冷启动自动选中不自动确认。
+
+存储层的 `blueAckBySource` 是可选字典，缺失时默认为空；旧版 JSON 中的 `lastViewedAt` 与 `failedAt` 保留，不回填子确认。数据沿用设备本地 host-profile namespace，不跨设备。列表分页临时移出不清理该映射；既有的确定删除入口移除 row 时，同时清除各行对该 source 的引用，即使该 source 无自身记录。空间开销为 O(实际确认行—来源数)，派生计算为 O(N × depth)，无需服务端、消息账本或新内容协议。
+
+兼容边界：本方案继续保留来源级 `updated > lastViewedAt` 的历史本机时钟依赖，因此 ACK 仅修复父行汇总提醒，不保证任意新消息必定变蓝。相同 updated 的两次内容变化无法区分，元数据时间更新可能引入额外提醒；旧快照接纳沿用既有同步逻辑，不修复时钟回拨。本轮不包含更强设计建议中的 self 版本迁移或稳定消息 revision 机制。
 
 失败来源目前仍是收到的 `session.error`：先暂存，随后 idle 确认失败；后续 busy/retry 可清除尚未提交的暂存错误。已经提交的 `failedAt` 不因后续干净 busy→idle、retry→idle、重复 idle 或 REST 快照而删除；提醒只按来源自己的 `lastViewedAt` 确认。已收到但尚未 idle 的错误跨同 host 断线保留；切 host 清理。`AbortError` 不制造新失败，也不借主动停止清除旧失败。
 
@@ -79,6 +88,8 @@ ownPending[s] = 属于 s 的当前未解决请求数
 ## 验收与范围限制
 
 单测覆盖来源级父子/多级/兄弟及父自身确认、黄红盖绿时的摘要、最后后代结束、current 蓝豁免、unknown→快照确认、断线/过期、同值 SSE 与旧快照、跨 host 迟到响应、无 current 的 pending 重连、resolved 后旧快照，以及呼吸/Reduce Motion/离屏策略。UI 使用 `UITEST_SESSION_INDICATOR_FIXTURE`，只含合成 session，截图使用真实行及真实 composer。
+
+父行确认回归通过真实 `selectSession` 验证 P 打开→切走不重复蓝、子仍未读、只确认 P 不确认祖父/子、查看来源清除各祖先贡献、兄弟乱序新 token、分页后重新加载及补载新孩子、父自身新数据、current 期间新版本退出不吞、非蓝状态不确认；存储测试覆盖旧 JSON、host 隔离及删除引用。具体运行结果见 `docs/WORKING.md` 本轮记录；未以单测代替设备部署验收。
 
 composer 活动文本另有定向测试：具体活动复用、无活动 fallback、仅后代执行、过期活动拒绝、重试/待处理/失败优先及语音合并。ActivityTracker 没有映射的工具只能显示既有 tracker fallback 或 Agent working；活动文字是当前已观测线索，不是持续进展或任务成功保证。
 

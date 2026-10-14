@@ -1072,30 +1072,51 @@ final class AppState {
         unreadIDs: [String],
         lastViewedAt: [String: Date] = [:]
     ) -> [String: Int] {
+        blueReminderSourcesBySession(sessions: sessions, unreadIDs: unreadIDs,
+                                     lastViewedAt: lastViewedAt).mapValues(\.count)
+    }
+
+    nonisolated static func blueReminderSourcesBySession(
+        sessions: [Session],
+        unreadIDs: [String],
+        lastViewedAt: [String: Date],
+        acknowledgements: [String: [String: Int]] = [:]
+    ) -> [String: [String: Int]] {
         let sessionsByID = Dictionary(uniqueKeysWithValues: sessions.map { ($0.id, $0) })
-        var counts: [String: Int] = [:]
+        var sources: [String: [String: Int]] = [:]
         for sourceID in unreadIDs {
             guard let source = sessionsByID[sourceID] else { continue }
             let updated = Date(timeIntervalSince1970: Double(source.time.updated) / 1000)
+            guard updated > (lastViewedAt[sourceID] ?? .distantPast) else { continue }
             var sessionID: String? = sourceID
             var visited: Set<String> = []
             while let id = sessionID, visited.insert(id).inserted {
-                if updated > (lastViewedAt[sourceID] ?? .distantPast) {
-                    counts[id, default: 0] += 1
+                // A row confirms only its own reminder; never stop propagation to higher rows.
+                if id == sourceID || source.time.updated <= 0
+                    || acknowledgements[id]?[sourceID] != source.time.updated {
+                    sources[id, default: [:]][sourceID] = source.time.updated
                 }
                 sessionID = sessionsByID[id]?.parentID
             }
         }
-        return counts
+        return sources
     }
 
-    var sessionUnreadCounts: [String: Int] {
+    var sessionBlueReminderSources: [String: [String: Int]] {
         let viewed = Dictionary(uniqueKeysWithValues: sessions.compactMap { session in
             readStateStore.lastViewedAt(for: session.id).map { (session.id, $0) }
         })
-        // Acknowledgement belongs to the source, never to each ancestor.
+        let acknowledgements = Dictionary(uniqueKeysWithValues: sessions.map {
+            ($0.id, readStateStore.blueAcknowledgements(for: $0.id))
+        })
         let settledIDs = Self.unreadSessionIDs(sessions: sessions, statuses: sessionStatuses, lastViewedAt: [:])
-        return Self.unreadCountsBySession(sessions: sessions, unreadIDs: settledIDs, lastViewedAt: viewed)
+        return Self.blueReminderSourcesBySession(sessions: sessions, unreadIDs: settledIDs,
+                                                lastViewedAt: viewed, acknowledgements: acknowledgements)
+    }
+
+    /// Row reminders, not a count of all unread content in the subtree.
+    var sessionUnreadCounts: [String: Int] {
+        sessionBlueReminderSources.mapValues(\.count)
     }
 
     nonisolated static func failureCountsBySession(

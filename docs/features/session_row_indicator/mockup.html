@@ -7,7 +7,7 @@
 body{font:15px/1.6 system-ui,sans-serif;background:var(--bg);color:var(--fg);max-width:900px;margin:32px auto;padding:0 20px}h1{font-size:24px}h2{font-size:18px}.muted,small{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px}.panel{border:1px solid var(--border);border-radius:12px;padding:16px}.row{display:flex;align-items:center;gap:8px;padding:12px 0;border-bottom:1px solid var(--border)}.gutter{width:20px}.child{padding-left:24px}.dot{display:inline-block;border-radius:50%;width:8px;height:8px;flex:none}.slot{width:12px;display:flex;justify-content:center}.yellow{background:#d9a621}.red{background:#e5484d}.green{background:var(--green);width:6px;height:6px;animation:breathe 2.6s ease-in-out infinite}.blue{background:#3b82f6;width:6px;height:6px}.selected{background:rgba(59,130,246,.08)}small{display:block}.composer{margin-top:64px;background:var(--surface);padding:12px;border-radius:12px}.status{display:flex;align-items:center;gap:8px;color:var(--muted)}textarea{box-sizing:border-box;width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--fg);margin-top:8px}button{padding:8px;margin-top:12px}@keyframes breathe{0%,100%{opacity:1}50%{opacity:.40}}@media(prefers-reduced-motion:reduce){.green{animation:none}}
 </style>
 <h1>Session 单灯：黄 → 红 → 绿 → 蓝</h1>
-<p class="muted">列表与输入框上方共用语义。绿表示执行未结束，不保证进展或成功；蓝只表示已停止执行后的未读更新。</p>
+<p class="muted">列表与输入框上方共用语义。绿表示执行未结束，不保证进展或成功；蓝表示已知执行停止后，本行尚未确认的更新提醒。父行无蓝不代表子内容已读。</p>
 <p class="muted">灯与完整标题/副文字块垂直居中；iOS 保留 6/8pt，Android 可采用 5/6dp。两端呼吸均为 2.6 秒、opacity 0.40–1.0，减少动态效果时常亮。</p>
 <div class="grid"><section class="panel"><h2>会话树</h2>
 <div class="row"><span class="gutter">▸</span><span class="slot"><i class="dot yellow"></i></span><div>等待权限的树<small><span aria-label="2 个后代执行未结束">⑂ 2</span></small></div></div>
@@ -18,5 +18,6 @@ body{font:15px/1.6 system-ui,sans-serif;background:var(--bg);color:var(--fg);max
 <div class="row"><span class="gutter"></span><span class="slot"></span><div>尚未确认执行状态<small>状态待同步</small></div></div>
 </section><section class="panel"><h2>当前聊天</h2><p>当前 session 只豁免蓝。黄红仍可来自后代；查看父不替代查看子。</p><div class="composer"><div class="muted">↗ 子会话标题（保留原导航）</div><div class="status"><i class="dot green" aria-hidden="true"></i>思考中</div><textarea aria-label="消息输入框" placeholder="输入消息…"></textarea></div><p class="muted">iOS 状态栏恢复有用的当前活动说明；缺失时显示“处理中”，仅后代执行时显示“子代理正在运行”。保留重试、待同步、语音提示，不放后代数量或重复执行长句。分支图标+数字仅用于列表。</p></section></div>
 <h2>来源级确认</h2><p>父 P、自身失败；子 C 失败；兄弟 D 失败。查看 C 后，P 只扣掉 C 的贡献，仍保留 P 和 D 的提醒。查看 P 只确认 P，不能清除 D。孙来源同样一次从所有祖先减去。后续干净运行结束不能自动确认旧失败，权限回复非 2xx 不能清除 pending。</p>
+<p>iOS 蓝色提醒另按行确认：打开蓝色父行 P，确认当时已知的 C/D 版本，子内容仍未读，祖父行不随之确认。孩子有新版本时 P 再提醒；黄红绿或状态未知时不顺带确认后代。</p>
 <p>断线或超过确认有效期：停止绿色呼吸，不亮蓝；保留黄红并加“状态待同步”。请求未完成或失败不是 idle；只有同 host/project 的成功完整快照缺项才可确认不活跃。</p>
 </html>

@@ -6,6 +6,7 @@ final class SessionReadStateStore {
     private struct ReadState: Codable {
         var lastViewedAt: Date?
         var failedAt: Date?
+        var blueAckBySource: [String: Int]?
     }
 
     private var states: [String: ReadState] = [:]
@@ -30,6 +31,19 @@ final class SessionReadStateStore {
         states[sessionID]?.failedAt
     }
 
+    func blueAcknowledgements(for sessionID: String) -> [String: Int] {
+        states[sessionID]?.blueAckBySource ?? [:]
+    }
+
+    func acknowledgeBlue(sessionID: String, sources: [String: Int]) {
+        let valid = sources.filter { $0.key != sessionID && $0.value > 0 }
+        guard !valid.isEmpty else { return }
+        var state = states[sessionID] ?? ReadState()
+        state.blueAckBySource = (state.blueAckBySource ?? [:]).merging(valid) { _, captured in captured }
+        states[sessionID] = state
+        save()
+    }
+
     func markViewed(sessionID: String, at date: Date) {
         states[sessionID, default: ReadState()].lastViewedAt = date
         save()
@@ -47,7 +61,13 @@ final class SessionReadStateStore {
     }
 
     func remove(sessionID: String) {
-        guard states.removeValue(forKey: sessionID) != nil else { return }
+        var changed = states.removeValue(forKey: sessionID) != nil
+        for rowID in Array(states.keys) {
+            if states[rowID]?.blueAckBySource?.removeValue(forKey: sessionID) != nil {
+                changed = true
+            }
+        }
+        guard changed else { return }
         save()
     }
 
