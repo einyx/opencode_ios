@@ -40,11 +40,16 @@ final class FocusVoiceInputUITests: XCTestCase {
         enableVoiceFirst(app)
         XCTAssertTrue(marked(app, "chat-voice-first-actions").waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["chat-keyboard"].exists)
+        capture(app, name: "paste-button-resting")
         XCTAssertFalse(app.buttons["chat-keyboard-done"].exists)
         XCTAssertTrue(input.isHittable, "草稿区应可点，否则点按不弹键盘没有被测到")
 
         input.tap()
         assertSoftwareKeyboardHidden(app)
+        let probe = waitForCaretProbe(app, contains: "first=1")
+        XCTAssertTrue(probe.contains("keyboard=suppressed"), "点按应聚焦但不弹软键盘，probe=\(probe)")
+        XCTAssertTrue(probe.contains("editable=1"), probe)
+        XCTAssertFalse(probe.contains("caret=0x0"), "聚焦后应有 caret，probe=\(probe)")
         XCTAssertTrue(app.buttons["chat-keyboard"].exists)
         XCTAssertFalse(app.buttons["chat-keyboard-done"].exists)
     }
@@ -63,6 +68,8 @@ final class FocusVoiceInputUITests: XCTestCase {
         openKeyboard.tap()
         XCTAssertTrue(app.buttons["chat-keyboard-done"].waitForExistence(timeout: 5), "显式键盘按钮应进入编辑态")
         assertSoftwareKeyboardVisible(app)
+        let editing = waitForCaretProbe(app, contains: "keyboard=system")
+        XCTAssertTrue(editing.contains("first=1"), editing)
         input.typeText("vfkeep9")
         XCTAssertTrue((input.value as? String)?.contains("vfkeep9") == true, "显式编辑应写入草稿")
 
@@ -71,6 +78,10 @@ final class FocusVoiceInputUITests: XCTestCase {
         XCTAssertFalse(app.buttons["chat-keyboard-done"].exists)
         assertSoftwareKeyboardDismissed(app)
         XCTAssertTrue((input.value as? String)?.contains("vfkeep9") == true, "收起键盘不应清草稿")
+        input.tap()
+        let refocused = waitForCaretProbe(app, contains: "first=1")
+        XCTAssertTrue(refocused.contains("keyboard=suppressed"), refocused)
+        assertSoftwareKeyboardHidden(app)
     }
 
     @MainActor
@@ -129,6 +140,42 @@ final class FocusVoiceInputUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(pasteCount(value), 2, "第二次粘贴应换行追加，不应覆盖。当前值=\(value)")
         assertPasteInsertedNewline(value)
         assertPasteDidNotEditOrSend(app, input: input, value: value)
+    }
+
+    @MainActor
+    func testVoiceFirstCaretTapFocusesWithoutKeyboardAndPasteUsesSelection() {
+        let app = launchSessionTree(pasteSeed: true)
+        enableVoiceFirst(app)
+        let input = app.textViews["chat-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 8))
+        app.buttons["chat-keyboard"].tap()
+        assertSoftwareKeyboardVisible(app)
+        input.typeText("ab")
+        app.buttons["chat-keyboard-done"].tap()
+        assertSoftwareKeyboardDismissed(app)
+        XCTAssertEqual(input.value as? String, "ab")
+
+        input.tap()
+        let probe = waitForCaretProbe(app, contains: "first=1")
+        XCTAssertTrue(probe.contains("keyboard=suppressed"), probe)
+        assertSoftwareKeyboardHidden(app)
+        capture(app, name: "caret-focused-no-keyboard")
+        guard let range = probeRange(probe) else {
+            XCTFail("probe 没有选区：\(probe)")
+            return
+        }
+        let paste = marked(app, "chat-paste")
+        XCTAssertTrue(paste.waitForExistence(timeout: 5))
+        XCTAssertTrue(paste.isEnabled)
+        paste.tap()
+        let value = waitForPasteCount(app, input: input, count: 1, timeout: 8)
+        if failIfPastePrompt(app, name: "caret-paste-alert") { return }
+        let expected = inserted(draft: "ab", addition: pasteSentinel, range: range)
+        XCTAssertEqual(value, expected, "聚焦后粘贴应落在 caret，而不是未聚焦的换行追加。probe=\(probe)")
+        XCTAssertNotEqual(value, "ab\n\(pasteSentinel)")
+        assertSoftwareKeyboardHidden(app)
+        XCTAssertEqual(count(app, prefix: "user-message-"), 0)
+        capture(app, name: "caret-paste-at-selection")
     }
 
     @MainActor
@@ -613,6 +660,36 @@ final class FocusVoiceInputUITests: XCTestCase {
 
     private func pasteCount(_ value: String) -> Int {
         value.components(separatedBy: pasteSentinel).count - 1
+    }
+
+    @MainActor
+    private func waitForCaretProbe(_ app: XCUIApplication, contains needle: String, timeout: TimeInterval = 5) -> String {
+        let probe = marked(app, "chat-input-caret-probe")
+        XCTAssertTrue(probe.waitForExistence(timeout: 5), "caret probe 应只在 session tree fixture 出现")
+        let deadline = Date().addingTimeInterval(timeout)
+        var latest = probe.value as? String ?? ""
+        while Date() < deadline {
+            latest = probe.value as? String ?? ""
+            if latest.contains(needle) { return latest }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        return latest
+    }
+
+    private func probeRange(_ probe: String) -> NSRange? {
+        guard let match = probe.range(of: "range=") else { return nil }
+        let tail = probe[match.upperBound...]
+        let pair = tail.prefix { $0 != ";" }
+        let parts = pair.split(separator: ",")
+        guard parts.count == 2, let location = Int(parts[0]), let length = Int(parts[1]) else { return nil }
+        return NSRange(location: location, length: length)
+    }
+
+    private func inserted(draft: String, addition: String, range: NSRange) -> String {
+        let ns = draft as NSString
+        let location = min(max(0, range.location), ns.length)
+        let length = min(max(0, range.length), ns.length - location)
+        return ns.replacingCharacters(in: NSRange(location: location, length: length), with: addition)
     }
 
     private func switchIsOn(_ toggle: XCUIElement) -> Bool {

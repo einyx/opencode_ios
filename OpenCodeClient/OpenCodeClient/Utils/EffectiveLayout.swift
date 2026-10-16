@@ -189,11 +189,16 @@ enum ComposerOwnedWrite {
 
 enum ComposerFocusPolicy {
     static func isTextEditable(voiceFirst: Bool, isEditing: Bool) -> Bool {
-        !voiceFirst || isEditing
+        _ = (voiceFirst, isEditing)
+        return true
     }
 
     static func requestsFirstResponder(voiceFirst: Bool, isEditing: Bool) -> Bool {
         voiceFirst && isEditing
+    }
+
+    static func suppressesSoftwareKeyboard(voiceFirst: Bool, isEditing: Bool) -> Bool {
+        voiceFirst && !isEditing
     }
 
     static func shouldAssignComposerText(hasMarkedText: Bool) -> Bool {
@@ -209,13 +214,13 @@ enum ComposerPastePlacement: Equatable {
 
 enum ComposerPastePlanner {
     static func placement(
-        isEditing: Bool,
+        hasCaretFocus: Bool,
         hasMarkedText: Bool,
         selectionUTF16: NSRange?,
         speechOwnedUTF16End: Int?
     ) -> ComposerPastePlacement {
         if hasMarkedText { return .deferUntilMarkedTextEnds }
-        guard isEditing, let selectionUTF16, selectionUTF16.location != NSNotFound else { return .append }
+        guard hasCaretFocus, let selectionUTF16, selectionUTF16.location != NSNotFound else { return .append }
         if let speechEnd = speechOwnedUTF16End, selectionUTF16.location < speechEnd {
             return .append
         }

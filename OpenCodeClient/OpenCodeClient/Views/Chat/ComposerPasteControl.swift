@@ -1,36 +1,51 @@
 import SwiftUI
 import UIKit
 
-struct ComposerPasteControl: UIViewRepresentable {
+struct ComposerPasteControl: View {
+    @Environment(\.colorScheme) private var colorScheme
     var beginPaste: () -> ([String]) -> Void
     var accessibilityLabel: String
+
+    var body: some View {
+        ComposerPasteButton(
+            beginPaste: beginPaste,
+            accessibilityLabel: accessibilityLabel,
+            interfaceStyle: Self.interfaceStyle(for: colorScheme)
+        )
+        .id(Self.interfaceStyle(for: colorScheme).rawValue)
+        .frame(width: ComposerHitTarget.minimum, height: ComposerHitTarget.minimum)
+    }
+
+    private static func interfaceStyle(for colorScheme: ColorScheme) -> UIUserInterfaceStyle {
+        colorScheme == .dark ? .dark : .light
+    }
+}
+
+struct ComposerPasteButton: UIViewRepresentable {
+    var beginPaste: () -> ([String]) -> Void
+    var accessibilityLabel: String
+    var interfaceStyle: UIUserInterfaceStyle
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
     }
 
     func makeUIView(context: Context) -> UIPasteControl {
-        let configuration = UIPasteControl.Configuration()
-        configuration.displayMode = .iconOnly
-        let control = UIPasteControl(configuration: configuration)
+        let control = UIPasteControl(configuration: PasteChrome.configuration(for: interfaceStyle))
         control.target = context.coordinator
-        apply(accessibilityLabel, to: control)
+        control.accessibilityIdentifier = "chat-paste"
+        control.accessibilityLabel = accessibilityLabel
         return control
     }
 
     func updateUIView(_ uiView: UIPasteControl, context: Context) {
         context.coordinator.beginPaste = beginPaste
         uiView.target = context.coordinator
-        apply(accessibilityLabel, to: uiView)
+        uiView.accessibilityLabel = accessibilityLabel
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIPasteControl, context: Context) -> CGSize? {
         CGSize(width: ComposerHitTarget.minimum, height: ComposerHitTarget.minimum)
-    }
-
-    private func apply(_ label: String, to control: UIPasteControl) {
-        control.accessibilityIdentifier = "chat-paste"
-        control.accessibilityLabel = label
     }
 
     final class Coordinator: UIView {
@@ -62,6 +77,21 @@ struct ComposerPasteControl: UIViewRepresentable {
         override func canPaste(_ itemProviders: [NSItemProvider]) -> Bool {
             itemProviders.contains { $0.canLoadObject(ofClass: NSString.self) }
         }
+    }
+}
+
+enum PasteChrome {
+    static func plate(for style: UIUserInterfaceStyle) -> UIColor {
+        UIColor(style == .dark ? DesignColors.Neutral.composerDark : DesignColors.Neutral.composerLight)
+    }
+
+    static func configuration(for style: UIUserInterfaceStyle) -> UIPasteControl.Configuration {
+        let configuration = UIPasteControl.Configuration()
+        configuration.displayMode = .iconOnly
+        configuration.cornerRadius = 0
+        configuration.baseForegroundColor = UIColor(DesignColors.Brand.primary)
+        configuration.baseBackgroundColor = plate(for: style)
+        return configuration
     }
 }
 

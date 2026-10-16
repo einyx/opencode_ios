@@ -193,7 +193,12 @@ struct ChatTabView: View {
     @State var inputText = ""
     @State private var hasMarkedText = false
     @State private var isComposerEditing = false
+    @State private var composerHasCaretFocus = false
+    @State private var composerFocusResetEpoch = 0
     @State private var composerSelectionUTF16 = NSRange(location: NSNotFound, length: 0)
+    #if DEBUG
+    @State private var caretProbeValue = "first=0;editable=1;keyboard=system;range=0,0;caret=0x0"
+    #endif
     @State private var preferredCursorUTF16: Int?
     @State private var deferredPastes: [DeferredPasteWrite] = []
     @State private var deferredSpeech: DeferredSpeechWrite?
@@ -1117,6 +1122,11 @@ struct ChatTabView: View {
                                     voiceFirst: voiceFirstEnabled,
                                     isEditing: isComposerEditing
                                 ),
+                                suppressesSoftwareKeyboard: ComposerFocusPolicy.suppressesSoftwareKeyboard(
+                                    voiceFirst: voiceFirstEnabled,
+                                    isEditing: isComposerEditing
+                                ),
+                                focusResetEpoch: composerFocusResetEpoch,
                                 preferredCursorUTF16: preferredCursorUTF16,
                                 placeholder: L10n.t(.chatInputPlaceholder),
                                 autoScrollToBottomOnTextChange: Self.shouldAutoScrollSpeechTranscript(
@@ -1125,10 +1135,18 @@ struct ChatTabView: View {
                                 ),
                                 onSubmit: sendCurrentInput,
                                 onEndEditing: { isComposerEditing = false },
+                                onCaretFocusChange: { composerHasCaretFocus = $0 },
                                 onSelectionUTF16: { range in
                                     if composerSelectionUTF16 != range {
                                         composerSelectionUTF16 = range
                                     }
+                                },
+                                onCaretProbe: { value in
+                                    #if DEBUG
+                                    if UITestFixtures.hasUITestSessionTreeFixture, caretProbeValue != value {
+                                        caretProbeValue = value
+                                    }
+                                    #endif
                                 }
                             )
                             .frame(
@@ -1143,6 +1161,15 @@ struct ChatTabView: View {
                                     .allowsHitTesting(false)
                                     .accessibilityHidden(true)
                             }
+                            #if DEBUG
+                            if UITestFixtures.hasUITestSessionTreeFixture {
+                                Color.clear
+                                    .frame(width: 1, height: 1)
+                                    .accessibilityElement()
+                                    .accessibilityIdentifier("chat-input-caret-probe")
+                                    .accessibilityValue(caretProbeValue)
+                            }
+                            #endif
                         }
 
                         Button {
@@ -1224,9 +1251,12 @@ struct ChatTabView: View {
             }
             .onChange(of: state.currentHostProfileID) { _, _ in
                 persistAllDeferredToOrigins()
+                composerFocusResetEpoch &+= 1
             }
             .onChange(of: state.currentSessionID) { oldID, newID in
                 isComposerEditing = false
+                composerHasCaretFocus = false
+                composerFocusResetEpoch &+= 1
                 preferredCursorUTF16 = nil
                 composerRevision &+= 1
                 let hostID = state.currentHostProfileID
@@ -1363,7 +1393,7 @@ struct ChatTabView: View {
                 ? (speechDraft.anchor as NSString).length
                 : nil
             let placement = ComposerPastePlanner.placement(
-                isEditing: voiceFirstEnabled && isComposerEditing,
+                hasCaretFocus: composerHasCaretFocus,
                 hasMarkedText: false,
                 selectionUTF16: composerSelectionUTF16.location == NSNotFound ? nil : composerSelectionUTF16,
                 speechOwnedUTF16End: speechEnd

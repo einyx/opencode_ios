@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 import UIKit
 @testable import OpenCodeClient
@@ -71,7 +72,7 @@ struct EffectiveLayoutTests {
 
     @Test func editPasteRespectsSelectionOutsideSpeechSpan() {
         let placement = ComposerPastePlanner.placement(
-            isEditing: true,
+            hasCaretFocus: true,
             hasMarkedText: false,
             selectionUTF16: NSRange(location: 5, length: 0),
             speechOwnedUTF16End: 5
@@ -84,7 +85,7 @@ struct EffectiveLayoutTests {
 
     @Test func pasteInsideLiveTranscriptAppendsInsteadOfReplacingSpan() {
         let placement = ComposerPastePlanner.placement(
-            isEditing: true,
+            hasCaretFocus: true,
             hasMarkedText: false,
             selectionUTF16: NSRange(location: 2, length: 0),
             speechOwnedUTF16End: 8
@@ -95,7 +96,7 @@ struct EffectiveLayoutTests {
     @Test func markedTextDefersPaste() {
         #expect(
             ComposerPastePlanner.placement(
-                isEditing: true,
+                hasCaretFocus: true,
                 hasMarkedText: true,
                 selectionUTF16: NSRange(location: 1, length: 0),
                 speechOwnedUTF16End: nil
@@ -106,7 +107,7 @@ struct EffectiveLayoutTests {
     @Test func nonEditingPasteAppends() {
         #expect(
             ComposerPastePlanner.placement(
-                isEditing: false,
+                hasCaretFocus: false,
                 hasMarkedText: false,
                 selectionUTF16: NSRange(location: 1, length: 0),
                 speechOwnedUTF16End: nil
@@ -130,13 +131,131 @@ struct EffectiveLayoutTests {
         #expect(ComposerFocusPolicy.shouldAssignComposerText(hasMarkedText: false) == true)
     }
 
-    @Test func voiceFirstStaysReadOnlyUntilExplicitEdit() {
+    @Test func voiceFirstStaysEditableWithoutAutoFocusUntilExplicitKeyboard() {
         #expect(ComposerFocusPolicy.isTextEditable(voiceFirst: false, isEditing: false))
+        #expect(!ComposerFocusPolicy.suppressesSoftwareKeyboard(voiceFirst: false, isEditing: false))
         #expect(!ComposerFocusPolicy.requestsFirstResponder(voiceFirst: false, isEditing: false))
-        #expect(!ComposerFocusPolicy.isTextEditable(voiceFirst: true, isEditing: false))
+        #expect(ComposerFocusPolicy.isTextEditable(voiceFirst: true, isEditing: false))
+        #expect(ComposerFocusPolicy.suppressesSoftwareKeyboard(voiceFirst: true, isEditing: false))
         #expect(!ComposerFocusPolicy.requestsFirstResponder(voiceFirst: true, isEditing: false))
         #expect(ComposerFocusPolicy.isTextEditable(voiceFirst: true, isEditing: true))
+        #expect(!ComposerFocusPolicy.suppressesSoftwareKeyboard(voiceFirst: true, isEditing: true))
         #expect(ComposerFocusPolicy.requestsFirstResponder(voiceFirst: true, isEditing: true))
+    }
+
+    @Test func focusedCaretPasteInsertsWithoutSoftwareKeyboard() {
+        let placement = ComposerPastePlanner.placement(
+            hasCaretFocus: true,
+            hasMarkedText: false,
+            selectionUTF16: NSRange(location: 2, length: 0),
+            speechOwnedUTF16End: nil
+        )
+        #expect(placement == .insert(NSRange(location: 2, length: 0)))
+        let inserted = ComposerDraftMerge.inserting(
+            draft: "hello",
+            addition: "X",
+            selectionUTF16: NSRange(location: 2, length: 0)
+        )
+        #expect(inserted.text == "heXllo")
+    }
+
+    @MainActor
+    @Test func textViewSeparatesCaretFocusFromSoftwareKeyboard() {
+        let previousKey = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first { $0.isKeyWindow }
+        let textView = ReloadCountingTextView(frame: CGRect(x: 0, y: 0, width: 220, height: 44))
+        textView.text = "hello"
+        textView.isEditable = true
+        textView.isSelectable = true
+        textView.setSoftwareKeyboardSuppressed(true)
+        textView.selectedRange = NSRange(location: 2, length: 0)
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 220, height: 44))
+        window.addSubview(textView)
+        defer {
+            textView.resignFirstResponder()
+            window.isHidden = true
+            window.resignKey()
+            previousKey?.makeKey()
+        }
+        window.makeKeyAndVisible()
+        textView.layoutIfNeeded()
+        #expect(textView.becomeFirstResponder())
+        let reloadsAfterFocus = textView.reloadCount
+        textView.setSoftwareKeyboardSuppressed(true)
+        #expect(textView.reloadCount == reloadsAfterFocus)
+        #expect(textView.isFirstResponder)
+        #expect(textView.isEditable)
+        #expect(textView.softwareKeyboardSuppressed)
+        #expect(textView.inputView is ZeroHeightInputView)
+        #expect(textView.inputView?.intrinsicContentSize.height == 0)
+        let caret = textView.caretRect(for: textView.selectedTextRange!.start)
+        #expect(caret.height > 0)
+        textView.setSoftwareKeyboardSuppressed(false)
+        #expect(textView.reloadCount == reloadsAfterFocus + 1)
+        #expect(textView.inputView == nil)
+        #expect(textView.isFirstResponder)
+    }
+
+    @MainActor
+    @Test func tapFocusResignsWhenSessionEpochChanges() {
+        let previousKey = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first { $0.isKeyWindow }
+        let textView = IMEAwareTextView(frame: CGRect(x: 0, y: 0, width: 220, height: 44))
+        textView.text = "hello"
+        textView.isEditable = true
+        textView.setSoftwareKeyboardSuppressed(true)
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 220, height: 44))
+        window.addSubview(textView)
+        defer {
+            textView.resignFirstResponder()
+            window.isHidden = true
+            window.resignKey()
+            previousKey?.makeKey()
+        }
+        window.makeKeyAndVisible()
+        #expect(textView.becomeFirstResponder())
+        #expect(textView.isFirstResponder)
+        let coordinator = ChatComposerTextView.Coordinator(
+            text: .constant("hello"),
+            hasMarkedText: .constant(false),
+            onSubmit: {}
+        )
+        coordinator.requestsFirstResponder = false
+        coordinator.focusScheduled = true
+        coordinator.applyFocusReset(epoch: 1, to: textView)
+        #expect(!textView.isFirstResponder)
+        #expect(!coordinator.focusScheduled)
+        coordinator.applyFocusReset(epoch: 1, to: textView)
+        #expect(coordinator.seenFocusResetEpoch == 1)
+    }
+
+    @MainActor
+    @Test func pasteCallbackInsertsAtMiddleSelection() async {
+        let coordinator = ComposerPasteButton.Coordinator()
+        var selection = NSRange(location: 1, length: 0)
+        var merged = ""
+        coordinator.beginPaste = {
+            let captured = selection
+            return { parts in
+                let addition = ComposerDraftMerge.joinedPaste(parts)
+                merged = ComposerDraftMerge.inserting(
+                    draft: "ab",
+                    addition: addition,
+                    selectionUTF16: captured
+                ).text
+            }
+        }
+        let provider = NSItemProvider(object: "FOCUS_VOICE_PASTE_SENTINEL" as NSString)
+        coordinator.paste(itemProviders: [provider])
+        for _ in 0..<50 where merged.isEmpty {
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
+        #expect(merged == "aFOCUS_VOICE_PASTE_SENTINELb")
+        #expect(selection.location == 1)
     }
 
     @Test func pasteHitTargetStaysAtLeastFortyFour() {
@@ -208,7 +327,7 @@ struct ComposerOwnershipTests {
 
     @MainActor
     @Test func pasteControlCapturesOriginWhenPasteBegins() async {
-        let coordinator = ComposerPasteControl.Coordinator()
+        let coordinator = ComposerPasteButton.Coordinator()
         var generation = 0
         var delivered: (Int, [String])?
         coordinator.beginPaste = {
@@ -350,5 +469,14 @@ struct ComposerOwnershipTests {
             userDefaults: defaults,
             hostCredentialAccess: .noExternal
         )
+    }
+}
+
+private final class ReloadCountingTextView: IMEAwareTextView {
+    var reloadCount = 0
+
+    override func reloadInputViews() {
+        reloadCount += 1
+        super.reloadInputViews()
     }
 }
