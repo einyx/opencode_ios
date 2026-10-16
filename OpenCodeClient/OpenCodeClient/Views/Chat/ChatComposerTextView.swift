@@ -25,9 +25,14 @@ enum ChatComposerSendGate {
 struct ChatComposerTextView: UIViewRepresentable {
     @Binding var text: String
     @Binding var hasMarkedText: Bool
+    var isEditable: Bool = true
+    var requestsFirstResponder: Bool = false
+    var preferredCursorUTF16: Int? = nil
     let placeholder: String
     let autoScrollToBottomOnTextChange: Bool
     let onSubmit: () -> Void
+    var onEndEditing: () -> Void = {}
+    var onSelectionUTF16: (NSRange) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(text: $text, hasMarkedText: $hasMarkedText, onSubmit: onSubmit)
@@ -47,6 +52,8 @@ struct ChatComposerTextView: UIViewRepresentable {
         textView.returnKeyType = .default
         textView.autocorrectionType = .default
         textView.autocapitalizationType = .sentences
+        textView.isEditable = isEditable
+        textView.isSelectable = true
         textView.accessibilityIdentifier = "chat-input"
         textView.accessibilityLabel = placeholder
         textView.onShiftReturn = {
@@ -58,8 +65,23 @@ struct ChatComposerTextView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: IMEAwareTextView, context: Context) {
+        context.coordinator.onEndEditing = onEndEditing
+        context.coordinator.onSelectionUTF16 = onSelectionUTF16
+        context.coordinator.requestsFirstResponder = requestsFirstResponder
+        if uiView.isEditable != isEditable {
+            uiView.isEditable = isEditable
+        }
+        if context.coordinator.wasEditable, !isEditable, uiView.isFirstResponder {
+            uiView.resignFirstResponder()
+        }
+        context.coordinator.wasEditable = isEditable
+        uiView.isSelectable = true
         if uiView.text != text {
             uiView.text = text
+            if let cursor = preferredCursorUTF16, isEditable {
+                let length = (text as NSString).length
+                uiView.selectedRange = NSRange(location: min(max(0, cursor), length), length: 0)
+            }
             if autoScrollToBottomOnTextChange {
                 context.coordinator.scrollToBottom(uiView)
             }
@@ -69,6 +91,23 @@ struct ChatComposerTextView: UIViewRepresentable {
             context.coordinator.insertNewline(into: uiView)
         }
         context.coordinator.updateMarkedTextState(for: uiView)
+        if requestsFirstResponder {
+            context.coordinator.wasRequestingFocus = true
+            if !uiView.isFirstResponder, !context.coordinator.focusScheduled {
+                context.coordinator.focusScheduled = true
+                DispatchQueue.main.async {
+                    context.coordinator.focusScheduled = false
+                    guard context.coordinator.requestsFirstResponder, !uiView.isFirstResponder else { return }
+                    uiView.becomeFirstResponder()
+                }
+            }
+        } else if context.coordinator.wasRequestingFocus {
+            context.coordinator.wasRequestingFocus = false
+            context.coordinator.focusScheduled = false
+            if uiView.isFirstResponder {
+                uiView.resignFirstResponder()
+            }
+        }
     }
 
     final class Coordinator: NSObject, UITextViewDelegate {
@@ -76,6 +115,12 @@ struct ChatComposerTextView: UIViewRepresentable {
         @Binding private var hasMarkedText: Bool
         private let onSubmit: () -> Void
         private var isInsertingShiftNewline = false
+        var onEndEditing: () -> Void = {}
+        var onSelectionUTF16: (NSRange) -> Void = { _ in }
+        var focusScheduled = false
+        var requestsFirstResponder = false
+        var wasRequestingFocus = false
+        var wasEditable = true
 
         init(text: Binding<String>, hasMarkedText: Binding<Bool>, onSubmit: @escaping () -> Void) {
             _text = text
@@ -83,13 +128,19 @@ struct ChatComposerTextView: UIViewRepresentable {
             self.onSubmit = onSubmit
         }
 
+        func textViewDidEndEditing(_ textView: UITextView) {
+            onEndEditing()
+        }
+
         func textViewDidChange(_ textView: UITextView) {
             text = textView.text
             updateMarkedTextState(for: textView)
+            onSelectionUTF16(textView.selectedRange)
         }
 
         func textViewDidChangeSelection(_ textView: UITextView) {
             updateMarkedTextState(for: textView)
+            onSelectionUTF16(textView.selectedRange)
         }
 
         func textView(

@@ -42,20 +42,40 @@ enum ChatComposerRestore {
         sentAttachments: [ComposerImageAttachment],
         currentText: String,
         currentAttachments: [ComposerImageAttachment]
-    ) -> (text: String, attachments: [ComposerImageAttachment]) {
-        guard shouldRestore(
-            sourceSessionID: sourceSessionID,
-            currentSessionID: currentSessionID,
-            capturedRevision: capturedRevision,
-            currentRevision: currentRevision,
-            capturedHost: capturedHost,
-            currentHost: currentHost,
-            capturedSelection: capturedSelection,
-            currentSelection: currentSelection
-        ) else {
+        ) -> (text: String, attachments: [ComposerImageAttachment]) {
+        let sameComposer = sourceSessionID != nil
+            && sourceSessionID == currentSessionID
+            && capturedHost == currentHost
+            && capturedSelection == currentSelection
+        guard sameComposer else {
             return (currentText, currentAttachments)
         }
-        return (sentText, sentAttachments)
+        return (
+            failedSendText(sentText: sentText, currentText: currentText),
+            failedSendAttachments(sent: sentAttachments, current: currentAttachments)
+        )
+    }
+
+    static func failedSendText(sentText: String, currentText: String) -> String {
+        if currentText.isEmpty { return sentText }
+        if sentText.isEmpty || currentText == sentText || currentText.hasPrefix(sentText + "\n") {
+            return currentText
+        }
+        let base = sentText.hasSuffix("\n") ? String(sentText.dropLast()) : sentText
+        let addition = currentText.hasPrefix("\n") ? String(currentText.dropFirst()) : currentText
+        return ComposerDraftMerge.appending(draft: base, addition: addition)
+    }
+
+    static func failedSendAttachments(
+        sent: [ComposerImageAttachment],
+        current: [ComposerImageAttachment]
+    ) -> [ComposerImageAttachment] {
+        var seen = Set<UUID>()
+        var merged: [ComposerImageAttachment] = []
+        for item in sent + current where seen.insert(item.id).inserted {
+            merged.append(item)
+        }
+        return merged
     }
 }
 
@@ -172,6 +192,12 @@ struct ChatTabView: View {
     var onSettingsTap: (() -> Void)?
     @State var inputText = ""
     @State private var hasMarkedText = false
+    @State private var isComposerEditing = false
+    @State private var composerSelectionUTF16 = NSRange(location: NSNotFound, length: 0)
+    @State private var preferredCursorUTF16: Int?
+    @State private var deferredPastes: [DeferredPasteWrite] = []
+    @State private var deferredSpeech: DeferredSpeechWrite?
+    @State var speechDraft = SpeechDraftProtector()
     @State private var isSending = false
     @State private var isSyncingDraft = false
     @State private var showSessionList = false
@@ -182,6 +208,7 @@ struct ChatTabView: View {
     @State var speechAudioSender: OrderedSpeechAudioSender?
     @State var speechStartID: UUID?
     @State var speechOriginSessionID: String?
+    @State var speechOriginHost: HostRequestSnapshot?
     @State var activeSpeechStrategy: VoiceFlowRecordingStrategy = .gptLiveTranscribe
     @State var speechFinalizationID: UUID?
     @State var speechRetryID: UUID?
@@ -213,11 +240,17 @@ struct ChatTabView: View {
     /// measurements inside the settle window after this are too early to
     /// trust (the animated snap has not landed yet).
     @State private var lastSelfScrollAt: Date?
-    @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.effectiveLayout) private var effectiveLayout
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
 
-    private var useGridCards: Bool { sizeClass == .regular }
+    private var useGridCards: Bool { effectiveLayout == .regular }
+
+    private var voiceFirstEnabled: Bool { state.voiceFirstInput }
+
+    private var isSpeechCaptureActive: Bool {
+        isRecording || isStartingRecording || isTranscribing || isRetryingSpeech
+    }
 
     private static var hasUITestF3TranscribingFixture: Bool {
         ProcessInfo.processInfo.arguments.contains("UITEST_F3_TRANSCRIBING_FIXTURE")
@@ -798,11 +831,18 @@ struct ChatTabView: View {
             .accessibilityIdentifier(hasPreservedSpeechAudioForUI ? "speech-retry-segment" : "speech-transport")
             .accessibilityLabel(hasPreservedSpeechAudioForUI ? L10n.t(.chatSpeechRetrySegment) : voiceRailTitle)
 
-            VoiceRailWaveformView(mode: voiceRailMode, color: voiceRailColor, level: speechAudioLevel)
-                .frame(height: 22)
-                .accessibilityIdentifier("speech-waveform")
+            voiceRailWaveform
 
-            voiceRailTrailingAction
+            if voiceFirstEnabled {
+                voiceRailTrailingAction
+                    .fixedSize(horizontal: true, vertical: false)
+                    .layoutPriority(1)
+                voiceFirstAccessoryRow
+                    .fixedSize(horizontal: true, vertical: false)
+                    .layoutPriority(1)
+            } else {
+                voiceRailTrailingAction
+            }
         }
         .padding(.horizontal, DesignSpacing.xs)
         .padding(.top, DesignSpacing.xs)
@@ -815,7 +855,7 @@ struct ChatTabView: View {
                 // Docked file preview (iPhone): fills the whole screen except the
                 // composer strip at the bottom, which stays interactive so voice
                 // recording and typing keep working while the file is open.
-                if let previewPath = inlinePreviewPath {
+                if effectiveLayout == .compact, let previewPath = inlinePreviewPath {
                     ChatInlineFilePreview(
                         state: state,
                         filePath: previewPath,
@@ -1009,7 +1049,7 @@ struct ChatTabView: View {
                             pendingBottomVisibilityTask = nil
                         }
                         .overlay(alignment: .leading) {
-                            if sizeClass != .regular {
+                            if effectiveLayout != .regular {
                                 Color.clear
                                     .frame(width: SessionListEdgeSwipeBehavior.edgeThreshold)
                                     .contentShape(Rectangle())
@@ -1069,12 +1109,27 @@ struct ChatTabView: View {
                             ChatComposerTextView(
                                 text: composerInputBinding,
                                 hasMarkedText: $hasMarkedText,
+                                isEditable: ComposerFocusPolicy.isTextEditable(
+                                    voiceFirst: voiceFirstEnabled,
+                                    isEditing: isComposerEditing
+                                ),
+                                requestsFirstResponder: ComposerFocusPolicy.requestsFirstResponder(
+                                    voiceFirst: voiceFirstEnabled,
+                                    isEditing: isComposerEditing
+                                ),
+                                preferredCursorUTF16: preferredCursorUTF16,
                                 placeholder: L10n.t(.chatInputPlaceholder),
                                 autoScrollToBottomOnTextChange: Self.shouldAutoScrollSpeechTranscript(
                                     isTranscribing: isTranscribing,
                                     isRetryingSpeech: isRetryingSpeech
                                 ),
-                                onSubmit: sendCurrentInput
+                                onSubmit: sendCurrentInput,
+                                onEndEditing: { isComposerEditing = false },
+                                onSelectionUTF16: { range in
+                                    if composerSelectionUTF16 != range {
+                                        composerSelectionUTF16 = range
+                                    }
+                                }
                             )
                             .frame(
                                 minHeight: DesignControls.composerTextMinHeight,
@@ -1167,10 +1222,17 @@ struct ChatTabView: View {
             .onDisappear {
                 state.markCurrentSessionViewed()
             }
+            .onChange(of: state.currentHostProfileID) { _, _ in
+                persistAllDeferredToOrigins()
+            }
             .onChange(of: state.currentSessionID) { oldID, newID in
+                isComposerEditing = false
+                preferredCursorUTF16 = nil
                 composerRevision &+= 1
-                let draftText = inputText
-                state.setDraftText(draftText, for: oldID)
+                let hostID = state.currentHostProfileID
+                let saved = textToPersistWhenLeaving(sessionID: oldID, hostID: hostID, visibleText: inputText)
+                state.setDraftText(saved, for: oldID, hostProfileID: hostID)
+                persistDeferredWritesExcept(sessionID: oldID, hostID: hostID)
                 syncDraftFromState(sessionID: newID)
                 isNearBottom = true
                 pendingBottomVisibilityTask?.cancel()
@@ -1193,7 +1255,19 @@ struct ChatTabView: View {
                     guard !isSyncingDraft,
                           state.currentSessionID == draftSessionID,
                           inputText == newValue else { return }
-                    state.setDraftText(newValue, for: draftSessionID)
+                    let hostID = state.currentHostProfileID
+                    if let speech = deferredSpeech,
+                       speech.origin.sessionID == draftSessionID,
+                       speech.origin.host.hostProfileID == hostID {
+                        let merged = ComposerDraftMerge.mergingSpeech(
+                            prefix: speech.prefix,
+                            transcript: speech.transcript,
+                            latestDraft: newValue
+                        )
+                        state.setDraftText(merged, for: draftSessionID, hostProfileID: hostID)
+                    } else {
+                        state.setDraftText(newValue, for: draftSessionID, hostProfileID: hostID)
+                    }
                 }
             }
             .onChange(of: selectedPhotoItems) { _, newItems in
@@ -1204,14 +1278,28 @@ struct ChatTabView: View {
                 state.markCurrentSessionViewed()
                 Task { await stopSpeechForBackground() }
             }
-            .onChange(of: sizeClass) { _, newValue in
-                // Docked preview is chat-local; migrate it to the iPad middle
-                // column when the layout switches to regular width.
-                guard newValue == .regular, let path = inlinePreviewPath else { return }
-                state.previewFilePath = path
-                state.previewFileWorkspaceDirectory = inlinePreviewWorkspaceDirectory
-                inlinePreviewPath = nil
-                inlinePreviewWorkspaceDirectory = nil
+            .onChange(of: effectiveLayout) { oldValue, newValue in
+                let migrated = LayoutPreviewMigration.migrate(
+                    from: oldValue,
+                    to: newValue,
+                    slots: LayoutPreviewSlots(
+                        inlinePath: inlinePreviewPath,
+                        inlineWorkspace: inlinePreviewWorkspaceDirectory,
+                        columnPath: state.previewFilePath,
+                        columnWorkspace: state.previewFileWorkspaceDirectory
+                    )
+                )
+                inlinePreviewPath = migrated.inlinePath
+                inlinePreviewWorkspaceDirectory = migrated.inlineWorkspace
+                state.previewFilePath = migrated.columnPath
+                state.previewFileWorkspaceDirectory = migrated.columnWorkspace
+                if ChatViewportPolicy.forcesBottom(on: .layoutChange) {
+                    isNearBottom = true
+                }
+            }
+            .onChange(of: hasMarkedText) { _, marked in
+                guard !marked else { return }
+                flushDeferredComposerEdits()
             }
         }
     }
@@ -1225,8 +1313,235 @@ struct ChatTabView: View {
         )
     }
 
-    func assignComposerText(_ text: String) {
-        inputText = text
+    func assignComposerText(_ text: String, advanceRevision: Bool = false) {
+        if advanceRevision {
+            let edited = ComposerRevisionEdit.applying(current: inputText, revision: composerRevision, edited: text)
+            composerRevision = edited.revision
+            inputText = edited.text
+        } else {
+            inputText = text
+        }
+    }
+
+    func beginOwnedPaste() -> ([String]) -> Void {
+        let origin = ComposerWriteOrigin(
+            sessionID: state.currentSessionID,
+            host: state.captureHostRequestSnapshot()
+        )
+        return { parts in
+            self.deliverPastedParts(parts, origin: origin)
+        }
+    }
+
+    func deliverPastedParts(_ parts: [String], origin: ComposerWriteOrigin) {
+        let addition = ComposerDraftMerge.joinedPaste(parts)
+        guard !addition.isEmpty else { return }
+        if hasMarkedText, ComposerOwnedWrite.sameVisibleComposer(
+            origin: origin,
+            currentSessionID: state.currentSessionID,
+            currentHostID: state.currentHostProfileID
+        ) {
+            deferredPastes.append(DeferredPasteWrite(addition: addition, origin: origin))
+            return
+        }
+        commitPaste(addition, origin: origin)
+    }
+
+    func commitPaste(_ addition: String, origin: ComposerWriteOrigin) {
+        guard !addition.isEmpty else { return }
+        let visible = ComposerOwnedWrite.sameVisibleComposer(
+            origin: origin,
+            currentSessionID: state.currentSessionID,
+            currentHostID: state.currentHostProfileID
+        )
+        if visible, hasMarkedText {
+            deferredPastes.append(DeferredPasteWrite(addition: addition, origin: origin))
+            return
+        }
+        if visible {
+            let speechEnd = isSpeechCaptureActive && !speechDraft.anchor.isEmpty
+                ? (speechDraft.anchor as NSString).length
+                : nil
+            let placement = ComposerPastePlanner.placement(
+                isEditing: voiceFirstEnabled && isComposerEditing,
+                hasMarkedText: false,
+                selectionUTF16: composerSelectionUTF16.location == NSNotFound ? nil : composerSelectionUTF16,
+                speechOwnedUTF16End: speechEnd
+            )
+            switch placement {
+            case .append, .deferUntilMarkedTextEnds:
+                assignComposerText(
+                    ComposerDraftMerge.appending(draft: inputText, addition: addition),
+                    advanceRevision: true
+                )
+                preferredCursorUTF16 = nil
+            case .insert(let range):
+                let inserted = ComposerDraftMerge.inserting(
+                    draft: inputText,
+                    addition: addition,
+                    selectionUTF16: range
+                )
+                preferredCursorUTF16 = inserted.cursorUTF16
+                assignComposerText(inserted.text, advanceRevision: true)
+            }
+            state.setDraftText(inputText, for: origin.sessionID, hostProfileID: origin.host.hostProfileID)
+            if origin.sessionID == nil {
+                completedSpeechDraftByOwner[ChatSpeechOwner(sessionID: nil)] = inputText
+            }
+            if isSpeechCaptureActive {
+                speechDraft.noteVisibleText(inputText)
+            }
+            return
+        }
+        ComposerOwnedWrite.pasteIntoSourceDraft(addition: addition, origin: origin, state: state)
+    }
+
+    private var voiceRailWaveform: some View {
+        let waveform = VoiceRailWaveformView(mode: voiceRailMode, color: voiceRailColor, level: speechAudioLevel)
+            .frame(height: 22)
+            .accessibilityIdentifier("speech-waveform")
+        return Group {
+            if voiceFirstEnabled {
+                waveform
+                    .frame(minWidth: 36, maxWidth: .infinity)
+                    .layoutPriority(-1)
+            } else {
+                waveform
+            }
+        }
+    }
+
+    private var voiceFirstAccessoryRow: some View {
+        HStack(spacing: DesignSpacing.sm) {
+            ComposerPasteControl(
+                beginPaste: beginOwnedPaste,
+                accessibilityLabel: L10n.t(.chatPaste)
+            )
+            .frame(width: ComposerHitTarget.minimum, height: ComposerHitTarget.minimum)
+
+            Button {
+                isComposerEditing.toggle()
+            } label: {
+                Image(systemName: isComposerEditing ? "keyboard.chevron.compact.down" : "keyboard")
+                    .font(.body)
+                    .foregroundStyle(DesignColors.Neutral.textSecondary)
+                    .frame(width: ComposerHitTarget.minimum, height: ComposerHitTarget.minimum)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier(isComposerEditing ? "chat-keyboard-done" : "chat-keyboard")
+            .accessibilityLabel(isComposerEditing ? L10n.t(.chatDismissKeyboard) : L10n.t(.chatKeyboard))
+        }
+        .accessibilityElement(children: .contain)
+        .background(alignment: .leading) {
+            Color.clear
+                .frame(width: 1, height: 1)
+                .accessibilityIdentifier("chat-voice-first-actions")
+        }
+    }
+
+    var canAssignComposerText: Bool {
+        ComposerFocusPolicy.shouldAssignComposerText(hasMarkedText: hasMarkedText)
+    }
+
+    func deferSpeechDraftWhileMarked(prefix: String, transcript: String, origin: ComposerWriteOrigin) {
+        speechDraft.ensureAnchor(prefix)
+        deferredSpeech = DeferredSpeechWrite(prefix: prefix, transcript: transcript, origin: origin)
+        persistSpeechToOrigin(deferredSpeech!)
+    }
+
+    func publishSpeechTranscript(_ transcript: String, prefix: String, origin: ComposerWriteOrigin) {
+        speechDraft.ensureAnchor(prefix)
+        guard ComposerOwnedWrite.sameVisibleComposer(
+            origin: origin,
+            currentSessionID: state.currentSessionID,
+            currentHostID: state.currentHostProfileID
+        ), ComposerFocusPolicy.shouldAssignComposerText(hasMarkedText: hasMarkedText) else {
+            deferSpeechDraftWhileMarked(prefix: prefix, transcript: transcript, origin: origin)
+            return
+        }
+        deferredSpeech = nil
+        preferredCursorUTF16 = nil
+        speechDraft.noteVisibleText(inputText)
+        let rendered = speechDraft.render(prefix: prefix, transcript: transcript)
+        assignComposerText(rendered, advanceRevision: true)
+        state.setDraftText(rendered, for: origin.sessionID, hostProfileID: origin.host.hostProfileID)
+    }
+
+    func flushDeferredComposerEdits() {
+        guard !hasMarkedText else { return }
+        if let speech = deferredSpeech {
+            deferredSpeech = nil
+            if ComposerOwnedWrite.sameVisibleComposer(
+                origin: speech.origin,
+                currentSessionID: state.currentSessionID,
+                currentHostID: state.currentHostProfileID
+            ) {
+                publishSpeechTranscript(speech.transcript, prefix: speech.prefix, origin: speech.origin)
+            } else {
+                persistSpeechToOrigin(speech)
+            }
+        }
+        let queued = deferredPastes
+        deferredPastes = []
+        for item in queued {
+            commitPaste(item.addition, origin: item.origin)
+        }
+    }
+
+    func persistAllDeferredToOrigins() {
+        if let speech = deferredSpeech {
+            persistSpeechToOrigin(speech)
+            deferredSpeech = nil
+        }
+        let queued = deferredPastes
+        deferredPastes = []
+        for item in queued {
+            ComposerOwnedWrite.pasteIntoSourceDraft(addition: item.addition, origin: item.origin, state: state)
+        }
+    }
+
+    func textToPersistWhenLeaving(sessionID: String?, hostID: UUID, visibleText: String) -> String {
+        if let speech = deferredSpeech,
+           speech.origin.sessionID == sessionID,
+           speech.origin.host.hostProfileID == hostID {
+            return ComposerDraftMerge.mergingSpeech(
+                prefix: speech.prefix,
+                transcript: speech.transcript,
+                latestDraft: visibleText
+            )
+        }
+        var text = visibleText
+        for item in deferredPastes where item.origin.sessionID == sessionID && item.origin.host.hostProfileID == hostID {
+            text = ComposerDraftMerge.appending(draft: text, addition: item.addition)
+        }
+        return text
+    }
+
+    func persistDeferredWritesExcept(sessionID: String?, hostID: UUID) {
+        if let speech = deferredSpeech {
+            let same = speech.origin.sessionID == sessionID && speech.origin.host.hostProfileID == hostID
+            if !same {
+                persistSpeechToOrigin(speech)
+            }
+            deferredSpeech = nil
+        }
+        let queued = deferredPastes
+        deferredPastes = []
+        for item in queued {
+            let same = item.origin.sessionID == sessionID && item.origin.host.hostProfileID == hostID
+            if same { continue }
+            ComposerOwnedWrite.pasteIntoSourceDraft(addition: item.addition, origin: item.origin, state: state)
+        }
+    }
+
+    func persistSpeechToOrigin(_ speech: DeferredSpeechWrite) {
+        ComposerOwnedWrite.speechIntoSourceDraft(
+            prefix: speech.prefix,
+            transcript: speech.transcript,
+            origin: speech.origin,
+            state: state
+        )
     }
 
     private func syncDraftFromState(sessionID: String?) {
@@ -1299,7 +1614,11 @@ struct ChatTabView: View {
         Task {
             let success = await state.sendMessage(text, attachments: attachments)
             isSending = false
-            guard !success else { return }
+            if success {
+                isComposerEditing = false
+                preferredCursorUTF16 = nil
+                return
+            }
             let restored = ChatComposerRestore.textAndAttachments(
                 sourceSessionID: sourceSessionID,
                 currentSessionID: state.currentSessionID,
@@ -1460,7 +1779,7 @@ struct ChatTabView: View {
 
     private func openFileInChat(_ resolvedPath: String, workspaceDirectory: String? = nil) {
         guard !resolvedPath.isEmpty else { return }
-        if sizeClass == .regular {
+        if effectiveLayout == .regular {
             state.previewFilePath = resolvedPath
             state.previewFileWorkspaceDirectory = workspaceDirectory
             state.fileToOpenInFilesTab = nil
@@ -1485,7 +1804,7 @@ struct ChatTabView: View {
     private var sessionListEdgeSwipeGesture: some Gesture {
         DragGesture(minimumDistance: 20, coordinateSpace: .local)
             .onEnded { value in
-                guard sizeClass != .regular else { return }
+                guard effectiveLayout != .regular else { return }
                 guard !showSessionList else { return }
                 guard SessionListEdgeSwipeBehavior.shouldOpenSessionList(
                     startLocation: value.startLocation,
@@ -1604,9 +1923,9 @@ private struct ChatInlineFilePreview: View {
     let filePath: String
     let workspaceDirectory: String?
     let onClose: () -> Void
-    @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.effectiveLayout) private var effectiveLayout
 
-    private var overlayEnabled: Bool { sizeClass != .regular }
+    private var overlayEnabled: Bool { effectiveLayout != .regular }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1648,12 +1967,12 @@ private struct ChatInlineFilePreview: View {
         }
         .onAppear {
             ChatInlineFilePreview.logger.info(
-                "filePreviewSwipe appear path=\(filePath, privacy: .public) sizeClass=\(String(describing: sizeClass), privacy: .public) overlay=\(overlayEnabled, privacy: .public)"
+                "filePreviewSwipe appear path=\(filePath, privacy: .public) layout=\(overlayEnabled ? "compact" : "regular", privacy: .public) overlay=\(overlayEnabled, privacy: .public)"
             )
         }
-        .onChange(of: sizeClass) { _, newValue in
+        .onChange(of: effectiveLayout) { _, newValue in
             ChatInlineFilePreview.logger.info(
-                "filePreviewSwipe sizeClass=\(String(describing: newValue), privacy: .public) overlay=\(newValue != .regular, privacy: .public)"
+                "filePreviewSwipe layout=\(newValue == .regular ? "regular" : "compact", privacy: .public) overlay=\(newValue != .regular, privacy: .public)"
             )
         }
         .accessibilityIdentifier("chat-inline-file-preview")

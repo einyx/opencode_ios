@@ -73,6 +73,12 @@ enum L10n {
         case settingsDarkTheme
         case settingsAppearance
         case settingsTheme
+        case settingsLayout
+        case settingsLayoutAutomatic
+        case settingsLayoutFocus
+        case settingsLayoutFooter
+        case settingsVoiceFirst
+        case settingsVoiceFirstFooter
         case settingsSpeechRecognition
         case settingsRecordingStrategy
         case settingsOpenAIRealtime
@@ -233,6 +239,9 @@ enum L10n {
         case connectionPhaseFailed
 
         case chatInputPlaceholder
+        case chatPaste
+        case chatKeyboard
+        case chatDismissKeyboard
         case chatSendFailed
         case chatRenameSession
         case chatRenameSessionPlaceholder
@@ -531,6 +540,12 @@ enum L10n {
         Key.settingsDarkTheme.rawValue: "Dark",
         Key.settingsAppearance.rawValue: "Appearance",
         Key.settingsTheme.rawValue: "Theme",
+        Key.settingsLayout.rawValue: "Layout Mode",
+        Key.settingsLayoutAutomatic.rawValue: "Auto",
+        Key.settingsLayoutFocus.rawValue: "Focus",
+        Key.settingsLayoutFooter.rawValue: "Focus shows one content area on large screens and keeps the input area when opening files in chat.",
+        Key.settingsVoiceFirst.rawValue: "Voice-First",
+        Key.settingsVoiceFirstFooter.rawValue: "When on, tapping a draft won't show the keyboard. Use Paste, or tap the keyboard button to edit.",
         Key.settingsSpeechRecognition.rawValue: "Speech Recognition",
         Key.settingsRecordingStrategy.rawValue: "Recording Strategy",
         Key.settingsOpenAIRealtime.rawValue: "GPT Realtime",
@@ -689,6 +704,9 @@ enum L10n {
         Key.connectionPhaseFailed.rawValue: "Connection failed",
 
         Key.chatInputPlaceholder.rawValue: "Ask anything...",
+        Key.chatPaste.rawValue: "Paste",
+        Key.chatKeyboard.rawValue: "Keyboard",
+        Key.chatDismissKeyboard.rawValue: "Hide Keyboard",
         Key.chatSendFailed.rawValue: "Send failed",
         Key.chatRenameSession.rawValue: "Rename Session",
         Key.chatRenameSessionPlaceholder.rawValue: "Input new title",
@@ -988,6 +1006,12 @@ enum L10n {
         Key.settingsDarkTheme.rawValue: "暗色",
         Key.settingsAppearance.rawValue: "外观",
         Key.settingsTheme.rawValue: "主题",
+        Key.settingsLayout.rawValue: "布局模式",
+        Key.settingsLayoutAutomatic.rawValue: "自动",
+        Key.settingsLayoutFocus.rawValue: "专注",
+        Key.settingsLayoutFooter.rawValue: "专注模式在大屏显示单一内容，聊天中打开文件仍保留输入区。",
+        Key.settingsVoiceFirst.rawValue: "语音优先",
+        Key.settingsVoiceFirstFooter.rawValue: "开启后轻点草稿不弹键盘，仍可粘贴文本，点键盘按钮进入编辑。",
         Key.settingsSpeechRecognition.rawValue: "语音识别",
         Key.settingsRecordingStrategy.rawValue: "录音策略",
         Key.settingsOpenAIRealtime.rawValue: "GPT Realtime",
@@ -1149,6 +1173,9 @@ enum L10n {
         Key.connectionPhaseFailed.rawValue: "连接失败",
 
         Key.chatInputPlaceholder.rawValue: "输入你的问题...",
+        Key.chatPaste.rawValue: "粘贴",
+        Key.chatKeyboard.rawValue: "键盘",
+        Key.chatDismissKeyboard.rawValue: "收起键盘",
         Key.chatSendFailed.rawValue: "发送失败",
         Key.chatRenameSession.rawValue: "重命名会话",
         Key.chatRenameSessionPlaceholder.rawValue: "输入新标题",

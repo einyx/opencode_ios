@@ -24,6 +24,7 @@
 | `background_task_notification/` | 后台 Subagent 任务通知渲染（TaskNotificationCard + synthetic 通用规则） | `design.md` | 已实现 |
 | `push_notifications/` | 后台推送通知方案 | `research.md` | 调研 |
 | `localization/` | en/zh-Hans 双语本地化 | `research.md` | Settings 已有 en/zh；research 文档偏旧 |
+| `focus_voice_input/` | 大屏专注布局与语音优先、系统粘贴 | `design.md` | 实现及模拟器验收；设备本地设置 |
 | `agent_catalog_validation/` | Agent 目录校验与删除失败可见 | `notes.md` | shipped；选中 agent 对照当前 server `/agent`，delete 非 2xx 带状态码与 body |
 
 ## archive/ — 一次性工作记录与冻结决策（只进不改）

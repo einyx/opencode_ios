@@ -61,19 +61,35 @@ extension AppState {
         persistSelectedModelMap()
     }
 
+    static let noSessionDraftKey = "\u{0}no-session"
+
+    func draftStorageKey(for sessionID: String?) -> String {
+        sessionID ?? Self.noSessionDraftKey
+    }
+
     func draftText(for sessionID: String?) -> String {
-        guard let sessionID else { return "" }
-        return draftInputsBySessionID[sessionID] ?? ""
+        draftText(for: sessionID, hostProfileID: currentHostProfileID)
     }
 
     func setDraftText(_ text: String, for sessionID: String?) {
-        guard let sessionID else { return }
-        let cleaned = text
-        if cleaned.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            draftInputsBySessionID[sessionID] = nil
+        guard sessionID != nil else { return }
+        setDraftText(text, for: sessionID, hostProfileID: currentHostProfileID)
+    }
+
+    func draftText(for sessionID: String?, hostProfileID: UUID) -> String {
+        draftInputsByHost[hostProfileID.uuidString]?[draftStorageKey(for: sessionID)] ?? ""
+    }
+
+    func setDraftText(_ text: String, for sessionID: String?, hostProfileID: UUID) {
+        let hostKey = hostProfileID.uuidString
+        var bucket = draftInputsByHost[hostKey] ?? [:]
+        let key = draftStorageKey(for: sessionID)
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            bucket.removeValue(forKey: key)
         } else {
-            draftInputsBySessionID[sessionID] = cleaned
+            bucket[key] = text
         }
+        draftInputsByHost[hostKey] = bucket.isEmpty ? nil : bucket
         persistDraftInputs()
     }
 }

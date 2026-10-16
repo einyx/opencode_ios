@@ -123,21 +123,34 @@ extension ChatTabView {
         speechSession === session && speechOriginSessionID == sourceSessionID
     }
 
-    func applySpeechDraft(prefix: String, transcript: String, sourceSessionID: String?) {
-        let route = ChatSpeechRouting.draftRoute(
+    func applySpeechDraft(
+        prefix: String,
+        transcript: String,
+        sourceSessionID: String?,
+        sourceHost: HostRequestSnapshot
+    ) {
+        let origin = ComposerWriteOrigin(sessionID: sourceSessionID, host: sourceHost)
+        let visible = ComposerOwnedWrite.sameVisibleComposer(
+            origin: origin,
+            currentSessionID: state.currentSessionID,
+            currentHostID: state.currentHostProfileID
+        )
+        if visible, !canAssignComposerText {
+            deferSpeechDraftWhileMarked(prefix: prefix, transcript: transcript, origin: origin)
+            return
+        }
+        if visible {
+            publishSpeechTranscript(transcript, prefix: prefix, origin: origin)
+            return
+        }
+        let merged = ComposerOwnedWrite.speechIntoSourceDraft(
             prefix: prefix,
             transcript: transcript,
-            sourceSessionID: sourceSessionID,
-            currentSessionID: state.currentSessionID
+            origin: origin,
+            state: state
         )
-        let owner = ChatSpeechOwner(sessionID: sourceSessionID)
-        if sourceSessionID != nil {
-            state.setDraftText(route.sourceDraftText, for: sourceSessionID)
-        } else {
-            completedSpeechDraftByOwner[owner] = route.sourceDraftText
-        }
-        if let currentComposerText = route.currentComposerText {
-            composerInputBinding.wrappedValue = currentComposerText
+        if sourceSessionID == nil {
+            completedSpeechDraftByOwner[ChatSpeechOwner(sessionID: nil)] = merged
         }
     }
 
@@ -239,7 +252,14 @@ extension ChatTabView {
                                   prefix: recordingInputPrefix,
                                   transcript: transcript
                               ) else { return }
-                        composerInputBinding.wrappedValue = liveInput
+                        publishSpeechTranscript(
+                            transcript,
+                            prefix: recordingInputPrefix,
+                            origin: ComposerWriteOrigin(
+                                sessionID: speechOriginSessionID,
+                                host: speechOriginHost ?? state.captureHostRequestSnapshot()
+                            )
+                        )
                     }
                 }
             }
@@ -387,7 +407,12 @@ extension ChatTabView {
                     )
                     guard SpeechAttemptGate.owns(finalizationID, activeAttemptID: speechFinalizationID),
                           speechOriginSessionID == originSessionID else { return }
-                    applySpeechDraft(prefix: prefix, transcript: transcript, sourceSessionID: originSessionID)
+                    applySpeechDraft(
+                    prefix: prefix,
+                    transcript: transcript,
+                    sourceSessionID: originSessionID,
+                    sourceHost: speechOriginHost ?? state.captureHostRequestSnapshot()
+                )
                     clearPreservedSpeechAudio(for: owner)
                 } catch {
                     guard SpeechAttemptGate.owns(finalizationID, activeAttemptID: speechFinalizationID),
@@ -438,7 +463,14 @@ extension ChatTabView {
                             originatingSessionID: originSessionID,
                             currentSessionID: state.currentSessionID
                         ), ownsSpeechSession(session, sourceSessionID: originSessionID) else { return }
-                        composerInputBinding.wrappedValue = Self.mergedSpeechInput(prefix: prefix, transcript: partial)
+                        publishSpeechTranscript(
+                            partial,
+                            prefix: prefix,
+                            origin: ComposerWriteOrigin(
+                                sessionID: originSessionID,
+                                host: speechOriginHost ?? state.captureHostRequestSnapshot()
+                            )
+                        )
                     }
                 }
                 let cleaned = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -447,7 +479,12 @@ extension ChatTabView {
                       ownsSpeechSession(session, sourceSessionID: originSessionID) else { return }
                 speechFinalizationID = nil
                 Self.logger.notice("[SpeechProfile] chat realtime transcribe done ms=\(max(0, Int((ProcessInfo.processInfo.systemUptime - transcribeStart) * 1000)), privacy: .public) chars=\(cleaned.count, privacy: .public)")
-                applySpeechDraft(prefix: prefix, transcript: cleaned, sourceSessionID: originSessionID)
+                applySpeechDraft(
+                    prefix: prefix,
+                    transcript: cleaned,
+                    sourceSessionID: originSessionID,
+                    sourceHost: speechOriginHost ?? state.captureHostRequestSnapshot()
+                )
                 clearPreservedSpeechAudio(for: owner)
                 speechSession = nil
                 speechOriginSessionID = nil
@@ -471,7 +508,8 @@ extension ChatTabView {
                 applySpeechDraft(
                     prefix: prefix,
                     transcript: partialTranscriptBuffer.current(),
-                    sourceSessionID: originSessionID
+                    sourceSessionID: originSessionID,
+                    sourceHost: speechOriginHost ?? state.captureHostRequestSnapshot()
                 )
                 if originSessionID == state.currentSessionID {
                     speechError = error.localizedDescription
@@ -500,9 +538,11 @@ extension ChatTabView {
 
             let strategy = state.aiBuilderRecordingStrategy
             let originSessionID = state.currentSessionID
+            let originHost = state.captureHostRequestSnapshot()
             let startID = UUID()
             speechStartID = startID
             speechOriginSessionID = originSessionID
+            speechOriginHost = originHost
             isStartingRecording = true
             let permissionStart = ProcessInfo.processInfo.systemUptime
             let allowed = await Self.requestMicrophonePermissionForRecording()
@@ -531,6 +571,7 @@ extension ChatTabView {
             do {
                 speechRetryID = nil
                 recordingInputPrefix = inputText
+                speechDraft.begin(prefix: inputText, sessionID: originSessionID)
                 activeSpeechStrategy = strategy
                 startSpeechAudioLevelConsumer()
 
@@ -673,6 +714,8 @@ extension ChatTabView {
 
     func retryPreservedSpeechAudio() async {
         let retrySessionID = state.currentSessionID
+        let retryHost = state.captureHostRequestSnapshot()
+        speechOriginHost = retryHost
         let owner = ChatSpeechOwner(sessionID: retrySessionID)
         guard let pending = pendingSpeechAudioByOwner[owner] else { return }
         let retryID = UUID()
@@ -688,6 +731,7 @@ extension ChatTabView {
         }
 
         let prefix = pending.prefix
+        speechDraft.ensureAnchor(prefix)
         let partialTranscriptBuffer = SpeechPartialTranscriptBuffer()
         do {
             let transcript: String
@@ -708,7 +752,11 @@ extension ChatTabView {
                             originatingSessionID: retrySessionID,
                             currentSessionID: state.currentSessionID
                         ), speechRetrySessionID == retrySessionID else { return }
-                        composerInputBinding.wrappedValue = Self.mergedSpeechInput(prefix: prefix, transcript: partial)
+                        publishSpeechTranscript(
+                            partial,
+                            prefix: prefix,
+                            origin: ComposerWriteOrigin(sessionID: retrySessionID, host: retryHost)
+                        )
                     }
                 }
             }
@@ -722,7 +770,11 @@ extension ChatTabView {
             speechRetryID = nil
             speechRetrySessionID = nil
             isRetryingSpeech = false
-            composerInputBinding.wrappedValue = Self.mergedSpeechInput(prefix: prefix, transcript: transcript)
+            publishSpeechTranscript(
+                transcript,
+                prefix: prefix,
+                origin: ComposerWriteOrigin(sessionID: retrySessionID, host: retryHost)
+            )
             clearPreservedSpeechAudio(for: owner)
         } catch {
             partialTranscriptBuffer.close()

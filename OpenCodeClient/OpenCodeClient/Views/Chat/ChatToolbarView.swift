@@ -19,14 +19,8 @@ struct ChatToolbarView: View {
     @State private var showConfigSheet = false
     @State private var showTodoPanel = false
     @Environment(\.horizontalSizeClass) private var sizeClass
-    
-    private var useCompactLabels: Bool {
-#if canImport(UIKit)
-        return UIDevice.current.userInterfaceIdiom == .phone
-#else
-        return false
-#endif
-    }
+
+    private var showsLayoutShortcut: Bool { sizeClass == .regular }
     
     var body: some View {
         HStack {
@@ -92,6 +86,9 @@ struct ChatToolbarView: View {
     // MARK: - Right Side Buttons (Model + Agent + Settings)
     private var rightButtons: some View {
         HStack(spacing: DesignSpacing.md) {
+            if showsLayoutShortcut {
+                LayoutPreferenceMenu(state: state)
+            }
             configButton
             AIUsageQuotaButton(state: state)
             todoButton
@@ -357,5 +354,25 @@ private struct ModelConfigSheet: View {
             }
         }
         .foregroundColor(.primary)
+    }
+}
+
+struct LayoutPreferenceMenu: View {
+    @Bindable var state: AppState
+
+    var body: some View {
+        Menu {
+            Picker(L10n.t(.settingsLayout), selection: $state.layoutPreference) {
+                Text(L10n.t(.settingsLayoutAutomatic)).tag(LayoutPreference.automatic)
+                Text(L10n.t(.settingsLayoutFocus)).tag(LayoutPreference.focus)
+            }
+        } label: {
+            Image(systemName: state.layoutPreference == .focus ? "iphone" : "rectangle.split.3x1")
+                .font(.body)
+                .frame(width: ComposerHitTarget.minimum, height: ComposerHitTarget.minimum)
+                .contentShape(Rectangle())
+        }
+        .accessibilityIdentifier("layout-preference-menu")
+        .accessibilityLabel(L10n.t(.settingsLayout))
     }
 }

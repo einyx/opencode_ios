@@ -9,6 +9,14 @@
 - **编译/测试**：父行蓝色提醒确认定向 43 项通过；一次全量 763 项、87 suites 通过（Swift Testing 汇总口径）。xcodebuild、wrapper 及结果包验收均为 0。
 - **Phase**：父级蓝点独立 code/privacy review 通过，主线程定向复跑及设备构建通过；按授权合并后部署 iPad，附件 A/B 随后执行。
 
+### 2026-10-16 — 专注布局与语音优先输入
+
+实现设备本地自动 / 专注布局，默认自动；大屏专注模式沿用单内容聊天与文件预览并保留输入区，同轮 `GeometryReader` 测量三栏且保持同一聊天实例。语音优先默认关闭，开启后草稿可选文字但不自动弹键盘，提供显式键盘与原生 `UIPasteControl` 纯文本粘贴；粘贴和键盘与麦克风共用语音栏，缩短波形并节省一行，麦克风和发送位置不变。异步写入按来源 host / session 归属，发送失败合并原文、新增文本及按 ID 去重的附件。独立 code / privacy review 的实际问题已修复并复核。设计见 [focus_voice_input/design.md](features/focus_voice_input/design.md)。
+
+最终源码在 Xcode 27.0 / iOS 18.4 下通过 89 组 790 项单测，iPhone 16 UI 五项通过、一项 iPad 专属跳过；两个 wrapper、xcodebuild 和结果包均正常通过。Xcode 27.1 / iOS 18.4 下 iPad mini 专注预览自动→专注→自动及竖→横→竖单项通过，runner 正常退出，三张截图已读回。Duo 27.1 上草稿点击与实际系统粘贴的单项测试也取得正常退出的通过结果。
+
+Xcode 27.1 部分整组运行在结果收集阶段超时，失败证据保留，不计为通过。Duo 内屏开合尚未验证，`XCUIDevice` 旋转未改变 Duo 窗口，不声称全面就绪。已完成配对 iPhone 的签名构建与原位安装、启动；麦克风、跨应用粘贴及握持体验仍由用户真机验收。PR 保持未合并。
+
 ### 2026-10-14 — 父行蓝色提醒按来源版本确认
 
 P 的子 C/D 未读时，打开 P 再切走不再重复显示同一批蓝色提醒；C/D 内容仍保持未读。实现涉及 `AppState.swift`、`AppState+Sessions.swift`、`Stores/SessionReadStateStore.swift`：每行保存正数 updated 的逐来源确认，仅在 `selectSession` 开始时该行确实显示蓝且状态可信才同步捕获、提交快照。确认只影响该行，不停止向更高祖先传播；C=100、D=200 确认后 C=101 仍重新提醒。current 期间的新后代版本不在退出时确认。

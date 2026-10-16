@@ -202,6 +202,8 @@ final class AppState {
     static let currentHostProfileIDKey = "currentHostProfileID.v1"
     static let aiUsageDashboardURLKey = "aiUsageDashboardURL"
     static let carModeEnabledKey = "carModeEnabled"
+    static let layoutPreferenceKey = "layoutPreference"
+    static let voiceFirstInputKey = "voiceFirstInput"
     static let languagePreferenceKey = L10n.languagePreferenceUserDefaultsKey
     static let carSessionsByContextKey = "carSessionsByContext.v1"
     static let healthExportPermissionKey = "clientCapability.healthExportAll.permission.v1"
@@ -278,6 +280,8 @@ final class AppState {
         _languagePreference = L10n.languagePreference
         _aiUsageDashboardURL = defaults.string(forKey: Self.aiUsageDashboardURLKey) ?? ""
         isCarModeEnabled = defaults.bool(forKey: Self.carModeEnabledKey)
+        layoutPreference = LayoutPreference.resolved(from: defaults.string(forKey: Self.layoutPreferenceKey))
+        voiceFirstInput = defaults.bool(forKey: Self.voiceFirstInputKey)
         healthExportPermission = ClientCapabilityPermission(
             rawValue: defaults.string(forKey: Self.healthExportPermissionKey) ?? ""
         ) ?? .ask
@@ -436,6 +440,12 @@ final class AppState {
     var aiUsageQuotaError: String?
     var isCarModeEnabled = false {
         didSet { defaults.set(isCarModeEnabled, forKey: Self.carModeEnabledKey) }
+    }
+    var layoutPreference: LayoutPreference = .automatic {
+        didSet { defaults.set(layoutPreference.rawValue, forKey: Self.layoutPreferenceKey) }
+    }
+    var voiceFirstInput = false {
+        didSet { defaults.set(voiceFirstInput, forKey: Self.voiceFirstInputKey) }
     }
     var isConnected: Bool = false
     var serverVersion: String?

@@ -129,6 +129,28 @@ struct SettingsTabView: View {
                     }
 
                     VStack(alignment: .leading, spacing: DesignSpacing.sm) {
+                        Text(L10n.t(.settingsLayout))
+                        Picker(L10n.t(.settingsLayout), selection: $state.layoutPreference) {
+                            Text(L10n.t(.settingsLayoutAutomatic)).tag(LayoutPreference.automatic)
+                            Text(L10n.t(.settingsLayoutFocus)).tag(LayoutPreference.focus)
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .accessibilityIdentifier("settings-layout-preference")
+                        Text(L10n.t(.settingsLayoutFooter))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Toggle(isOn: $state.voiceFirstInput) {
+                        Text(L10n.t(.settingsVoiceFirst))
+                    }
+                    .accessibilityIdentifier("settings-voice-first")
+                    Text(L10n.t(.settingsVoiceFirstFooter))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    VStack(alignment: .leading, spacing: DesignSpacing.sm) {
                         Text(L10n.t(.settingsLanguage))
                         Picker(L10n.t(.settingsLanguage), selection: $state.languagePreference) {
                             Text(L10n.t(.settingsLanguageSystem)).tag(L10n.LanguagePreference.system)

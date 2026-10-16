@@ -115,6 +115,12 @@ enum FileSearchFixture {
             state.fileSearchResults = []
             state.fileStore.fileSearchInFlight = false
         }
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["UITEST_FILE_SEARCH_OPEN_PREVIEW"] == "1" {
+            state.previewFilePath = resultPath
+            state.previewFileWorkspaceDirectory = filesDirectory
+        }
+        #endif
     }
 
     actor StubClient: APIClientProtocol, FileDirectorySearching {

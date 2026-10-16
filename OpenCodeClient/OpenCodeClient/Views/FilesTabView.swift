@@ -7,6 +7,7 @@ import SwiftUI
 
 struct FilesTabView: View {
     @Bindable var state: AppState
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     var body: some View {
         NavigationStack {
@@ -14,6 +15,13 @@ struct FilesTabView: View {
                 .fileSearchQueryHandlers(state: state)
             .navigationTitle(L10n.t(.navFiles))
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                if sizeClass == .regular {
+                    ToolbarItem(placement: .primaryAction) {
+                        LayoutPreferenceMenu(state: state)
+                    }
+                }
+            }
         }
     }
 }
