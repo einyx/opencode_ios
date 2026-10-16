@@ -26,6 +26,7 @@ struct ContentView: View {
     @State private var showTabletSettings = false
     @State private var selectedTab = 0
     @State private var carModeEnabled: Bool
+    @State private var sessionsCollapsed: Bool = false
 
     init() {
         let initialState = Self.makeInitialState()
@@ -45,7 +46,24 @@ struct ContentView: View {
         }
     }
 
-    private var useSplitLayout: Bool { sizeClass == .regular }
+    private var effectiveLayout: EffectiveLayout {
+        EffectiveLayoutResolver.resolve(
+            preference: state.layoutPreference,
+            width: WindowWidthClass(horizontalSizeClass: sizeClass)
+        )
+    }
+
+    private var useSplitLayout: Bool { effectiveLayout == .regular }
+
+    private var tabSelection: Binding<Int> {
+        Binding(
+            get: { useSplitLayout ? RootTab.chat.rawValue : selectedTab },
+            set: { newValue in
+                guard !useSplitLayout else { return }
+                selectedTab = newValue
+            }
+        )
+    }
 
     private var showsCarMode: Bool {
         #if os(iOS)
@@ -87,13 +105,66 @@ struct ContentView: View {
         )
     }
 
-    @ViewBuilder
     private var rootLayout: some View {
-        if useSplitLayout {
-            tabletWorkspaceLayout
-        } else {
-            tabLayout
+        GeometryReader { geo in
+            let metrics = RegularPaneMetrics(totalWidth: geo.size.width, sessionsCollapsed: sessionsCollapsed)
+            let showColumns = useSplitLayout && geo.size.width > 0
+            HStack(spacing: 0) {
+                regularColumnsSlot(shown: showColumns, metrics: metrics)
+                tabLayout
+                    .frame(width: showColumns ? metrics.chatWidth : nil)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .overlay(alignment: .leading) {
+                if showColumns, sessionsCollapsed {
+                    Color.clear
+                        .frame(width: 16)
+                        .contentShape(Rectangle())
+                        .gesture(
+                            DragGesture(minimumDistance: 20)
+                                .onEnded { value in
+                                    if value.translation.width > 40 && abs(value.translation.height) < 80 {
+                                        withAnimation(DesignAnimation.spring) {
+                                            sessionsCollapsed = false
+                                        }
+                                    }
+                                }
+                        )
+                }
+            }
         }
+        .accessibilityIdentifier(useSplitLayout ? "ipad-workspace-layout" : "compact-workspace-layout")
+    }
+
+    private func regularColumnsSlot(shown: Bool, metrics: RegularPaneMetrics) -> some View {
+        Group {
+            if shown {
+                HStack(spacing: 0) {
+                    if !sessionsCollapsed {
+                        TabletSessionsColumn(
+                            state: state,
+                            showSettings: $showTabletSettings,
+                            onCollapse: { withAnimation(DesignAnimation.spring) { sessionsCollapsed = true } }
+                        )
+                        .frame(width: metrics.sessionsWidth)
+                        Divider()
+                    }
+                    TabletFilesColumn(
+                        state: state,
+                        sessionsCollapsed: sessionsCollapsed,
+                        onExpandSessions: { withAnimation(DesignAnimation.spring) { sessionsCollapsed = false } }
+                    )
+                    .frame(width: metrics.filesWidth)
+                    Divider()
+                }
+            } else {
+                Color.clear.frame(width: 0)
+            }
+        }
+        .frame(width: shown ? metrics.leadingWidth : 0)
+        .clipped()
+        .accessibilityHidden(!shown)
+        .allowsHitTesting(shown)
     }
 
     private func restoreConnectionFlow() async {
@@ -301,12 +372,15 @@ struct ContentView: View {
                 .accessibilityIdentifier("client-capability-error")
         }
         .preferredColorScheme(themeColorScheme)
+        .environment(\.effectiveLayout, effectiveLayout)
         .environment(\.locale, L10n.currentLocale)
         .onAppear {
             selectedTab = state.selectedTab
         }
-        .onChange(of: sizeClass) { _, newValue in
-            // iPhone → iPad 或 split layout 切换时，将 sheet 预览迁移到中间栏预览。
+        .onChange(of: effectiveLayout) { oldValue, newValue in
+            if oldValue == .regular, newValue == .compact {
+                selectedTab = RootTab.chat.rawValue
+            }
             if newValue == .regular, let p = state.fileToOpenInFilesTab {
                 Task { @MainActor in
                     await Task.yield()
@@ -382,16 +456,27 @@ struct ContentView: View {
 
     @ViewBuilder
     private var tabLayout: some View {
-        if showsCarMode {
-            carEnabledTabLayout
-        } else {
-            standardTabLayout
+        Group {
+            if showsCarMode {
+                carEnabledTabLayout
+            } else {
+                standardTabLayout
+            }
         }
     }
 
+    private var chatTab: some View {
+        ChatTabView(
+            state: state,
+            showSettingsInToolbar: false,
+            showSessionListInToolbar: !useSplitLayout,
+            showCreateSessionInToolbar: !useSplitLayout
+        )
+    }
+
     private var standardTabLayout: some View {
-        TabView(selection: $selectedTab) {
-            ChatTabView(state: state)
+        TabView(selection: tabSelection) {
+            chatTab
                 .tabItem { Label(L10n.t(.appChat), systemImage: "bubble.left.and.text.bubble.right") }
                 .tag(RootTab.chat.rawValue)
 
@@ -403,11 +488,12 @@ struct ContentView: View {
                 .tabItem { Label(L10n.t(.navSettings), systemImage: "gear") }
                 .tag(RootTab.settings.rawValue)
         }
+        .toolbar(useSplitLayout ? .hidden : .visible, for: .tabBar)
     }
 
     private var carEnabledTabLayout: some View {
-        TabView(selection: $selectedTab) {
-            ChatTabView(state: state)
+        TabView(selection: tabSelection) {
+            chatTab
                 .tabItem { Label(L10n.t(.appChat), systemImage: "bubble.left.and.text.bubble.right") }
                 .tag(RootTab.chat.rawValue)
 
@@ -423,69 +509,25 @@ struct ContentView: View {
                 .tabItem { Label(L10n.t(.navSettings), systemImage: "gear") }
                 .tag(RootTab.settings.rawValue)
         }
+        .toolbar(useSplitLayout ? .hidden : .visible, for: .tabBar)
     }
 
-    /// iPad / Vision Pro：Android-aligned three-pane layout.
-    @State private var sessionsCollapsed: Bool = false
+}
 
-    private var tabletWorkspaceLayout: some View {
-        GeometryReader { geo in
-            let total = geo.size.width
-            // 折叠时 Sessions 宽度收为 0，Files / Chat 平分总宽度。
-            let sessionsWidth: CGFloat = sessionsCollapsed ? 0 : total * 0.25
-            let remaining = total - sessionsWidth
-            let paneWidth = sessionsCollapsed ? remaining / 2 : total * 0.375
+private struct RegularPaneMetrics {
+    var sessionsWidth: CGFloat
+    var filesWidth: CGFloat
+    var chatWidth: CGFloat
 
-            HStack(spacing: 0) {
-                if !sessionsCollapsed {
-                    TabletSessionsColumn(
-                        state: state,
-                        showSettings: $showTabletSettings,
-                        onCollapse: { withAnimation(DesignAnimation.spring) { sessionsCollapsed = true } }
-                    )
-                    .frame(width: sessionsWidth)
-                    .transition(.move(edge: .leading))
+    var leadingWidth: CGFloat { sessionsWidth + filesWidth + 2 }
 
-                    Divider()
-                }
-
-                TabletFilesColumn(
-                    state: state,
-                    sessionsCollapsed: sessionsCollapsed,
-                    onExpandSessions: { withAnimation(DesignAnimation.spring) { sessionsCollapsed = false } }
-                )
-                .frame(width: paneWidth)
-
-                Divider()
-
-                ChatTabView(
-                    state: state,
-                    showSettingsInToolbar: false,
-                    showSessionListInToolbar: false,
-                    showCreateSessionInToolbar: false
-                )
-                .frame(width: paneWidth)
-            }
-            // 折叠时支持从屏幕左边缘右滑展开 Sessions
-            .overlay(alignment: .leading) {
-                if sessionsCollapsed {
-                    Color.clear
-                        .frame(width: 16)
-                        .contentShape(Rectangle())
-                        .gesture(
-                            DragGesture(minimumDistance: 20)
-                                .onEnded { value in
-                                    if value.translation.width > 40 && abs(value.translation.height) < 80 {
-                                        withAnimation(DesignAnimation.spring) {
-                                            sessionsCollapsed = false
-                                        }
-                                    }
-                                }
-                        )
-                }
-            }
-        }
-        .accessibilityIdentifier("ipad-workspace-layout")
+    init(totalWidth: CGFloat, sessionsCollapsed: Bool) {
+        let sessions = sessionsCollapsed ? 0 : totalWidth * 0.25
+        let remaining = max(0, totalWidth - sessions)
+        let pane = sessionsCollapsed ? remaining / 2 : totalWidth * 0.375
+        sessionsWidth = sessions
+        filesWidth = pane
+        chatWidth = pane
     }
 }
 
@@ -652,6 +694,8 @@ private struct TabletSessionsColumn: View {
                                 Image(systemName: "gear")
                             }
                             .accessibilityIdentifier("ipad-settings-button")
+
+                            LayoutPreferenceMenu(state: state)
                         }
                     }
                 }

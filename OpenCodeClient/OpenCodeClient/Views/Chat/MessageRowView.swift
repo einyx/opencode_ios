@@ -21,13 +21,13 @@ struct MessageRowView: View {
     let onOpenFilesTab: () -> Void
     let onForkFromMessage: ((String) -> Void)?
     let onEditFromMessage: ((String) -> Void)?
-    @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.effectiveLayout) private var effectiveLayout
     @Environment(\.colorScheme) private var colorScheme
     @State private var showsTextSelection = false
 
     // iPhone packs process tiles (thinking / merged tool calls / file cards)
     // two-up to keep information density high; iPad has room for a 3-up grid.
-    private var cardGridColumnCount: Int { sizeClass == .regular ? 3 : 2 }
+    private var cardGridColumnCount: Int { effectiveLayout == .regular ? 3 : 2 }
     private var cardGridColumns: [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: DesignSpacing.sm), count: cardGridColumnCount)
     }

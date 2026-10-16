@@ -39,6 +39,21 @@ enum UITestFixtures {
         ProcessInfo.processInfo.arguments.contains("UITEST_SESSION_TREE_FIXTURE")
     }
 
+    static let pasteSentinel = "FOCUS_VOICE_PASTE_SENTINEL"
+
+    static func seedSessionTreePasteboardIfRequested() {
+        #if DEBUG
+        guard hasUITestSessionTreeFixture else { return }
+        guard ProcessInfo.processInfo.environment["UITEST_PASTE_SENTINEL"] == pasteSentinel else { return }
+        let write = { UIPasteboard.general.string = pasteSentinel }
+        if Thread.isMainThread {
+            write()
+        } else {
+            DispatchQueue.main.sync(execute: write)
+        }
+        #endif
+    }
+
     static var hasUITestToolCardsFixture: Bool {
         ProcessInfo.processInfo.arguments.contains("UITEST_TOOL_CARDS_FIXTURE")
     }
@@ -308,6 +323,7 @@ enum UITestFixtures {
         }
 
         guard hasUITestSessionTreeFixture else { return state }
+        seedSessionTreePasteboardIfRequested()
 
         state.isConnected = true
         state.sessions = [

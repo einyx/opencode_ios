@@ -25,9 +25,18 @@ enum ChatComposerSendGate {
 struct ChatComposerTextView: UIViewRepresentable {
     @Binding var text: String
     @Binding var hasMarkedText: Bool
+    var isEditable: Bool = true
+    var requestsFirstResponder: Bool = false
+    var suppressesSoftwareKeyboard: Bool = false
+    var focusResetEpoch: Int = 0
+    var preferredCursorUTF16: Int? = nil
     let placeholder: String
     let autoScrollToBottomOnTextChange: Bool
     let onSubmit: () -> Void
+    var onEndEditing: () -> Void = {}
+    var onCaretFocusChange: (Bool) -> Void = { _ in }
+    var onSelectionUTF16: (NSRange) -> Void = { _ in }
+    var onCaretProbe: (String) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(text: $text, hasMarkedText: $hasMarkedText, onSubmit: onSubmit)
@@ -47,6 +56,9 @@ struct ChatComposerTextView: UIViewRepresentable {
         textView.returnKeyType = .default
         textView.autocorrectionType = .default
         textView.autocapitalizationType = .sentences
+        textView.isEditable = isEditable
+        textView.isSelectable = true
+        textView.setSoftwareKeyboardSuppressed(suppressesSoftwareKeyboard)
         textView.accessibilityIdentifier = "chat-input"
         textView.accessibilityLabel = placeholder
         textView.onShiftReturn = {
@@ -58,8 +70,27 @@ struct ChatComposerTextView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: IMEAwareTextView, context: Context) {
+        context.coordinator.onEndEditing = onEndEditing
+        context.coordinator.onCaretFocusChange = onCaretFocusChange
+        context.coordinator.onSelectionUTF16 = onSelectionUTF16
+        context.coordinator.onCaretProbe = onCaretProbe
+        context.coordinator.requestsFirstResponder = requestsFirstResponder
+        if uiView.isEditable != isEditable {
+            uiView.isEditable = isEditable
+        }
+        if context.coordinator.wasEditable, !isEditable, uiView.isFirstResponder {
+            uiView.resignFirstResponder()
+        }
+        context.coordinator.wasEditable = isEditable
+        uiView.isSelectable = true
+        uiView.setSoftwareKeyboardSuppressed(suppressesSoftwareKeyboard)
+        context.coordinator.applyFocusReset(epoch: focusResetEpoch, to: uiView)
         if uiView.text != text {
             uiView.text = text
+            if let cursor = preferredCursorUTF16, isEditable {
+                let length = (text as NSString).length
+                uiView.selectedRange = NSRange(location: min(max(0, cursor), length), length: 0)
+            }
             if autoScrollToBottomOnTextChange {
                 context.coordinator.scrollToBottom(uiView)
             }
@@ -69,6 +100,24 @@ struct ChatComposerTextView: UIViewRepresentable {
             context.coordinator.insertNewline(into: uiView)
         }
         context.coordinator.updateMarkedTextState(for: uiView)
+        context.coordinator.publishProbe(for: uiView)
+        if requestsFirstResponder {
+            context.coordinator.wasRequestingFocus = true
+            if !uiView.isFirstResponder, !context.coordinator.focusScheduled {
+                context.coordinator.focusScheduled = true
+                DispatchQueue.main.async {
+                    context.coordinator.focusScheduled = false
+                    guard context.coordinator.requestsFirstResponder, !uiView.isFirstResponder else { return }
+                    uiView.becomeFirstResponder()
+                }
+            }
+        } else if context.coordinator.wasRequestingFocus {
+            context.coordinator.wasRequestingFocus = false
+            context.coordinator.focusScheduled = false
+            if uiView.isFirstResponder {
+                uiView.resignFirstResponder()
+            }
+        }
     }
 
     final class Coordinator: NSObject, UITextViewDelegate {
@@ -76,6 +125,24 @@ struct ChatComposerTextView: UIViewRepresentable {
         @Binding private var hasMarkedText: Bool
         private let onSubmit: () -> Void
         private var isInsertingShiftNewline = false
+        var onEndEditing: () -> Void = {}
+        var onCaretFocusChange: (Bool) -> Void = { _ in }
+        var onSelectionUTF16: (NSRange) -> Void = { _ in }
+        var onCaretProbe: (String) -> Void = { _ in }
+        var focusScheduled = false
+        var requestsFirstResponder = false
+        var wasRequestingFocus = false
+        var wasEditable = true
+        var seenFocusResetEpoch = 0
+
+        func applyFocusReset(epoch: Int, to textView: UITextView) {
+            guard epoch != seenFocusResetEpoch else { return }
+            seenFocusResetEpoch = epoch
+            focusScheduled = false
+            if textView.isFirstResponder {
+                textView.resignFirstResponder()
+            }
+        }
 
         init(text: Binding<String>, hasMarkedText: Binding<Bool>, onSubmit: @escaping () -> Void) {
             _text = text
@@ -83,13 +150,37 @@ struct ChatComposerTextView: UIViewRepresentable {
             self.onSubmit = onSubmit
         }
 
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            onCaretFocusChange(true)
+            onSelectionUTF16(textView.selectedRange)
+            publishProbe(for: textView)
+        }
+
+        func textViewDidEndEditing(_ textView: UITextView) {
+            onCaretFocusChange(false)
+            onEndEditing()
+            publishProbe(for: textView)
+        }
+
         func textViewDidChange(_ textView: UITextView) {
             text = textView.text
             updateMarkedTextState(for: textView)
+            onSelectionUTF16(textView.selectedRange)
         }
 
         func textViewDidChangeSelection(_ textView: UITextView) {
             updateMarkedTextState(for: textView)
+            onSelectionUTF16(textView.selectedRange)
+            publishProbe(for: textView)
+        }
+
+        func publishProbe(for textView: UITextView) {
+            let range = textView.selectedRange
+            let position = textView.selectedTextRange?.start ?? textView.beginningOfDocument
+            let caret = textView.caretRect(for: position)
+            let keyboard = (textView as? IMEAwareTextView)?.softwareKeyboardSuppressed == true ? "suppressed" : "system"
+            let value = "first=\(textView.isFirstResponder ? 1 : 0);editable=\(textView.isEditable ? 1 : 0);keyboard=\(keyboard);range=\(range.location),\(range.length);caret=\(Int(caret.width.rounded()))x\(Int(caret.height.rounded()))"
+            onCaretProbe(value)
         }
 
         func textView(
@@ -136,8 +227,54 @@ struct ChatComposerTextView: UIViewRepresentable {
     }
 }
 
-final class IMEAwareTextView: UITextView {
+final class ZeroHeightInputView: UIView {
+    override var intrinsicContentSize: CGSize {
+        CGSize(width: UIView.noIntrinsicMetric, height: 0)
+    }
+
+    override func sizeThatFits(_ size: CGSize) -> CGSize {
+        CGSize(width: size.width, height: 0)
+    }
+}
+
+class IMEAwareTextView: UITextView {
     var onShiftReturn: (() -> Void)?
+    private(set) var softwareKeyboardSuppressed = false
+    private let suppressedInput = ZeroHeightInputView(frame: .zero)
+    private var savedLeading: [UIBarButtonItemGroup] = []
+    private var savedTrailing: [UIBarButtonItemGroup] = []
+    private var didSaveAssistant = false
+
+    func setSoftwareKeyboardSuppressed(_ suppressed: Bool) {
+        let inputMatches = suppressed ? inputView === suppressedInput : inputView == nil
+        guard softwareKeyboardSuppressed != suppressed || !inputMatches else { return }
+        softwareKeyboardSuppressed = suppressed
+        if suppressed {
+            if !didSaveAssistant {
+                let leading = inputAssistantItem.leadingBarButtonGroups
+                let trailing = inputAssistantItem.trailingBarButtonGroups
+                if !leading.isEmpty || !trailing.isEmpty {
+                    savedLeading = leading
+                    savedTrailing = trailing
+                    didSaveAssistant = true
+                }
+            }
+            if inputView !== suppressedInput {
+                inputView = suppressedInput
+            }
+            inputAssistantItem.leadingBarButtonGroups = []
+            inputAssistantItem.trailingBarButtonGroups = []
+        } else {
+            inputView = nil
+            if didSaveAssistant, !savedLeading.isEmpty || !savedTrailing.isEmpty {
+                inputAssistantItem.leadingBarButtonGroups = savedLeading
+                inputAssistantItem.trailingBarButtonGroups = savedTrailing
+            }
+        }
+        if isFirstResponder {
+            reloadInputViews()
+        }
+    }
 
     override var keyCommands: [UIKeyCommand]? {
         [

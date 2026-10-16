@@ -34,6 +34,109 @@ struct MessageReconciliationTests {
         #expect(visible.map(\.info.id) == [ids[0]])
     }
 
+    @Test func failedSendMergesSentTextWithPasteAndTypedEditsWithoutDuplicating() {
+        let host = HostRequestSnapshot(hostProfileID: UUID(), generation: 1)
+        let selection = UUID()
+        let pasted = ChatComposerRestore.textAndAttachments(
+            sourceSessionID: "a",
+            currentSessionID: "a",
+            capturedRevision: 3,
+            currentRevision: 4,
+            capturedHost: host,
+            currentHost: host,
+            capturedSelection: selection,
+            currentSelection: selection,
+            sentText: "hello",
+            sentAttachments: [],
+            currentText: "note",
+            currentAttachments: []
+        )
+        #expect(pasted.text == "hello\nnote")
+
+        let typed = ChatComposerRestore.failedSendText(sentText: "hello", currentText: "typed")
+        #expect(typed == "hello\ntyped")
+        #expect(ChatComposerRestore.failedSendText(sentText: "hello", currentText: "") == "hello")
+        #expect(ChatComposerRestore.failedSendText(sentText: "hello", currentText: "hello\nnote") == "hello\nnote")
+        #expect(ChatComposerRestore.failedSendText(sentText: "no", currentText: "note") == "no\nnote")
+        #expect(ChatComposerRestore.failedSendText(sentText: "hello", currentText: "hello") == "hello")
+
+        let otherSession = ChatComposerRestore.textAndAttachments(
+            sourceSessionID: "a",
+            currentSessionID: "b",
+            capturedRevision: 3,
+            currentRevision: 4,
+            capturedHost: host,
+            currentHost: host,
+            capturedSelection: selection,
+            currentSelection: selection,
+            sentText: "hello",
+            sentAttachments: [],
+            currentText: "note",
+            currentAttachments: []
+        )
+        #expect(otherSession.text == "note")
+
+        let otherHost = ChatComposerRestore.textAndAttachments(
+            sourceSessionID: "a",
+            currentSessionID: "a",
+            capturedRevision: 3,
+            currentRevision: 4,
+            capturedHost: host,
+            currentHost: HostRequestSnapshot(hostProfileID: UUID(), generation: 2),
+            capturedSelection: selection,
+            currentSelection: selection,
+            sentText: "hello",
+            sentAttachments: [],
+            currentText: "note",
+            currentAttachments: []
+        )
+        #expect(otherHost.text == "note")
+        #expect(otherHost.attachments.isEmpty)
+
+        let imageA = attachment()
+        let imageB = ComposerImageAttachment(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!,
+            filename: "new.jpg",
+            mime: "image/jpeg",
+            dataURL: "data:image/jpeg;base64,BBB",
+            thumbnailData: Data([0x02]),
+            byteSize: 1
+        )
+        let withImages = ChatComposerRestore.textAndAttachments(
+            sourceSessionID: "a",
+            currentSessionID: "a",
+            capturedRevision: 3,
+            currentRevision: 4,
+            capturedHost: host,
+            currentHost: host,
+            capturedSelection: selection,
+            currentSelection: selection,
+            sentText: "no",
+            sentAttachments: [imageA],
+            currentText: "note",
+            currentAttachments: [imageB]
+        )
+        #expect(withImages.text == "no\nnote")
+        #expect(withImages.attachments.map(\.id) == [imageA.id, imageB.id])
+
+        let otherSessionImages = ChatComposerRestore.textAndAttachments(
+            sourceSessionID: "a",
+            currentSessionID: "b",
+            capturedRevision: 3,
+            currentRevision: 4,
+            capturedHost: host,
+            currentHost: host,
+            capturedSelection: selection,
+            currentSelection: selection,
+            sentText: "no",
+            sentAttachments: [imageA],
+            currentText: "note",
+            currentAttachments: [imageB]
+        )
+        #expect(otherSessionImages.text == "note")
+        #expect(otherSessionImages.attachments.map(\.id) == [imageB.id])
+    }
+
     @Test func composerRestoreStaysOnSourceSessionAndUneditedRevision() {
         let host = HostRequestSnapshot(hostProfileID: UUID(), generation: 1)
         let selection = UUID()
@@ -783,8 +886,8 @@ struct MessageReconciliationTests {
             currentText: text,
             currentAttachments: attachments
         )
-        #expect(kept.text == "typed-after-send")
-        #expect(kept.attachments.isEmpty)
+        #expect(kept.text == "keep-me\ntyped-after-send")
+        #expect(kept.attachments.map(\.id) == editedAttachments.map(\.id))
         let editedSource = edited.state.messageStore.outboundRows(hostProfileID: edited.state.currentHostProfileID, sessionID: "a")
         #expect(editedSource.first?.parts.contains { $0.text == "keep-me" } == true)
         #expect(editedSource.first?.parts.contains { $0.filename == "photo.jpg" } == true)

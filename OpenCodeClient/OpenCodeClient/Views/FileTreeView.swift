@@ -7,15 +7,15 @@ import SwiftUI
 
 struct FileTreeView: View {
     @Bindable var state: AppState
-    @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.effectiveLayout) private var effectiveLayout
     @State private var isLoadingChildren: Set<String> = []
 
     /// Force iPad split behavior (preview in middle column instead of push).
     var forceSplitPreview: Bool = false
 
-    /// iPad 分栏：点击文件更新预览栏；iPhone：在 Files Tab 内 push
+    /// Regular workspace previews in the middle column; compact pushes.
     private var useSplitPreview: Bool {
-        forceSplitPreview || sizeClass == .regular
+        forceSplitPreview || effectiveLayout == .regular
     }
 
     var body: some View {

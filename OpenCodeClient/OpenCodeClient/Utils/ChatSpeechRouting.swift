@@ -41,11 +41,22 @@ nonisolated enum ChatSpeechRouting {
         sourceSessionID: String?,
         currentSessionID: String?
     ) -> ChatSpeechDraftRoute {
-        let text = mergedInput(prefix: prefix, transcript: transcript)
-        return ChatSpeechDraftRoute(
+        route(
+            fullText: mergedInput(prefix: prefix, transcript: transcript),
             sourceSessionID: sourceSessionID,
-            sourceDraftText: text,
-            currentComposerText: sourceSessionID == currentSessionID ? text : nil
+            currentSessionID: currentSessionID
+        )
+    }
+
+    static func route(
+        fullText: String,
+        sourceSessionID: String?,
+        currentSessionID: String?
+    ) -> ChatSpeechDraftRoute {
+        ChatSpeechDraftRoute(
+            sourceSessionID: sourceSessionID,
+            sourceDraftText: fullText,
+            currentComposerText: sourceSessionID == currentSessionID ? fullText : nil
         )
     }
 
