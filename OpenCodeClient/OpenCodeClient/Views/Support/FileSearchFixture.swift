@@ -227,7 +227,8 @@ struct FileSearchSplitHost: View {
                 FileContentView(
                     state: state,
                     filePath: path,
-                    workspaceDirectory: state.previewFileWorkspaceDirectory ?? ""
+                    workspaceDirectory: state.previewFileWorkspaceDirectory ?? "",
+                    boundSessionID: state.previewSessionID
                 )
                 .frame(minHeight: 240, maxHeight: .infinity)
             }

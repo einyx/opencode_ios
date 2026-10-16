@@ -359,20 +359,28 @@ private struct ModelConfigSheet: View {
 
 struct LayoutPreferenceMenu: View {
     @Bindable var state: AppState
+    @State private var showChoices = false
 
     var body: some View {
-        Menu {
-            Picker(L10n.t(.settingsLayout), selection: $state.layoutPreference) {
-                Text(L10n.t(.settingsLayoutAutomatic)).tag(LayoutPreference.automatic)
-                Text(L10n.t(.settingsLayoutFocus)).tag(LayoutPreference.focus)
-            }
+        Button {
+            showChoices = true
         } label: {
             Image(systemName: state.layoutPreference == .focus ? "iphone" : "rectangle.split.3x1")
                 .font(.body)
                 .frame(width: ComposerHitTarget.minimum, height: ComposerHitTarget.minimum)
                 .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .accessibilityIdentifier("layout-preference-menu")
         .accessibilityLabel(L10n.t(.settingsLayout))
+        .confirmationDialog(L10n.t(.settingsLayout), isPresented: $showChoices, titleVisibility: .visible) {
+            Button(L10n.t(.settingsLayoutAutomatic)) {
+                state.layoutPreference = .automatic
+            }
+            Button(L10n.t(.settingsLayoutFocus)) {
+                state.layoutPreference = .focus
+            }
+            Button(L10n.t(.commonCancel), role: .cancel) {}
+        }
     }
 }

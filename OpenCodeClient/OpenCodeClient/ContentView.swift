@@ -35,7 +35,13 @@ struct ContentView: View {
     }
 
     private static func makeInitialState() -> AppState {
-        UITestFixtures.makeInitialState()
+        let state = UITestFixtures.makeInitialState()
+        #if DEBUG
+        if let raw = ProcessInfo.processInfo.environment["UITEST_LAYOUT_PREFERENCE"], !raw.isEmpty {
+            state.layoutPreference = LayoutPreference.resolved(from: raw)
+        }
+        #endif
+        return state
     }
 
     private var themeColorScheme: ColorScheme? {
@@ -46,10 +52,26 @@ struct ContentView: View {
         }
     }
 
+    private var forcedWidthClass: UserInterfaceSizeClass? {
+        #if DEBUG
+        switch ProcessInfo.processInfo.environment["UITEST_FORCE_WIDTH_CLASS"] {
+        case "compact": return .compact
+        case "regular": return .regular
+        default: return nil
+        }
+        #else
+        return nil
+        #endif
+    }
+
+    private var resolvedSizeClass: UserInterfaceSizeClass? {
+        forcedWidthClass ?? sizeClass
+    }
+
     private var effectiveLayout: EffectiveLayout {
         EffectiveLayoutResolver.resolve(
             preference: state.layoutPreference,
-            width: WindowWidthClass(horizontalSizeClass: sizeClass)
+            width: WindowWidthClass(horizontalSizeClass: resolvedSizeClass)
         )
     }
 
@@ -93,10 +115,13 @@ struct ContentView: View {
             },
             set: { newValue, _ in
                 guard newValue == nil else { return }
+                let dismissedSequence = state.pendingEventSequence
                 Task { @MainActor in
                     await Task.yield()
+                    guard state.pendingEventSequence == dismissedSequence else { return }
                     state.fileToOpenInFilesTab = nil
                     state.fileToOpenInFilesTabWorkspaceDirectory = nil
+                    state.pendingFileOpenOwner = nil
                     state.pendingEventSequence = 0
                     if !useSplitLayout {
                         selectedTab = RootTab.chat.rawValue
@@ -240,12 +265,26 @@ struct ContentView: View {
     }
 
     var body: some View {
+        widthAdjusted(rootContent)
+    }
+
+    @ViewBuilder
+    private var rootContent: some View {
         if FileContentReuseFixture.isActive {
             FileContentReuseHost(state: state)
         } else if FileSearchFixture.routesSplitHost {
             FileSearchSplitHost(state: state)
         } else {
             standardFixtureBody
+        }
+    }
+
+    @ViewBuilder
+    private func widthAdjusted<V: View>(_ view: V) -> some View {
+        if let forcedWidthClass {
+            view.environment(\.horizontalSizeClass, forcedWidthClass)
+        } else {
+            view
         }
     }
 
@@ -295,6 +334,7 @@ struct ContentView: View {
             }
         }
         .overlay(alignment: .bottomTrailing) {
+            #if DEBUG
             if ProcessInfo.processInfo.environment["UITEST_PREVIEW_MIGRATION_HARNESS"] == "1" {
                 Button(state.layoutPreference == .focus ? "Auto" : "Focus") {
                     state.layoutPreference = state.layoutPreference == .focus ? .automatic : .focus
@@ -302,6 +342,7 @@ struct ContentView: View {
                 .accessibilityIdentifier("preview-migration-toggle-layout")
                 .padding(8)
             }
+            #endif
         }
         .overlay(alignment: .bottomTrailing) {
             if TurnStabilityFixture.showsAppendControls {
@@ -394,8 +435,8 @@ struct ContentView: View {
                 selectedTab = RootTab.chat.rawValue
             }
         }
-        .onChange(of: state.fileToOpenInFilesTab) { _, newValue in
-            guard newValue != nil else { return }
+        .onChange(of: state.pendingEventSequence) { _, sequence in
+            guard ExternalFileOpenRouting.shouldAdopt(sequence: sequence, path: state.fileToOpenInFilesTab) else { return }
             state.adoptPendingFileOpen(layout: effectiveLayout)
         }
         .onChange(of: state.currentHostProfileID) { oldHost, newHost in
@@ -430,13 +471,19 @@ struct ContentView: View {
         }
         .sheet(item: filePreviewSheetItem) { wrapper in
             NavigationStack {
-                FileContentView(state: state, filePath: wrapper.path, workspaceDirectory: wrapper.workspaceDirectory)
+                FileContentView(
+                    state: state,
+                    filePath: wrapper.path,
+                    workspaceDirectory: wrapper.workspaceDirectory,
+                    boundSessionID: state.pendingFileOpenOwner?.sessionID
+                )
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
                             Button {
                                 Task { @MainActor in
                                     state.fileToOpenInFilesTab = nil
                                     state.fileToOpenInFilesTabWorkspaceDirectory = nil
+                                    state.pendingFileOpenOwner = nil
                                     if !useSplitLayout {
                                         selectedTab = RootTab.chat.rawValue
                                         state.selectedTab = RootTab.chat.rawValue
@@ -486,40 +533,49 @@ struct ContentView: View {
 
     private var standardTabLayout: some View {
         TabView(selection: tabSelection) {
-            chatTab
+            systemTabBar(chatTab)
                 .tabItem { Label(L10n.t(.appChat), systemImage: "bubble.left.and.text.bubble.right") }
                 .tag(RootTab.chat.rawValue)
 
-            FilesTabView(state: state)
+            systemTabBar(FilesTabView(state: state))
                 .tabItem { Label(L10n.t(.navFiles), systemImage: "folder") }
                 .tag(RootTab.files.rawValue)
 
-            SettingsTabView(state: state, isCarModeEnabled: carModeEnabledBinding)
+            systemTabBar(SettingsTabView(state: state, isCarModeEnabled: carModeEnabledBinding))
                 .tabItem { Label(L10n.t(.navSettings), systemImage: "gear") }
                 .tag(RootTab.settings.rawValue)
         }
-        .toolbar(useSplitLayout ? .hidden : .visible, for: .tabBar)
     }
 
     private var carEnabledTabLayout: some View {
         TabView(selection: tabSelection) {
-            chatTab
+            systemTabBar(chatTab)
                 .tabItem { Label(L10n.t(.appChat), systemImage: "bubble.left.and.text.bubble.right") }
                 .tag(RootTab.chat.rawValue)
 
-            FilesTabView(state: state)
+            systemTabBar(FilesTabView(state: state))
                 .tabItem { Label(L10n.t(.navFiles), systemImage: "folder") }
                 .tag(RootTab.files.rawValue)
 
-            CarModeView(state: state)
+            systemTabBar(CarModeView(state: state))
                 .tabItem { Label(L10n.t(.carTab), systemImage: "car.fill") }
                 .tag(RootTab.car.rawValue)
 
-            SettingsTabView(state: state, isCarModeEnabled: carModeEnabledBinding)
+            systemTabBar(SettingsTabView(state: state, isCarModeEnabled: carModeEnabledBinding))
                 .tabItem { Label(L10n.t(.navSettings), systemImage: "gear") }
                 .tag(RootTab.settings.rawValue)
         }
-        .toolbar(useSplitLayout ? .hidden : .visible, for: .tabBar)
+    }
+
+    private func systemTabBar<V: View>(_ content: V) -> some View {
+        content
+            .toolbar(useSplitLayout ? .hidden : .visible, for: .tabBar)
+            .background(alignment: .topLeading) {
+                SystemTabBarVisibility(tabBarHidden: useSplitLayout)
+                    .frame(width: 1, height: 1)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
     }
 
 }
@@ -556,7 +612,12 @@ private struct TabletFilesColumn: View {
         NavigationStack {
             Group {
                 if let path = state.previewFilePath, !path.isEmpty {
-                    FileContentView(state: state, filePath: path, workspaceDirectory: state.previewFileWorkspaceDirectory)
+                    FileContentView(
+                        state: state,
+                        filePath: path,
+                        workspaceDirectory: state.previewFileWorkspaceDirectory,
+                        boundSessionID: state.previewSessionID
+                    )
                 } else {
                     FileTreeView(state: state, forceSplitPreview: true)
                         .fileSearchQueryHandlers(state: state)
@@ -701,8 +762,6 @@ private struct TabletSessionsColumn: View {
                                 Image(systemName: "gear")
                             }
                             .accessibilityIdentifier("ipad-settings-button")
-
-                            LayoutPreferenceMenu(state: state)
                         }
                     }
                 }
@@ -806,6 +865,76 @@ private struct TabletSessionsColumn: View {
         }
     }
 }
+
+#if canImport(UIKit)
+private struct SystemTabBarVisibility: UIViewRepresentable {
+    var tabBarHidden: Bool
+
+    func makeUIView(context: Context) -> Probe {
+        let probe = Probe()
+        probe.isUserInteractionEnabled = false
+        probe.backgroundColor = .clear
+        return probe
+    }
+
+    func updateUIView(_ probe: Probe, context: Context) {
+        probe.tabBarHidden = tabBarHidden
+        probe.sync()
+        for delay in [0.05, 0.2, 0.6] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak probe] in
+                probe?.sync()
+            }
+        }
+    }
+
+    final class Probe: UIView {
+        var tabBarHidden = false
+        private var syncing = false
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            sync()
+        }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            sync()
+        }
+
+        func sync() {
+            guard !syncing else { return }
+            syncing = true
+            defer { syncing = false }
+            guard let tab = nearestTabBarController() else { return }
+            #if os(visionOS)
+            guard tab.isTabBarHidden != tabBarHidden else { return }
+            tab.setTabBarHidden(tabBarHidden, animated: false)
+            #else
+            if #available(iOS 18.0, *) {
+                if tab.isTabBarHidden != tabBarHidden {
+                    tab.setTabBarHidden(tabBarHidden, animated: false)
+                }
+                tab.tabBar.isHidden = tabBarHidden
+            } else {
+                tab.tabBar.isHidden = tabBarHidden
+            }
+            #endif
+        }
+
+        private func nearestTabBarController() -> UITabBarController? {
+            var responder: UIResponder? = self
+            while let current = responder {
+                if let tab = current as? UITabBarController { return tab }
+                if let controller = current as? UIViewController, let tab = controller.tabBarController {
+                    return tab
+                }
+                responder = current.next
+            }
+            return nil
+        }
+    }
+}
+#endif
 
 #Preview {
     ContentView()

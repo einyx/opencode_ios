@@ -118,6 +118,12 @@ struct PreviewLayoutOutput: Equatable {
     var winnerSequence: UInt64 = 0
 }
 
+enum ExternalFileOpenRouting {
+    static func shouldAdopt(sequence: UInt64, path: String?) -> Bool {
+        sequence != 0 && path?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    }
+}
+
 enum PreviewLayoutTransition {
     static func apply(
         from: EffectiveLayout,

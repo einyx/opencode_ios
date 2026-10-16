@@ -173,6 +173,141 @@ struct EffectiveLayoutTests {
         #expect(migrated.slots.columnPath == nil)
     }
 
+    @MainActor
+    @Test func emptyFilesPathDoesNotArmShrinkSuppression() {
+        let state = makePreviewState()
+        state.filesNavigationPath = []
+        state.clearFilesNavigationPathIgnoringNextShrink()
+        #expect(state.ignoreNextFilesPathShrink == false)
+
+        state.filesNavigationPath = ["notes.txt"]
+        state.clearFilesNavigationPathIgnoringNextShrink()
+        #expect(state.ignoreNextFilesPathShrink == true)
+        #expect(state.filesNavigationPath.isEmpty)
+    }
+
+    @MainActor
+    @Test func hostSwitchClearsUnstampedPendingBeforeLayoutApply() {
+        let state = makePreviewState()
+        let oldHost = state.currentHostProfileID
+        state.previewHostID = oldHost
+        let owner = ExternalFileOpenOwner(host: state.captureHostRequestSnapshot(), sessionID: nil)
+        state.stageExternalFileOpen(path: "notes.md", workspaceDirectory: "/old", owner: owner)
+        let newHost = UUID()
+        state.currentHostProfileID = newHost
+        state.discardPreviewIfHostChanged(from: oldHost, to: newHost)
+        state.applyPreviewLayout(from: .compact, to: .regular)
+        #expect(state.fileToOpenInFilesTab == nil)
+        #expect(state.previewFilePath == nil)
+        #expect(state.inlinePreviewPath == nil)
+    }
+
+    @MainActor
+    @Test func latePreviousHostOpenCallbackAfterCleanupDoesNotCreatePreview() {
+        let state = makePreviewState()
+        let hostA = state.captureHostRequestSnapshot()
+        state.currentSessionID = "session-a"
+        state.previewHostID = hostA.hostProfileID
+        state.previewSessionID = "session-a"
+        let openFromHostA = capturedOpen(state, owner: ExternalFileOpenOwner(host: hostA, sessionID: "session-a"))
+        let hostB = UUID()
+        state.currentHostProfileID = hostB
+        state.currentSessionID = "session-b"
+        state.discardPreviewIfHostChanged(from: hostA.hostProfileID, to: hostB)
+        let sequenceBeforeDelivery = state.previewEventSequence
+        openFromHostA("secret.md", "/a")
+        state.adoptPendingFileOpen(layout: .regular)
+        state.applyPreviewLayout(from: .compact, to: .regular)
+        #expect(state.previewEventSequence == sequenceBeforeDelivery)
+        #expect(state.pendingEventSequence == 0)
+        #expect(state.fileToOpenInFilesTab == nil)
+        #expect(state.pendingFileOpenOwner == nil)
+        #expect(state.previewFilePath == nil)
+        #expect(state.inlinePreviewPath == nil)
+        #expect(state.previewHostID == nil)
+        #expect(state.previewSessionID == nil)
+    }
+
+    @MainActor
+    @Test func currentHostOpenCallbackAdoptsSourceSession() {
+        let state = makePreviewState()
+        state.currentSessionID = "session-a"
+        let owner = ExternalFileOpenOwner(host: state.captureHostRequestSnapshot(), sessionID: "session-a")
+        let open = capturedOpen(state, owner: owner)
+        open("notes.md", "/work")
+        #expect(state.fileToOpenInFilesTab == "notes.md")
+        #expect(state.pendingFileOpenOwner == owner)
+        #expect(ExternalFileOpenRouting.shouldAdopt(sequence: state.pendingEventSequence, path: state.fileToOpenInFilesTab))
+        state.adoptPendingFileOpen(layout: .regular)
+        #expect(state.previewFilePath == "notes.md")
+        #expect(state.previewFileWorkspaceDirectory == "/work")
+        #expect(state.previewHostID == owner.host.hostProfileID)
+        #expect(state.previewSessionID == "session-a")
+        #expect(state.fileToOpenInFilesTab == nil)
+    }
+
+    @MainActor
+    @Test func filesOpenCallbackStaysUnboundToCurrentSession() {
+        let state = makePreviewState()
+        state.currentSessionID = "session-a"
+        let owner = ExternalFileOpenOwner(host: state.captureHostRequestSnapshot(), sessionID: nil)
+        capturedOpen(state, owner: owner)("notes.md", "/files")
+        state.adoptPendingFileOpen(layout: .compact)
+        #expect(state.inlinePreviewPath == "notes.md")
+        #expect(state.inlinePreviewWorkspaceDirectory == "/files")
+        #expect(state.previewSessionID == nil)
+        #expect(state.previewHostID == owner.host.hostProfileID)
+    }
+
+    @MainActor
+    @Test func sessionBoundOpenRejectsAfterSessionSwitch() {
+        let state = makePreviewState()
+        state.currentSessionID = "session-a"
+        let owner = ExternalFileOpenOwner(host: state.captureHostRequestSnapshot(), sessionID: "session-a")
+        let open = capturedOpen(state, owner: owner)
+        state.currentSessionID = "session-b"
+        let sequence = state.previewEventSequence
+        open("notes.md", "/a")
+        state.adoptPendingFileOpen(layout: .regular)
+        #expect(state.previewEventSequence == sequence)
+        #expect(state.fileToOpenInFilesTab == nil)
+        #expect(state.previewFilePath == nil)
+        #expect(state.previewSessionID == nil)
+    }
+
+    @MainActor
+    @Test func layoutApplyDropsPendingOwnedByPreviousHost() {
+        let state = makePreviewState()
+        state.currentSessionID = "session-a"
+        let owner = ExternalFileOpenOwner(host: state.captureHostRequestSnapshot(), sessionID: "session-a")
+        state.stageExternalFileOpen(path: "notes.md", workspaceDirectory: "/a", owner: owner)
+        #expect(state.pendingEventSequence > 0)
+        state.currentHostProfileID = UUID()
+        state.applyPreviewLayout(from: .compact, to: .regular)
+        #expect(state.previewFilePath == nil)
+        #expect(state.inlinePreviewPath == nil)
+        #expect(state.fileToOpenInFilesTab == nil)
+        #expect(state.pendingFileOpenOwner == nil)
+    }
+
+    @MainActor
+    @Test func samePathDifferentWorkspacePendingIsNotDroppedByPathIdentity() {
+        let state = makePreviewState()
+        let owner = ExternalFileOpenOwner(host: state.captureHostRequestSnapshot(), sessionID: nil)
+        state.stageExternalFileOpen(path: "notes.md", workspaceDirectory: "/a", owner: owner)
+        let first = state.pendingEventSequence
+        state.adoptPendingFileOpen(layout: .compact)
+        #expect(state.inlinePreviewWorkspaceDirectory == "/a")
+        state.stageExternalFileOpen(path: "notes.md", workspaceDirectory: "/b", owner: owner)
+        #expect(state.fileToOpenInFilesTab == "notes.md")
+        #expect(state.pendingEventSequence != first)
+        #expect(ExternalFileOpenRouting.shouldAdopt(sequence: state.pendingEventSequence, path: "notes.md"))
+        #expect(!ExternalFileOpenRouting.shouldAdopt(sequence: 0, path: "notes.md"))
+        state.adoptPendingFileOpen(layout: .compact)
+        #expect(state.inlinePreviewPath == "notes.md")
+        #expect(state.inlinePreviewWorkspaceDirectory == "/b")
+    }
+
     @Test func layoutChangeDoesNotForceBottomScroll() {
         #expect(ChatViewportPolicy.forcesBottom(on: .layoutChange) == false)
         #expect(ChatViewportPolicy.forcesBottom(on: .sessionChange) == true)
@@ -411,6 +546,28 @@ struct EffectiveLayoutTests {
         )
         #expect(unknown.layoutPreference == .automatic)
     }
+}
+
+@MainActor
+private func capturedOpen(
+    _ state: AppState,
+    owner: ExternalFileOpenOwner
+) -> (String, String?) -> Void {
+    { path, workspace in
+        state.stageExternalFileOpen(path: path, workspaceDirectory: workspace, owner: owner)
+    }
+}
+
+@MainActor
+private func makePreviewState() -> AppState {
+    let defaults = UserDefaults(suiteName: "opencode.tests.preview.\(UUID().uuidString)")!
+    return AppState(
+        apiClient: MockAPIClient(),
+        sseClient: MockSSEClient(),
+        sshTunnelManager: SSHTunnelManager(defaults: defaults),
+        userDefaults: defaults,
+        hostCredentialAccess: .noExternal
+    )
 }
 
 struct ComposerOwnershipTests {

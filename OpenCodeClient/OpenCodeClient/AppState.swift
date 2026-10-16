@@ -858,6 +858,7 @@ final class AppState {
     var columnEventSequence: UInt64 = 0
     var inlineEventSequence: UInt64 = 0
     var pendingEventSequence: UInt64 = 0
+    var pendingFileOpenOwner: ExternalFileOpenOwner?
     var filesEventSequence: UInt64 = 0
 
     func closeFilePreview() {
@@ -867,8 +868,8 @@ final class AppState {
         inlinePreviewWorkspaceDirectory = nil
         fileToOpenInFilesTab = nil
         fileToOpenInFilesTabWorkspaceDirectory = nil
-        ignoreNextFilesPathShrink = true
-        filesNavigationPath = []
+        pendingFileOpenOwner = nil
+        clearFilesNavigationPathIgnoringNextShrink()
         filesNavigationWorkspace = nil
         filesNavigationHostID = nil
         previewSessionID = nil
@@ -879,13 +880,29 @@ final class AppState {
         filesEventSequence = 0
     }
 
-    func stageExternalFileOpen(path: String, workspaceDirectory: String?) {
+    func externalFileOpenOwnerIsCurrent(_ owner: ExternalFileOpenOwner) -> Bool {
+        guard isCurrentHostRequest(owner.host) else { return false }
+        if let sessionID = owner.sessionID {
+            return sessionID == currentSessionID
+        }
+        return true
+    }
+
+    func stageExternalFileOpen(path: String, workspaceDirectory: String?, owner: ExternalFileOpenOwner) {
         let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        guard externalFileOpenOwnerIsCurrent(owner) else { return }
         previewEventSequence &+= 1
         pendingEventSequence = previewEventSequence
         fileToOpenInFilesTab = trimmed
         fileToOpenInFilesTabWorkspaceDirectory = workspaceDirectory
+        pendingFileOpenOwner = owner
+    }
+
+    func clearFilesNavigationPathIgnoringNextShrink() {
+        guard !filesNavigationPath.isEmpty else { return }
+        ignoreNextFilesPathShrink = true
+        filesNavigationPath = []
     }
 
     func adoptFilesPush(_ path: String) {
@@ -902,6 +919,7 @@ final class AppState {
         inlinePreviewWorkspaceDirectory = nil
         fileToOpenInFilesTab = nil
         fileToOpenInFilesTabWorkspaceDirectory = nil
+        pendingFileOpenOwner = nil
         filesNavigationWorkspace = effectiveProjectDirectory
         filesNavigationHostID = currentHostProfileID
         previewHostID = currentHostProfileID
@@ -925,10 +943,10 @@ final class AppState {
             previewHostID = nil
             fileToOpenInFilesTab = nil
             fileToOpenInFilesTabWorkspaceDirectory = nil
+            pendingFileOpenOwner = nil
         }
-if filesNavigationHostID != newHost {
-            ignoreNextFilesPathShrink = true
-            filesNavigationPath = []
+        if filesNavigationHostID != newHost {
+            clearFilesNavigationPathIgnoringNextShrink()
             filesNavigationWorkspace = nil
             filesNavigationHostID = nil
             filesEventSequence = 0
@@ -963,10 +981,11 @@ if filesNavigationHostID != newHost {
                 filesSequence: filesEventSequence,
                 pendingPath: fileToOpenInFilesTab,
                 pendingWorkspace: fileToOpenInFilesTabWorkspaceDirectory,
-                pendingHostMatches: true,
+                pendingHostMatches: pendingFileOpenOwner.map(externalFileOpenOwnerIsCurrent) == true,
                 pendingSequence: pendingEventSequence
             )
         )
+        pendingFileOpenOwner = nil
         inlinePreviewPath = output.slots.inlinePath
         inlinePreviewWorkspaceDirectory = output.slots.inlineWorkspace
         previewFilePath = output.slots.columnPath
@@ -992,18 +1011,24 @@ if filesNavigationHostID != newHost {
 
     func adoptPendingFileOpen(layout: EffectiveLayout) {
         guard let path = fileToOpenInFilesTab, !path.isEmpty else { return }
+        guard let owner = pendingFileOpenOwner, externalFileOpenOwnerIsCurrent(owner) else {
+            fileToOpenInFilesTab = nil
+            fileToOpenInFilesTabWorkspaceDirectory = nil
+            pendingFileOpenOwner = nil
+            return
+        }
         let visibleSequence = layout == .regular ? columnEventSequence : inlineEventSequence
         let visiblePath = layout == .regular ? previewFilePath : inlinePreviewPath
         if let visiblePath, !visiblePath.isEmpty, pendingEventSequence <= visibleSequence {
             fileToOpenInFilesTab = nil
             fileToOpenInFilesTabWorkspaceDirectory = nil
+            pendingFileOpenOwner = nil
             return
         }
         let workspace = fileToOpenInFilesTabWorkspaceDirectory
-        previewHostID = currentHostProfileID
-        previewSessionID = currentSessionID
-        ignoreNextFilesPathShrink = true
-        filesNavigationPath = []
+        previewHostID = owner.host.hostProfileID
+        previewSessionID = owner.sessionID
+        clearFilesNavigationPathIgnoringNextShrink()
         filesEventSequence = 0
         if layout == .regular {
             columnEventSequence = pendingEventSequence
@@ -1023,6 +1048,7 @@ if filesNavigationHostID != newHost {
         pendingEventSequence = 0
         fileToOpenInFilesTab = nil
         fileToOpenInFilesTabWorkspaceDirectory = nil
+        pendingFileOpenOwner = nil
     }
 
     var sessionTodos: [String: [TodoItem]] { get { todoStore.sessionTodos } set { todoStore.sessionTodos = newValue } }

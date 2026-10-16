@@ -30,6 +30,17 @@ struct FileContentLoadKey: Equatable, Sendable {
     }
 }
 
+struct ExternalFileOpenOwner: Equatable, Sendable {
+    var host: HostRequestSnapshot
+    var sessionID: String?
+}
+
+extension ExternalFileOpenOwner {
+    init(load: FileContentLoadKey, sessionID: String?) {
+        self.init(host: load.host, sessionID: sessionID)
+    }
+}
+
 extension AppState {
     var fileSearchListState: FileSearchListState {
         guard !fileSearchQuery.isEmpty else { return .tree }

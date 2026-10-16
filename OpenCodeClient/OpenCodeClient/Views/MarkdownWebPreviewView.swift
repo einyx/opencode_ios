@@ -23,6 +23,22 @@ struct MarkdownWebPreviewInput: Equatable {
     let colorScheme: ColorScheme
 }
 
+private struct WebPreviewDocumentID: Hashable {
+    var hostID: UUID?
+    var generation: UInt64
+    var sessionID: String?
+    var path: String?
+    var workspace: String?
+
+    init(owner: ExternalFileOpenOwner?, path: String?, workspace: String?) {
+        hostID = owner?.host.hostProfileID
+        generation = owner?.host.generation ?? 0
+        sessionID = owner?.sessionID
+        self.path = path
+        self.workspace = workspace
+    }
+}
+
 /// SwiftUI host for the web preview. Resolves relative image paths to data URIs
 /// (reusing `MarkdownImageResolver`, so semantics match Native Preview), manages
 /// loading / error / oversize states, and surfaces fallbacks to Native or Source.
@@ -33,6 +49,7 @@ struct MarkdownWebPreviewContainer: View {
     let workspaceDirectory: String?
     /// Whether the content exceeds the size the native renderer trusts; the web
     /// renderer can still attempt it, but we warn first to avoid a huge payload.
+    var openOwner: ExternalFileOpenOwner? = nil
     var isOversized: Bool = false
     var onSwitchToNative: (() -> Void)?
     var onSwitchToSource: (() -> Void)?
@@ -53,13 +70,19 @@ struct MarkdownWebPreviewContainer: View {
             } else if let error = renderError {
                 errorState(error)
             } else if let resolved = resolvedMarkdown {
+                let owner = openOwner
+                let workspace = workspaceDirectory
+                let basePath = markdownFilePath
                 MarkdownWebPreviewView(
                     input: MarkdownWebPreviewInput(markdown: resolved, colorScheme: colorScheme),
                     onOpenExternalURL: { url in openURL(url) },
-                    onOpenRelativePath: { href in openWorkspacePath(href) },
+                    onOpenRelativePath: { href in
+                        openWorkspacePath(href, owner: owner, workspaceDirectory: workspace, baseFilePath: basePath)
+                    },
                     onOpenImage: { _ in /* Phase 3: dedicated image preview */ },
                     onError: { message in renderError = message }
                 )
+                .id(WebPreviewDocumentID(owner: owner, path: basePath, workspace: workspace))
             } else {
                 ProgressView(L10n.t(.markdownWebPreviewLoading))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -96,12 +119,18 @@ struct MarkdownWebPreviewContainer: View {
     /// Resolve a workspace-relative link tapped in the preview and route it into
     /// the app's Files preview (same target the Chat→file jump uses). Fragment-only
     /// hrefs are ignored (the WebView scrolls in place).
-    private func openWorkspacePath(_ href: String) {
-        switch WorkspaceLinkResolver.resolve(href, workspaceDirectory: workspaceDirectory, baseFilePath: markdownFilePath) {
+    private func openWorkspacePath(
+        _ href: String,
+        owner: ExternalFileOpenOwner?,
+        workspaceDirectory: String?,
+        baseFilePath: String?
+    ) {
+        switch WorkspaceLinkResolver.resolve(href, workspaceDirectory: workspaceDirectory, baseFilePath: baseFilePath) {
         case .external(let url):
             openURL(url)
         case .file(let path):
-            state.stageExternalFileOpen(path: path, workspaceDirectory: workspaceDirectory)
+            guard let owner else { return }
+            state.stageExternalFileOpen(path: path, workspaceDirectory: workspaceDirectory, owner: owner)
         case .fragmentOnly:
             return
         case .rejected(let reason):

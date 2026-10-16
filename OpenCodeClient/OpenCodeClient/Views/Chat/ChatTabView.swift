@@ -1787,10 +1787,10 @@ struct ChatTabView: View {
 
     private func openFileInChat(_ resolvedPath: String, workspaceDirectory: String? = nil) {
         guard !resolvedPath.isEmpty else { return }
-        state.ignoreNextFilesPathShrink = true
-        state.filesNavigationPath = []
+        state.clearFilesNavigationPathIgnoringNextShrink()
         state.fileToOpenInFilesTab = nil
         state.fileToOpenInFilesTabWorkspaceDirectory = nil
+        state.pendingFileOpenOwner = nil
         state.previewEventSequence &+= 1
         state.previewHostID = state.currentHostProfileID
         state.previewSessionID = state.currentSessionID
@@ -1951,7 +1951,8 @@ private struct ChatInlineFilePreview: View {
             FileContentView(
                 state: state,
                 filePath: filePath,
-                workspaceDirectory: workspaceDirectory
+                workspaceDirectory: workspaceDirectory,
+                boundSessionID: state.previewSessionID
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .toolbar {
