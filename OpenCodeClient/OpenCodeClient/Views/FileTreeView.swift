@@ -131,8 +131,21 @@ struct FileTreeView: View {
     }
 
     private func openFile(_ path: String) {
+        state.previewEventSequence &+= 1
+        state.columnEventSequence = state.previewEventSequence
+        state.inlineEventSequence = 0
+        state.pendingEventSequence = 0
         state.previewFilePath = path
         state.previewFileWorkspaceDirectory = openedWorkspaceDirectory
+        state.inlinePreviewPath = nil
+        state.inlinePreviewWorkspaceDirectory = nil
+        state.previewHostID = state.currentHostProfileID
+        state.previewSessionID = nil
+        state.filesNavigationHostID = state.currentHostProfileID
+        state.ignoreNextFilesPathShrink = true
+        state.filesNavigationPath = []
+        state.fileToOpenInFilesTab = nil
+        state.fileToOpenInFilesTabWorkspaceDirectory = nil
     }
 
     private var visibleNodes: [TreeNodeItem] {

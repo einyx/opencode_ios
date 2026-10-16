@@ -236,8 +236,6 @@ struct ChatTabView: View {
     @State private var composerRevision: UInt64 = 0
     @State private var attachmentError: String?
     @State private var isLoadingAttachment = false
-    @State private var inlinePreviewPath: String?
-    @State private var inlinePreviewWorkspaceDirectory: String?
     @State private var pendingScrollTask: Task<Void, Never>?
     @State private var pendingBottomVisibilityTask: Task<Void, Never>?
     @State private var isNearBottom = true
@@ -860,15 +858,14 @@ struct ChatTabView: View {
                 // Docked file preview (iPhone): fills the whole screen except the
                 // composer strip at the bottom, which stays interactive so voice
                 // recording and typing keep working while the file is open.
-                if effectiveLayout == .compact, let previewPath = inlinePreviewPath {
+                if effectiveLayout == .compact, let previewPath = state.inlinePreviewPath {
                     ChatInlineFilePreview(
                         state: state,
                         filePath: previewPath,
-                        workspaceDirectory: inlinePreviewWorkspaceDirectory,
+                        workspaceDirectory: state.inlinePreviewWorkspaceDirectory,
                         onClose: {
                             withAnimation(DesignAnimation.spring) {
-                                inlinePreviewPath = nil
-                                inlinePreviewWorkspaceDirectory = nil
+                                state.closeFilePreview()
                             }
                         }
                     )
@@ -1267,12 +1264,7 @@ struct ChatTabView: View {
                 isNearBottom = true
                 pendingBottomVisibilityTask?.cancel()
                 pendingBottomVisibilityTask = nil
-                if inlinePreviewPath != nil {
-                    withAnimation(DesignAnimation.spring) {
-                        inlinePreviewPath = nil
-                        inlinePreviewWorkspaceDirectory = nil
-                    }
-                }
+                state.discardChatPreviewIfSessionChanged(from: oldID, to: newID)
                 Task { @MainActor in
                     await stopSpeechForNavigation()
                 }
@@ -1308,21 +1300,7 @@ struct ChatTabView: View {
                 state.markCurrentSessionViewed()
                 Task { await stopSpeechForBackground() }
             }
-            .onChange(of: effectiveLayout) { oldValue, newValue in
-                let migrated = LayoutPreviewMigration.migrate(
-                    from: oldValue,
-                    to: newValue,
-                    slots: LayoutPreviewSlots(
-                        inlinePath: inlinePreviewPath,
-                        inlineWorkspace: inlinePreviewWorkspaceDirectory,
-                        columnPath: state.previewFilePath,
-                        columnWorkspace: state.previewFileWorkspaceDirectory
-                    )
-                )
-                inlinePreviewPath = migrated.inlinePath
-                inlinePreviewWorkspaceDirectory = migrated.inlineWorkspace
-                state.previewFilePath = migrated.columnPath
-                state.previewFileWorkspaceDirectory = migrated.columnWorkspace
+            .onChange(of: effectiveLayout) { _, _ in
                 if ChatViewportPolicy.forcesBottom(on: .layoutChange) {
                     isNearBottom = true
                 }
@@ -1809,21 +1787,32 @@ struct ChatTabView: View {
 
     private func openFileInChat(_ resolvedPath: String, workspaceDirectory: String? = nil) {
         guard !resolvedPath.isEmpty else { return }
+        state.ignoreNextFilesPathShrink = true
+        state.filesNavigationPath = []
+        state.fileToOpenInFilesTab = nil
+        state.fileToOpenInFilesTabWorkspaceDirectory = nil
+        state.previewEventSequence &+= 1
+        state.previewHostID = state.currentHostProfileID
+        state.previewSessionID = state.currentSessionID
+        state.pendingEventSequence = 0
+        state.fileToOpenInFilesTab = nil
+        state.fileToOpenInFilesTabWorkspaceDirectory = nil
         if effectiveLayout == .regular {
+            state.columnEventSequence = state.previewEventSequence
+            state.inlineEventSequence = 0
             state.previewFilePath = resolvedPath
             state.previewFileWorkspaceDirectory = workspaceDirectory
-            state.fileToOpenInFilesTab = nil
-            state.fileToOpenInFilesTabWorkspaceDirectory = nil
+            state.inlinePreviewPath = nil
+            state.inlinePreviewWorkspaceDirectory = nil
         } else {
-            // iPhone: dock the preview inside chat instead of jumping to the
-            // Files tab — keeps the composer (mic / waveform / text box)
-            // interactive while the file is open.
             withAnimation(DesignAnimation.spring) {
-                inlinePreviewPath = resolvedPath
-                inlinePreviewWorkspaceDirectory = workspaceDirectory
+                state.inlineEventSequence = state.previewEventSequence
+                state.columnEventSequence = 0
+                state.inlinePreviewPath = resolvedPath
+                state.inlinePreviewWorkspaceDirectory = workspaceDirectory
+                state.previewFilePath = nil
+                state.previewFileWorkspaceDirectory = nil
             }
-            state.fileToOpenInFilesTab = nil
-            state.fileToOpenInFilesTabWorkspaceDirectory = nil
         }
     }
 

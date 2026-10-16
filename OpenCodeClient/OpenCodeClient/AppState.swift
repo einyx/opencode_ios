@@ -844,6 +844,186 @@ final class AppState {
     /// iPad 三栏布局：中间栏文件预览
     var previewFilePath: String?
     var previewFileWorkspaceDirectory: String?
+    var inlinePreviewPath: String?
+    var inlinePreviewWorkspaceDirectory: String?
+    /// Compact Files tab push. Not session-scoped.
+    var filesNavigationPath: [String] = []
+    var filesNavigationWorkspace: String?
+    var filesNavigationHostID: UUID?
+    var ignoreNextFilesPathShrink = false
+    /// Set for chat-opened previews. Nil means the preview is not tied to a session.
+    var previewSessionID: String?
+    var previewHostID: UUID?
+    var previewEventSequence: UInt64 = 0
+    var columnEventSequence: UInt64 = 0
+    var inlineEventSequence: UInt64 = 0
+    var pendingEventSequence: UInt64 = 0
+    var filesEventSequence: UInt64 = 0
+
+    func closeFilePreview() {
+        previewFilePath = nil
+        previewFileWorkspaceDirectory = nil
+        inlinePreviewPath = nil
+        inlinePreviewWorkspaceDirectory = nil
+        fileToOpenInFilesTab = nil
+        fileToOpenInFilesTabWorkspaceDirectory = nil
+        ignoreNextFilesPathShrink = true
+        filesNavigationPath = []
+        filesNavigationWorkspace = nil
+        filesNavigationHostID = nil
+        previewSessionID = nil
+        previewHostID = nil
+        columnEventSequence = 0
+        inlineEventSequence = 0
+        pendingEventSequence = 0
+        filesEventSequence = 0
+    }
+
+    func stageExternalFileOpen(path: String, workspaceDirectory: String?) {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        previewEventSequence &+= 1
+        pendingEventSequence = previewEventSequence
+        fileToOpenInFilesTab = trimmed
+        fileToOpenInFilesTabWorkspaceDirectory = workspaceDirectory
+    }
+
+    func adoptFilesPush(_ path: String) {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        previewEventSequence &+= 1
+        columnEventSequence = previewEventSequence
+        filesEventSequence = previewEventSequence
+        inlineEventSequence = 0
+        pendingEventSequence = 0
+        previewFilePath = trimmed
+        previewFileWorkspaceDirectory = effectiveProjectDirectory
+        inlinePreviewPath = nil
+        inlinePreviewWorkspaceDirectory = nil
+        fileToOpenInFilesTab = nil
+        fileToOpenInFilesTabWorkspaceDirectory = nil
+        filesNavigationWorkspace = effectiveProjectDirectory
+        filesNavigationHostID = currentHostProfileID
+        previewHostID = currentHostProfileID
+        previewSessionID = nil
+    }
+
+    func closeMatchingPreview(_ path: String?) {
+        guard let path, !path.isEmpty else { return }
+        guard previewFilePath == path || inlinePreviewPath == path || filesNavigationPath.last == path else { return }
+        closeFilePreview()
+    }
+
+    func discardPreviewIfHostChanged(from oldHost: UUID, to newHost: UUID) {
+        guard oldHost != newHost else { return }
+        if previewHostID != newHost {
+            previewFilePath = nil
+            previewFileWorkspaceDirectory = nil
+            inlinePreviewPath = nil
+            inlinePreviewWorkspaceDirectory = nil
+            previewSessionID = nil
+            previewHostID = nil
+            fileToOpenInFilesTab = nil
+            fileToOpenInFilesTabWorkspaceDirectory = nil
+        }
+if filesNavigationHostID != newHost {
+            ignoreNextFilesPathShrink = true
+            filesNavigationPath = []
+            filesNavigationWorkspace = nil
+            filesNavigationHostID = nil
+            filesEventSequence = 0
+        }
+    }
+
+    func discardChatPreviewIfSessionChanged(from oldSession: String?, to newSession: String?) {
+        guard oldSession != newSession, previewSessionID == oldSession, previewSessionID != nil else { return }
+        previewFilePath = nil
+        previewFileWorkspaceDirectory = nil
+        inlinePreviewPath = nil
+        inlinePreviewWorkspaceDirectory = nil
+        previewSessionID = nil
+    }
+
+    func applyPreviewLayout(from: EffectiveLayout, to: EffectiveLayout) {
+        let output = PreviewLayoutTransition.apply(
+            from: from,
+            to: to,
+            input: PreviewLayoutInput(
+                slots: LayoutPreviewSlots(
+                    inlinePath: inlinePreviewPath,
+                    inlineWorkspace: inlinePreviewWorkspaceDirectory,
+                    columnPath: previewFilePath,
+                    columnWorkspace: previewFileWorkspaceDirectory
+                ),
+                columnSequence: columnEventSequence,
+                inlineSequence: inlineEventSequence,
+                filesPath: filesNavigationPath,
+                filesWorkspace: filesNavigationWorkspace ?? effectiveProjectDirectory,
+                filesHostMatches: filesNavigationHostID == nil || filesNavigationHostID == currentHostProfileID,
+                filesSequence: filesEventSequence,
+                pendingPath: fileToOpenInFilesTab,
+                pendingWorkspace: fileToOpenInFilesTabWorkspaceDirectory,
+                pendingHostMatches: true,
+                pendingSequence: pendingEventSequence
+            )
+        )
+        inlinePreviewPath = output.slots.inlinePath
+        inlinePreviewWorkspaceDirectory = output.slots.inlineWorkspace
+        previewFilePath = output.slots.columnPath
+        previewFileWorkspaceDirectory = output.slots.columnWorkspace
+        if output.slots.inlinePath != nil {
+            inlineEventSequence = output.winnerSequence
+            columnEventSequence = 0
+        } else if output.slots.columnPath != nil {
+            columnEventSequence = output.winnerSequence
+            inlineEventSequence = 0
+        } else {
+            inlineEventSequence = 0
+            columnEventSequence = 0
+        }
+        pendingEventSequence = 0
+        fileToOpenInFilesTab = output.pendingPath
+        fileToOpenInFilesTabWorkspaceDirectory = output.pendingWorkspace
+        if output.filesPath != filesNavigationPath {
+            ignoreNextFilesPathShrink = true
+            filesNavigationPath = output.filesPath
+        }
+    }
+
+    func adoptPendingFileOpen(layout: EffectiveLayout) {
+        guard let path = fileToOpenInFilesTab, !path.isEmpty else { return }
+        let visibleSequence = layout == .regular ? columnEventSequence : inlineEventSequence
+        let visiblePath = layout == .regular ? previewFilePath : inlinePreviewPath
+        if let visiblePath, !visiblePath.isEmpty, pendingEventSequence <= visibleSequence {
+            fileToOpenInFilesTab = nil
+            fileToOpenInFilesTabWorkspaceDirectory = nil
+            return
+        }
+        let workspace = fileToOpenInFilesTabWorkspaceDirectory
+        previewHostID = currentHostProfileID
+        previewSessionID = currentSessionID
+        ignoreNextFilesPathShrink = true
+        filesNavigationPath = []
+        filesEventSequence = 0
+        if layout == .regular {
+            columnEventSequence = pendingEventSequence
+            inlineEventSequence = 0
+            previewFilePath = path
+            previewFileWorkspaceDirectory = workspace
+            inlinePreviewPath = nil
+            inlinePreviewWorkspaceDirectory = nil
+        } else {
+            inlineEventSequence = pendingEventSequence
+            columnEventSequence = 0
+            inlinePreviewPath = path
+            inlinePreviewWorkspaceDirectory = workspace
+            previewFilePath = nil
+            previewFileWorkspaceDirectory = nil
+        }
+        pendingEventSequence = 0
+        fileToOpenInFilesTab = nil
+        fileToOpenInFilesTabWorkspaceDirectory = nil
+    }
 
     var sessionTodos: [String: [TodoItem]] { get { todoStore.sessionTodos } set { todoStore.sessionTodos = newValue } }
 

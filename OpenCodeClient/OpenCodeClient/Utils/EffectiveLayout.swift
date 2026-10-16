@@ -67,30 +67,140 @@ struct LayoutPreviewSlots: Equatable {
 }
 
 enum LayoutPreviewMigration {
+    /// The slot the user can see in `from` is the source. A value already in the
+    /// destination is a hidden preview and must not stay on screen.
     static func migrate(
         from: EffectiveLayout,
         to: EffectiveLayout,
         slots: LayoutPreviewSlots
     ) -> LayoutPreviewSlots {
         guard from != to else { return slots }
-        var next = slots
-        switch to {
-        case .compact:
-            if next.inlinePath == nil, let column = next.columnPath, !column.isEmpty {
-                next.inlinePath = column
-                next.inlineWorkspace = next.columnWorkspace
-                next.columnPath = nil
-                next.columnWorkspace = nil
-            }
+        switch from {
         case .regular:
-            if next.columnPath == nil, let inline = next.inlinePath, !inline.isEmpty {
-                next.columnPath = inline
-                next.columnWorkspace = next.inlineWorkspace
-                next.inlinePath = nil
-                next.inlineWorkspace = nil
-            }
+            guard let column = slots.columnPath, !column.isEmpty else { return .empty }
+            return LayoutPreviewSlots(
+                inlinePath: column,
+                inlineWorkspace: slots.columnWorkspace,
+                columnPath: nil,
+                columnWorkspace: nil
+            )
+        case .compact:
+            guard let inline = slots.inlinePath, !inline.isEmpty else { return .empty }
+            return LayoutPreviewSlots(
+                inlinePath: nil,
+                inlineWorkspace: nil,
+                columnPath: inline,
+                columnWorkspace: slots.inlineWorkspace
+            )
         }
-        return next
+    }
+}
+
+struct PreviewLayoutInput: Equatable {
+    var slots: LayoutPreviewSlots
+    var columnSequence: UInt64 = 0
+    var inlineSequence: UInt64 = 0
+    var filesPath: [String]
+    var filesWorkspace: String?
+    var filesHostMatches: Bool
+    var filesSequence: UInt64 = 0
+    var pendingPath: String?
+    var pendingWorkspace: String?
+    var pendingHostMatches: Bool
+    var pendingSequence: UInt64 = 0
+}
+
+struct PreviewLayoutOutput: Equatable {
+    var slots: LayoutPreviewSlots
+    var filesPath: [String]
+    var pendingPath: String?
+    var pendingWorkspace: String?
+    var winnerSequence: UInt64 = 0
+}
+
+enum PreviewLayoutTransition {
+    static func apply(
+        from: EffectiveLayout,
+        to: EffectiveLayout,
+        input: PreviewLayoutInput
+    ) -> PreviewLayoutOutput {
+        let filesPath = input.filesHostMatches ? input.filesPath : []
+        let pending = input.pendingHostMatches ? input.pendingPath : nil
+        let pendingWorkspace = input.pendingHostMatches ? input.pendingWorkspace : nil
+        let shown = shownPreview(from: from, input: input, filesPath: filesPath)
+        let winner = laterExternalOpen(
+            shown: shown,
+            filesPath: filesPath,
+            filesWorkspace: input.filesWorkspace,
+            filesSequence: input.filesHostMatches ? input.filesSequence : 0,
+            pendingPath: pending,
+            pendingWorkspace: pendingWorkspace,
+            pendingSequence: input.pendingHostMatches ? input.pendingSequence : 0
+        )
+        return PreviewLayoutOutput(
+            slots: place(winner.path, workspace: winner.workspace, in: to),
+            filesPath: to == .regular ? [] : filesPath,
+            pendingPath: nil,
+            pendingWorkspace: nil,
+            winnerSequence: winner.sequence
+        )
+    }
+
+    private static func shownPreview(
+        from: EffectiveLayout,
+        input: PreviewLayoutInput,
+        filesPath: [String]
+    ) -> (path: String?, workspace: String?, sequence: UInt64) {
+        switch from {
+        case .regular:
+            guard let column = input.slots.columnPath, !column.isEmpty else {
+                return (nil, nil, 0)
+            }
+            return (column, input.slots.columnWorkspace, input.columnSequence)
+        case .compact:
+            if let inline = input.slots.inlinePath, !inline.isEmpty {
+                return (inline, input.slots.inlineWorkspace, input.inlineSequence)
+            }
+            guard let pushed = filesPath.last, !pushed.isEmpty else {
+                return (nil, nil, 0)
+            }
+            return (pushed, input.filesWorkspace, input.filesSequence)
+        }
+    }
+
+    private static func laterExternalOpen(
+        shown: (path: String?, workspace: String?, sequence: UInt64),
+        filesPath: [String],
+        filesWorkspace: String?,
+        filesSequence: UInt64,
+        pendingPath: String?,
+        pendingWorkspace: String?,
+        pendingSequence: UInt64
+    ) -> (path: String?, workspace: String?, sequence: UInt64) {
+        var path = shown.path
+        var workspace = shown.workspace
+        var sequence = shown.path == nil ? 0 : shown.sequence
+        if let pending = pendingPath, !pending.isEmpty, pendingSequence > sequence {
+            path = pending
+            workspace = pendingWorkspace
+            sequence = pendingSequence
+        }
+        if let pushed = filesPath.last, !pushed.isEmpty, filesSequence > sequence {
+            path = pushed
+            workspace = filesWorkspace
+            sequence = filesSequence
+        }
+        return (path, workspace, sequence)
+    }
+
+    private static func place(_ path: String?, workspace: String?, in layout: EffectiveLayout) -> LayoutPreviewSlots {
+        guard let path, !path.isEmpty else { return .empty }
+        switch layout {
+        case .compact:
+            return LayoutPreviewSlots(inlinePath: path, inlineWorkspace: workspace, columnPath: nil, columnWorkspace: nil)
+        case .regular:
+            return LayoutPreviewSlots(inlinePath: nil, inlineWorkspace: nil, columnPath: path, columnWorkspace: workspace)
+        }
     }
 }
 
