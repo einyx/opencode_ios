@@ -8,9 +8,10 @@ import SwiftUI
 struct FilesTabView: View {
     @Bindable var state: AppState
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.effectiveLayout) private var effectiveLayout
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $state.filesNavigationPath) {
             FileTreeView(state: state)
                 .fileSearchQueryHandlers(state: state)
             .navigationTitle(L10n.t(.navFiles))
@@ -22,6 +23,18 @@ struct FilesTabView: View {
                     }
                 }
             }
+        }
+        .onChange(of: state.filesNavigationPath) { oldPath, newPath in
+            if newPath.count > oldPath.count, let last = newPath.last {
+                state.adoptFilesPush(last)
+                return
+            }
+            if state.ignoreNextFilesPathShrink {
+                state.ignoreNextFilesPathShrink = false
+                return
+            }
+            guard effectiveLayout == .compact, newPath.isEmpty, let closed = oldPath.last else { return }
+            state.closeMatchingPreview(closed)
         }
     }
 }

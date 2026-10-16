@@ -101,8 +101,7 @@ struct MarkdownWebPreviewContainer: View {
         case .external(let url):
             openURL(url)
         case .file(let path):
-            state.fileToOpenInFilesTab = path
-            state.fileToOpenInFilesTabWorkspaceDirectory = workspaceDirectory
+            state.stageExternalFileOpen(path: path, workspaceDirectory: workspaceDirectory)
         case .fragmentOnly:
             return
         case .rejected(let reason):

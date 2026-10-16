@@ -67,6 +67,9 @@ enum FileSearchFixture {
     static func apply(to state: AppState) {
         state.isConnected = true
         state.selectedTab = RootTab.files.rawValue
+        if ProcessInfo.processInfo.environment["UITEST_LAYOUT_PREFERENCE"] == "focus" {
+            state.layoutPreference = .focus
+        }
         let filesDirectory = mode == .live || mode == .split ? workspaceB : directory
         let sessionDirectory = mode == .live || mode == .split ? workspaceA : directory
         state.selectedProjectWorktree = filesDirectory
@@ -116,9 +119,15 @@ enum FileSearchFixture {
             state.fileStore.fileSearchInFlight = false
         }
         #if DEBUG
+        if let stale = ProcessInfo.processInfo.environment["UITEST_STALE_INLINE"], !stale.isEmpty {
+            state.inlinePreviewPath = stale
+            state.inlinePreviewWorkspaceDirectory = filesDirectory
+            state.inlineEventSequence = 1
+        }
         if ProcessInfo.processInfo.environment["UITEST_FILE_SEARCH_OPEN_PREVIEW"] == "1" {
             state.previewFilePath = resultPath
             state.previewFileWorkspaceDirectory = filesDirectory
+            state.columnEventSequence = 2
         }
         #endif
     }

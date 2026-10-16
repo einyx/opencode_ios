@@ -48,15 +48,129 @@ struct EffectiveLayoutTests {
         #expect(migrated.inlinePath == nil)
     }
 
-    @Test func occupiedPreviewDestinationIsNotOverwritten() {
-        let slots = LayoutPreviewSlots(
-            inlinePath: "chat.md",
-            inlineWorkspace: "/chat",
-            columnPath: "files.md",
-            columnWorkspace: "/files"
+    @Test func filesPushBecomesColumnThenInline() {
+        let compactToRegular = PreviewLayoutTransition.apply(
+            from: .compact,
+            to: .regular,
+            input: PreviewLayoutInput(
+                slots: .empty,
+                filesPath: ["notes.txt"],
+                filesWorkspace: "/tmp/w06-files",
+                filesHostMatches: true,
+                pendingPath: nil,
+                pendingWorkspace: nil,
+                pendingHostMatches: true
+            )
         )
-        #expect(LayoutPreviewMigration.migrate(from: .regular, to: .compact, slots: slots) == slots)
-        #expect(LayoutPreviewMigration.migrate(from: .compact, to: .regular, slots: slots) == slots)
+        #expect(compactToRegular.slots.columnPath == "notes.txt")
+        #expect(compactToRegular.slots.columnWorkspace == "/tmp/w06-files")
+        #expect(compactToRegular.filesPath.isEmpty)
+
+        let back = PreviewLayoutTransition.apply(
+            from: .regular,
+            to: .compact,
+            input: PreviewLayoutInput(
+                slots: compactToRegular.slots,
+                filesPath: compactToRegular.filesPath,
+                filesWorkspace: "/tmp/w06-files",
+                filesHostMatches: true,
+                pendingPath: nil,
+                pendingWorkspace: nil,
+                pendingHostMatches: true
+            )
+        )
+        #expect(back.slots.inlinePath == "notes.txt")
+        #expect(back.slots.inlineWorkspace == "/tmp/w06-files")
+        #expect(back.slots.columnPath == nil)
+    }
+
+    @Test func foreignHostFilesPushIsNotRestored() {
+        let migrated = PreviewLayoutTransition.apply(
+            from: .compact,
+            to: .regular,
+            input: PreviewLayoutInput(
+                slots: .empty,
+                filesPath: ["secret.txt"],
+                filesWorkspace: "/other",
+                filesHostMatches: false,
+                pendingPath: "pending.md",
+                pendingWorkspace: "/other",
+                pendingHostMatches: false
+            )
+        )
+        #expect(migrated.slots == .empty)
+        #expect(migrated.filesPath.isEmpty)
+        #expect(migrated.pendingPath == nil)
+    }
+
+    @Test func visibleColumnReplacesHiddenInline() {
+        let slots = LayoutPreviewSlots(
+            inlinePath: "old.md",
+            inlineWorkspace: "/old",
+            columnPath: "current.md",
+            columnWorkspace: "/current"
+        )
+        let migrated = LayoutPreviewMigration.migrate(from: .regular, to: .compact, slots: slots)
+        #expect(migrated.inlinePath == "current.md")
+        #expect(migrated.inlineWorkspace == "/current")
+        #expect(migrated.columnPath == nil)
+    }
+
+    @Test func visibleInlineReplacesHiddenColumn() {
+        let slots = LayoutPreviewSlots(
+            inlinePath: "current.md",
+            inlineWorkspace: "/current",
+            columnPath: "old.md",
+            columnWorkspace: "/old"
+        )
+        let migrated = LayoutPreviewMigration.migrate(from: .compact, to: .regular, slots: slots)
+        #expect(migrated.columnPath == "current.md")
+        #expect(migrated.columnWorkspace == "/current")
+        #expect(migrated.inlinePath == nil)
+    }
+
+    @Test func newerPendingOpenReplacesVisibleSlot() {
+        let migrated = PreviewLayoutTransition.apply(
+            from: .regular,
+            to: .compact,
+            input: PreviewLayoutInput(
+                slots: LayoutPreviewSlots(inlinePath: "old.md", inlineWorkspace: "/old", columnPath: "seen.md", columnWorkspace: "/seen"),
+                columnSequence: 2,
+                inlineSequence: 1,
+                filesPath: [],
+                filesWorkspace: nil,
+                filesHostMatches: true,
+                pendingPath: "link.md",
+                pendingWorkspace: "/link",
+                pendingHostMatches: true,
+                pendingSequence: 3
+            )
+        )
+        #expect(migrated.slots.inlinePath == "link.md")
+        #expect(migrated.slots.columnPath == nil)
+        #expect(migrated.pendingPath == nil)
+    }
+
+    @Test func olderPendingOpenDoesNotReplaceVisibleSlot() {
+        let migrated = PreviewLayoutTransition.apply(
+            from: .regular,
+            to: .compact,
+            input: PreviewLayoutInput(
+                slots: LayoutPreviewSlots(inlinePath: "old.md", inlineWorkspace: "/old", columnPath: "seen.md", columnWorkspace: "/seen"),
+                columnSequence: 5,
+                inlineSequence: 1,
+                filesPath: [],
+                filesWorkspace: nil,
+                filesHostMatches: true,
+                pendingPath: "link.md",
+                pendingWorkspace: "/link",
+                pendingHostMatches: true,
+                pendingSequence: 3
+            )
+        )
+        #expect(migrated.slots.inlinePath == "seen.md")
+        #expect(migrated.slots.inlineWorkspace == "/seen")
+        #expect(migrated.slots.columnPath == nil)
     }
 
     @Test func layoutChangeDoesNotForceBottomScroll() {

@@ -92,11 +92,13 @@ struct ContentView: View {
                 }
             },
             set: { newValue, _ in
+                guard newValue == nil else { return }
                 Task { @MainActor in
                     await Task.yield()
-                    state.fileToOpenInFilesTab = newValue?.path
-                    state.fileToOpenInFilesTabWorkspaceDirectory = newValue?.workspaceDirectory
-                    if newValue == nil, !useSplitLayout {
+                    state.fileToOpenInFilesTab = nil
+                    state.fileToOpenInFilesTabWorkspaceDirectory = nil
+                    state.pendingEventSequence = 0
+                    if !useSplitLayout {
                         selectedTab = RootTab.chat.rawValue
                         state.selectedTab = RootTab.chat.rawValue
                     }
@@ -293,6 +295,15 @@ struct ContentView: View {
             }
         }
         .overlay(alignment: .bottomTrailing) {
+            if ProcessInfo.processInfo.environment["UITEST_PREVIEW_MIGRATION_HARNESS"] == "1" {
+                Button(state.layoutPreference == .focus ? "Auto" : "Focus") {
+                    state.layoutPreference = state.layoutPreference == .focus ? .automatic : .focus
+                }
+                .accessibilityIdentifier("preview-migration-toggle-layout")
+                .padding(8)
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
             if TurnStabilityFixture.showsAppendControls {
                 TurnStabilityAppendControls(state: state)
                     .padding(.trailing, 12)
@@ -378,18 +389,17 @@ struct ContentView: View {
             selectedTab = state.selectedTab
         }
         .onChange(of: effectiveLayout) { oldValue, newValue in
+            state.applyPreviewLayout(from: oldValue, to: newValue)
             if oldValue == .regular, newValue == .compact {
                 selectedTab = RootTab.chat.rawValue
             }
-            if newValue == .regular, let p = state.fileToOpenInFilesTab {
-                Task { @MainActor in
-                    await Task.yield()
-                    state.previewFilePath = p
-                    state.previewFileWorkspaceDirectory = state.fileToOpenInFilesTabWorkspaceDirectory
-                    state.fileToOpenInFilesTab = nil
-                    state.fileToOpenInFilesTabWorkspaceDirectory = nil
-                }
-            }
+        }
+        .onChange(of: state.fileToOpenInFilesTab) { _, newValue in
+            guard newValue != nil else { return }
+            state.adoptPendingFileOpen(layout: effectiveLayout)
+        }
+        .onChange(of: state.currentHostProfileID) { oldHost, newHost in
+            state.discardPreviewIfHostChanged(from: oldHost, to: newHost)
         }
         .onChange(of: selectedTab) { oldTab, newTab in
             Task { @MainActor in
@@ -568,10 +578,7 @@ private struct TabletFilesColumn: View {
                 ToolbarItem(placement: .primaryAction) {
                     if let path = state.previewFilePath, !path.isEmpty {
                         Button {
-                            state.previewFilePath = nil
-                            state.previewFileWorkspaceDirectory = nil
-                            state.fileToOpenInFilesTab = nil
-                            state.fileToOpenInFilesTabWorkspaceDirectory = nil
+                            state.closeFilePreview()
                         } label: {
                             Image(systemName: "xmark")
                         }
