@@ -9,6 +9,12 @@
 - **编译/测试**：父行蓝色提醒确认定向 43 项通过；一次全量 763 项、87 suites 通过（Swift Testing 汇总口径）。xcodebuild、wrapper 及结果包验收均为 0。
 - **Phase**：父级蓝点独立 code/privacy review 通过，主线程定向复跑及设备构建通过；按授权合并后部署 iPad，附件 A/B 随后执行。
 
+### 2026-10-16 — visionOS 归档输入辅助栏兼容修复
+
+修复 build 135 中 `ChatComposerTextView` 调用 visionOS 不可用的 `leadingBarButtonGroups` / `trailingBarButtonGroups` 导致的六处编译错误。辅助栏的状态、保存、清空与还原限制在 `#if os(iOS)` 内，其他平台使用空实现；保留跨平台 `inputView`、焦点与中文输入处理，iOS 执行顺序不变。
+
+Xcode 27.1 本地 visionOS Release 无签名归档成功，产物为 `xros` / `xros27.0`、设备族 `[7]`；iOS `EffectiveLayoutTests` 22 项通过，wrapper 和结果包均正常通过。本地结果验证编译与归档，不代表云端签名或上传已成功。
+
 ### 2026-10-16 — 粘贴外观与无键盘光标反馈
 
 按反馈将粘贴键改为蓝色图标，去除大实底框：原生 `UIPasteControl` 保留 44pt 点击区，底色融入语音栏，浅、深色均已截图核对。系统 `configuration` 仅可在构建时配置，主题变化只重建粘贴控件，不修改返回的不可变配置。

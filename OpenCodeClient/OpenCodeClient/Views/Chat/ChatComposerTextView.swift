@@ -241,40 +241,60 @@ class IMEAwareTextView: UITextView {
     var onShiftReturn: (() -> Void)?
     private(set) var softwareKeyboardSuppressed = false
     private let suppressedInput = ZeroHeightInputView(frame: .zero)
+    #if os(iOS)
     private var savedLeading: [UIBarButtonItemGroup] = []
     private var savedTrailing: [UIBarButtonItemGroup] = []
     private var didSaveAssistant = false
+    #endif
 
     func setSoftwareKeyboardSuppressed(_ suppressed: Bool) {
         let inputMatches = suppressed ? inputView === suppressedInput : inputView == nil
         guard softwareKeyboardSuppressed != suppressed || !inputMatches else { return }
         softwareKeyboardSuppressed = suppressed
         if suppressed {
-            if !didSaveAssistant {
-                let leading = inputAssistantItem.leadingBarButtonGroups
-                let trailing = inputAssistantItem.trailingBarButtonGroups
-                if !leading.isEmpty || !trailing.isEmpty {
-                    savedLeading = leading
-                    savedTrailing = trailing
-                    didSaveAssistant = true
-                }
-            }
+            captureAssistantBarIfNeeded()
             if inputView !== suppressedInput {
                 inputView = suppressedInput
             }
-            inputAssistantItem.leadingBarButtonGroups = []
-            inputAssistantItem.trailingBarButtonGroups = []
+            clearAssistantBar()
         } else {
             inputView = nil
-            if didSaveAssistant, !savedLeading.isEmpty || !savedTrailing.isEmpty {
-                inputAssistantItem.leadingBarButtonGroups = savedLeading
-                inputAssistantItem.trailingBarButtonGroups = savedTrailing
-            }
+            restoreAssistantBarIfSaved()
         }
         if isFirstResponder {
             reloadInputViews()
         }
     }
+
+    #if os(iOS)
+    private func captureAssistantBarIfNeeded() {
+        if !didSaveAssistant {
+            let leading = inputAssistantItem.leadingBarButtonGroups
+            let trailing = inputAssistantItem.trailingBarButtonGroups
+            if !leading.isEmpty || !trailing.isEmpty {
+                savedLeading = leading
+                savedTrailing = trailing
+                didSaveAssistant = true
+            }
+        }
+    }
+
+    private func clearAssistantBar() {
+        inputAssistantItem.leadingBarButtonGroups = []
+        inputAssistantItem.trailingBarButtonGroups = []
+    }
+
+    private func restoreAssistantBarIfSaved() {
+        if didSaveAssistant, !savedLeading.isEmpty || !savedTrailing.isEmpty {
+            inputAssistantItem.leadingBarButtonGroups = savedLeading
+            inputAssistantItem.trailingBarButtonGroups = savedTrailing
+        }
+    }
+    #else
+    private func captureAssistantBarIfNeeded() {}
+    private func clearAssistantBar() {}
+    private func restoreAssistantBarIfSaved() {}
+    #endif
 
     override var keyCommands: [UIKeyCommand]? {
         [
