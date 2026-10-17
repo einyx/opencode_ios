@@ -4,13 +4,13 @@
 
 ## 当前状态
 
-### PR #215 追加修复：前台跨页面保持语音（检查通过，待部署）
+### PR #215 追加修复：前台跨页面保持语音（已更新并部署）
 
 - [x] App 内切换 Chat / Files / Settings 等页面不结束 Ambient Live；返回时沿用同一会话和字幕。
 - [x] 移除右上角重置语音会话入口和左上角逐句模式菜单，正式入口只保留 Live Voice；旧模式偏好不再影响路由，删除 LegacyCarModeView。
 - [x] 连接任务归 AppState 持有，以 UUID + epoch 保护旧连接尾部不取消新任务；显式结束、后台、host/project 切换与关闭功能时仍清理，HTTP token 先退役。
 - [x] 全量 893 项单测（95 suites）、Ambient UI 5 项、入口/兼容 UI 5 项通过，另 1 项 iPad 专属跳过；所有 runner 与结果包正常验收。增量 code/privacy review 均 PASS，真机签名构建成功。
-- [ ] 更新现有 PR #215 并部署 Ether；不 merge。
+- [x] 修复提交 `a5c63de` 已更新到 PR #215，正式客户端原位安装并正常启动 Ether；`foreground-install.json`、`foreground-launch.json` 均为 success。PR 保持未合并，等待用户测试确认。
 
 证据位于 `.occlient/live-integration/`：`foreground-unit-3.log`、`foreground-live-ui.log`、`foreground-entry-ui.log`、`foreground-device-build.log`，以及 `foreground-code-review.md` / `foreground-privacy-review.md`。早先全量悬停定位为测试 token 污染共享 Keychain；Builder token 访问现走注入凭据接口，`.noExternal` 不读写真实 Keychain，正常设备默认 Keychain 存储键不变。合成截图 `foreground-ui-ready.png` 已读回；其右上加号仅为 fixture 结果更新控件，不是生产入口的新会话按钮。
 
