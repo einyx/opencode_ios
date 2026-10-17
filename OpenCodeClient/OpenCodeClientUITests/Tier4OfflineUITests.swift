@@ -13,7 +13,7 @@ final class Tier4OfflineUITests: XCTestCase {
     @MainActor
     func testCarSemanticConfigRejectsBodyTextUntilPhaseChanges() throws {
         let app = launch()
-        XCTAssertTrue(app.tabBars.buttons["Car"].waitForExistence(timeout: 15), "Car tab should be a semantic tab, not an index")
+        XCTAssertTrue(app.tabBars.buttons["Ambient Mode"].waitForExistence(timeout: 15), "Ambient Mode tab should be a semantic tab, not an index")
         Tier4DriverSupport.configureSavedHost(in: app, serverURL: serverURL, username: username, password: password)
         XCTAssertEqual(recordValue(app), password, "saved password should be the credential spy value")
 

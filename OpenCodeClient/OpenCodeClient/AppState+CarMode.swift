@@ -102,6 +102,7 @@ extension AppState {
     }
 
     func startNewCarSession() async {
+        closeCarLiveNow()
         await cancelCarInteraction()
         carSessionsByContext.removeValue(forKey: carContextKey)
         persistCarSessions()
@@ -150,7 +151,7 @@ extension AppState {
 
         guard carTurnIsCurrent(target) else { return nil }
         guard canCreateSession else { throw CarModeError.selectedProjectUnsupported }
-        let session = try await apiClient.createSession(title: "Car Mode", directory: nil)
+        let session = try await apiClient.createSession(title: "Ambient Mode", directory: nil)
         guard carTurnIsCurrent(target) else { return nil }
         carSessionsByContext[carRecordKey(for: target)] = CarSessionRecord(
             sessionID: session.id,
@@ -259,6 +260,7 @@ extension AppState {
     }
 
     func invalidateCarTurnForRealProjectChange() {
+        closeCarLiveNow()
         guard carActiveTurnID != nil
             || carPhase == .waitingReply
             || carPhase == .speaking

@@ -124,7 +124,7 @@ nonisolated enum CarModeProtocol {
     static let model = Message.ModelInfo(providerID: "openai", modelID: "gpt-5.6-sol-fast")
 
     static let systemPrompt = """
-    You are operating in OpenCode iOS Car Mode. You may use allowed tools and skills to complete the user's request. Your final response must follow the supplied JSON Schema.
+    You are operating in Ambient Mode. You may use allowed tools and skills to complete the user's request. Your final response must follow the supplied JSON Schema.
 
     The speech field is read aloud directly. Lead with the result. Do not use Markdown, lists, URLs, code, or narrate tool calls. Keep it under 15 seconds. State uncertainty plainly. If a decision is required, ask one question answerable with confirm or cancel.
 

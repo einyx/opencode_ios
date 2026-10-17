@@ -4,10 +4,83 @@
 
 ## 当前状态
 
-- **最后更新**：2026-10-14
-- **基线**：PR #209 已合并，`master` / `d0045e6`；本轮分支 `fix/parent-unread-acknowledgement`。
-- **编译/测试**：父行蓝色提醒确认定向 43 项通过；一次全量 763 项、87 suites 通过（Swift Testing 汇总口径）。xcodebuild、wrapper 及结果包验收均为 0。
-- **Phase**：父级蓝点独立 code/privacy review 通过，主线程定向复跑及设备构建通过；按授权合并后部署 iPad，附件 A/B 随后执行。
+### PR #215 追加 UI：麦克风胶囊输入电平（48pt 已部署）
+
+- [x] 保持三按钮布局，48pt 麦克风 capsule 内部按真实 inputLevel 自底向上填充，外轮廓、支架、底座固定；上升 65ms、回落 320ms。另两个图标仍 28pt，按钮高仍 72pt。
+- [x] Ambient Mode Tab 将 car.fill 改为静态 waveform，沿用现有选中样式；内部标识和设置键不变。
+- [x] 静音保留斜杠与选中底色，填充立即清空；未连接、连接中或正在结束时停用；详情保留原始 RMS 精确数值。UI 使用 sqrt(raw / 0.25) 映射，不改写真实输入值。
+- [x] 电平初版全量 917 项单测（97 suites）与 5 项 Ambient UI 通过；40pt 定向 10 项电平单测和图标 UI 通过；最终 48pt 再跑 10 项电平单测及真机签名构建通过。低/中/高/静音及深色合成截图已读回，40pt 截图无裁切；48pt 尺寸变更后不重复无关全量测试。
+- [x] 用户授权 review 在后台继续、不等待其完成即可部署。48pt 正式客户端已原位安装并正常启动 Ether，证据 `microphone-meter-install.json` / `microphone-meter-launch.json` 均为 success。WDA 保持关闭，不自动开麦、不 merge。
+
+证据在 `.occlient/live-integration/`：`microphone-meter-unit.log`、`microphone-meter-ui.log`、`microphone-meter-48-unit.log`、`microphone-meter-48-device-build.log` 和 `microphone-meter-visual/`。截图仅为合成数据，不代表手机实际收音验收。代码与验证说明待同步更新到现有 PR #215。
+
+### PR #215 追加修复：后台返回时崩溃 / Ending Voice 收尾（已部署）
+
+- [x] 两份最新设备 crash 均为音频队列 SIGABRT，指向 clearPlayback 后对停止的引擎调用 player.play；原始设备工件仅保存在 ignored 目录，不提交。
+- [x] clear 入队捕获 capture/playback 代际，只清缓冲并 stop，不再重启 player；仅有 PCM、引擎运行且同代的 schedule 路径才 play，过代清理不碰新 player。
+- [x] 关闭预算起点在任何 await 之前，采用 ContinuousClock；发送 close 与关闭 socket 均受剩余预算约束，不 join 挂起的发送；重复 stop 共用任务，取消不忙等，保留正常 usage grace，不 abort OpenCode。
+- [x] 用户授权的本地 metadata 日志位于 Application Support 的 CarLiveLifecycle/events.jsonl，固定字段/字符串白名单，无正文、音频、凭据、URL；utility 队列写入，正常 I/O 下按 128KiB 目标裁剪，不宣称待写队列或失败场景下有硬上限。
+- [x] 本地 907 项单测（96 suites）与真机签名构建通过；增量 code/privacy review 均 PASS。本轮未重复未改动的 UI suite，不将单测等同真机复现。
+- [x] 修复提交 `a404059` 已更新到 PR #215，并原位安装、正常启动 Ether；`background-return-install.json` / `background-return-launch.json` 均为 success。不恢复 WDA 控制，不 merge；修复版最小化/恢复效果待用户手动验收。
+
+现有证据与记录位于 `.occlient/live-integration/`：`background-return/metadata.md`、`background-return-unit-3.log`、`background-return-device-build.log`、`background-return-code-review.md`、`background-return-privacy-review.md`。WDA 已关闭会话并 shutdown，owned runner 退出，服务不再可达；仅本地开发继续。真实最小化/恢复效果仍待用户在修复版上验证。
+
+### PR #215 追加修复：前台跨页面保持语音（已更新并部署）
+
+- [x] App 内切换 Chat / Files / Settings 等页面不结束 Ambient Live；返回时沿用同一会话和字幕。
+- [x] 移除右上角重置语音会话入口和左上角逐句模式菜单，正式入口只保留 Live Voice；旧模式偏好不再影响路由，删除 LegacyCarModeView。
+- [x] 连接任务归 AppState 持有，以 UUID + epoch 保护旧连接尾部不取消新任务；显式结束、后台、host/project 切换与关闭功能时仍清理，HTTP token 先退役。
+- [x] 全量 893 项单测（95 suites）、Ambient UI 5 项、入口/兼容 UI 5 项通过，另 1 项 iPad 专属跳过；所有 runner 与结果包正常验收。增量 code/privacy review 均 PASS，真机签名构建成功。
+- [x] 修复提交 `a5c63de` 已更新到 PR #215，正式客户端原位安装并正常启动 Ether；`foreground-install.json`、`foreground-launch.json` 均为 success。PR 保持未合并，等待用户测试确认。
+
+证据位于 `.occlient/live-integration/`：`foreground-unit-3.log`、`foreground-live-ui.log`、`foreground-entry-ui.log`、`foreground-device-build.log`，以及 `foreground-code-review.md` / `foreground-privacy-review.md`。早先全量悬停定位为测试 token 污染共享 Keychain；Builder token 访问现走注入凭据接口，`.noExternal` 不读写真实 Keychain，正常设备默认 Keychain 存储键不变。合成截图 `foreground-ui-ready.png` 已读回；其右上加号仅为 fixture 结果更新控件，不是生产入口的新会话按钮。
+
+范围仍为前台语音；本轮没有授权加入后台或息屏持续录音。
+
+### Ambient Mode 本轮收尾（已发布 PR，等待用户真机验收）
+
+- [x] Ambient Mode 可见命名、同排大图标、Mute 明确选中状态、瞬时 Stop Playback、红色 End Voice；保留本地化读屏标签。
+- [x] 播放音量条复用系统 MPVolumeView，不新增音频放大链路。模拟器只验证真实容器布局，不冒充硬件音量可调。
+- [x] 检查既有日志并改进交错字幕与播放打断：未取得历史语音事件日志；字幕按角色独立聚合，音频时间间隔大于 2 秒才分段，缺时间戳或投递延迟不切碎；本地播放抑制仍待真人听感验收。
+- [x] 八工具包含 archive_job / unarchive_job：发现服务端子树，归档子孙先、根后，恢复根先、子孙后；取消归档写 0，逐项回读，部分失败不报全树成功，不 abort 或重建任务。
+- [x] 独立 subagent code review 和 privacy review 最终均 PASS；修复 token 复用、HTTP 退役延迟、TLS 降级和折叠读屏正文等 finding。
+- [x] 最终 886 项单测（94 suites）、4 项 Ambient UI 正常通过，wrapper / xcodebuild / 结果包均验收；真机签名构建成功，合成界面截图已读回。普通编译与测试问题已修复并保留失败记录。
+- [x] 正式客户端已原位安装并正常启动 Ether；安装、启动记录均为 success，未自动打开麦克风或发起付费语音。
+
+用户最新确认按 as-is 收尾：不加入正式客户端后台或息屏持续通话；仅后台停止，临时 inactive 保持。允许提交并发布新 PR、部署 Ether；不 merge，等待用户真机测试及明确确认。
+
+首次实际查询确认当前分支没有 PR，已先告知用户；用户随后明确授权 publish 新 PR。功能提交 `f79df5d` 已发布为 [PR #215](https://github.com/grapeot/opencode_ios_client/pull/215)，状态 OPEN、未合并，GitHub 报告 MERGEABLE / CLEAN。等待用户真机测试和明确确认。
+
+最终证据：`.occlient/live-integration/ambient-release-unit.log`、`ambient-release-ui-2.log`、`ambient-release-device-build.log`；审查记录为 `final-code-review.md`、`final-privacy-review.md`，均在同一 ignored 目录。图标截图为 `ambient-release-ui.png`。非阻断后续项：部分子节点写入失败时，partial 中的根 archived 元数据仍可能沿用发现快照；返回 ok=false，不会报告全树归档成功。工具实际语音与系统音量滑块由用户真机验收。
+
+- **最后更新**：2026-10-16
+- **基线**：`4a9b11e`；本轮分支 `feat/car-mode-hosted-live`。
+- **编译/测试**：最终 886 项单测、94 suites 和 4 项 Ambient UI 正常通过；code/privacy review 均 PASS；真机签名构建成功。初轮 856 项及旧模式 UI 记录保留如下。
+- **Phase**：本轮 as-is 版本已发布 PR #215 并原位部署；证据 `.occlient/live-integration/ambient-release-install.json`、`ambient-release-launch.json` 均为 success。保持未合并，等待用户确认。
+
+### 2026-10-16 — Hosted Live Car Mode 初轮接入记录
+
+| 项目 | 当前记录 |
+|---|---|
+| 平台合同 | AI Builder Space PR #65 已合并；本地 master `5ce8b64`，以 `docs/speech_live_websocket.md` 为准 |
+| 认证 | 复用现有 Builder token；OpenCode host 凭据留在手机；不引入 OpenAI key |
+| 客户端范围 | 唯一 shipped app tree 内新增 Live controller / transport / audio 与工具桥；现有 Car Tab 接入 |
+| 工具范围 | query_jobs、get_session_messages、start_job、continue_job、stop_job、answer_pending |
+| 兼容边界 | 保留显式旧逐句模式及导航、Health 权限和回调链；Live 失败不自动切换或重放 |
+| 生命周期 | 切 host/project、后台与新对话作废旧语音所有权；关闭语音不 abort 后台任务 |
+| 界面 | 双向字幕、对话内工具参数/结果、自动滚底、折叠连接与费用详情 |
+| 本轮验证 | 最终单测 856 / 94 suites 正常通过，证据 `.occlient/live-integration/full-unit-release-2.log`；Live UI 3 项 Passed，旧 Car UI 4 项 Passed、1 项跳过，两个 UI runner 均正常退出 |
+| 仓库边界 | 保留已有 README 修改与未跟踪工件；本轮未提交、推送；已按授权原位安装 Ether |
+
+静态读回与独立审查后修复：旧工具结果跨代写入、旧 start 停止新采集、服务端主动关闭未停采集、音频发送失败静默忽略、发送队列 actor 重入、播放片段过早 idle、配置变化沿用旧音频格式、长历史超过函数结果 64KiB、transport retire 误关新代。字幕和工具使用同一递增 sequence，工具穿插后同角色字幕另开行。平台门户费用按 request_id 替换，与本地 token 估算分列。
+
+先前 851 项运行出现传输请求 bodyStream 测试错误及超时，不计为通过；修复后曾正常通过 851 项，最终时间线版再通过 853 项。UI 首轮在 AX 初始化超时，未执行用例；重启本 repo 模拟器后第二轮执行三项，滚底用例通过，两项失败保留于 `.occlient/live-integration/live-ui-2.log`，不记为 UI 通过。独立原型的后台语音与新对话改动在其自己的仓库验证、提交并安装，不混作正式客户端设备验证。
+
+最终 UI：工具行与详情按钮由约 20pt 改为至少 44pt，费用详情限制高度并可滚动。三项 Live UI 全部通过，证据 `.occlient/live-integration/live-ui-3.log`；旧模式、开关、Health 本地权限 sheet、旧结构化回复 UI 回归通过，证据 `.occlient/live-integration/legacy-ui.log`。合成 fixture 截图 `.occlient/live-integration/final-live-fixture.png` 已读回，控件无遮挡，无用户数据；不代表真实语音双工验证。新开始的空历史同时清字幕和工具行，权限拒绝或缺 token 保留旧画面；相关新测试使最终单测增至 856 项。
+
+Ether 部署：`.occlient/live-integration/device-build.log` 为 BUILD SUCCEEDED。首次及一次有界重试的安装都返回 CoreDevice 4016，`installedApplications` 为 0；未启动 app。设备列表显示 connected 不等于可以取得 power assertion / trusted remote service。证据为 `device-install.json`、`device-install-retry.json` 和 `device-apps.json`，均在同一 ignored 工件目录。需用户解锁并恢复设备连接后继续安装，不能宣称正式客户端已部署。
+
+部署后续：用户说明此前正在系统更新，重启完成后再次授权安装。`device-install-after-update.json` 返回 success，installedApplications 为 1。启动命令等待 30 秒超时，随后 `device-processes-after-update.json` 查询成功，确认 OpenCodeClient 进程正在运行。由此确认已原位安装且 app 已运行，不把启动命令的超时记录改写为正常退出。尚未自动启动麦克风或调用付费 Live，真实语音体验待用户验收。
 
 ### 2026-10-16 — 预览关闭与来源校验收尾
 

@@ -311,6 +311,42 @@ enum L10n {
         case carUnsupportedAction
         case carMapsUnavailable
         case carTranscriptionFailed
+        case carLiveModeMenuTitle
+        case carLiveModeRealtime
+        case carLiveModeTurnByTurn
+        case carLiveConnect
+        case carLiveDisconnect
+        case carLiveReconnect
+        case carLiveMute
+        case carLiveUnmute
+        case carLiveInterruptPlayback
+        case carLiveRoleUser
+        case carLiveRoleAssistant
+        case carLiveToolRow
+        case carLiveToolArgs
+        case carLiveToolResult
+        case carLiveEmptyConversation
+        case carLiveConnecting
+        case carLiveEnding
+        case carLiveListeningAndSpeaking
+        case carLiveDetailsTitle
+        case carLiveInputLevel
+        case carLiveOutputLevel
+        case carLiveVoiceDuration
+        case carLiveSessionDuration
+        case carLiveInputUsage
+        case carLiveOutputUsage
+        case carLiveCacheRead
+        case carLiveCacheWrite
+        case carLiveLocalCostEstimate
+        case carLivePortalCostSnapshot
+        case carLivePortalNoSnapshot
+        case carLiveConnectFailedError
+        case carLiveToolRunning
+        case carLiveToolSent
+        case carLiveToolDropped
+        case carLiveToolResultPending
+        case carLiveUsageUnconfirmed
         case attachmentImageTitle
         case attachmentFileTitle
         case attachmentRemoveImageAccessibilityLabel
@@ -519,7 +555,7 @@ enum L10n {
         Key.commonOk.rawValue: "OK",
         Key.commonCancel.rawValue: "Cancel",
         Key.commonRetry.rawValue: "Retry",
-        Key.carTab.rawValue: "Car",
+        Key.carTab.rawValue: "Ambient Mode",
         Key.navFiles.rawValue: "Files",
         Key.navSettings.rawValue: "Settings",
         Key.sidebarHideSessions.rawValue: "Hide sessions",
@@ -563,7 +599,7 @@ enum L10n {
         Key.settingsAbout.rawValue: "About",
         Key.settingsServerVersion.rawValue: "Server Version",
         Key.settingsExperimentalFeatures.rawValue: "Experimental Features",
-        Key.settingsCarMode.rawValue: "Car Mode",
+        Key.settingsCarMode.rawValue: "Ambient Mode",
         Key.settingsModelShortlist.rawValue: "Models",
         Key.settingsModelShortlistFooter.rawValue: "The chat picker only shows this shortlist. Add models from the connected server.",
         Key.settingsModelShortlistEmpty.rawValue: "No models yet. Tap + to search and add.",
@@ -752,7 +788,7 @@ enum L10n {
         Key.taskNotificationFailed.rawValue: "Failed",
         Key.taskNotificationOpenSession.rawValue: "Open subagent session",
         Key.taskNotificationNoOutput.rawValue: "No output",
-        Key.carTitle.rawValue: "Car Mode",
+        Key.carTitle.rawValue: "Ambient Mode",
         Key.carReady.rawValue: "Ready",
         Key.carListening.rawValue: "Listening",
         Key.carFinalizing.rawValue: "Finishing transcript",
@@ -766,16 +802,52 @@ enum L10n {
         Key.carStopResponse.rawValue: "Stop response",
         Key.carSpeakConfirmation.rawValue: "Say confirm or cancel",
         Key.carEmptyPrompt.rawValue: "Ask about home, messages, traffic, or where to go.",
-        Key.carNewSession.rawValue: "New Car Session",
-        Key.carNewSessionPrompt.rawValue: "Start a new Car session and leave the current context behind?",
+        Key.carNewSession.rawValue: "New Ambient Mode Session",
+        Key.carNewSessionPrompt.rawValue: "Start a new Ambient Mode session and leave the current context behind?",
         Key.carConfirmUtterance.rawValue: "Confirm.",
         Key.carCancelUtterance.rawValue: "Cancel.",
-        Key.carNotConnected.rawValue: "Connect to OpenCode before using Car Mode.",
-        Key.carServerDefaultRequired.rawValue: "Car Mode can create sessions only in the Server default workspace.",
-        Key.carInvalidResponse.rawValue: "OpenCode returned an invalid Car Mode response.",
+        Key.carNotConnected.rawValue: "Connect to OpenCode before using Ambient Mode.",
+        Key.carServerDefaultRequired.rawValue: "Ambient Mode can create sessions only in the Server default workspace.",
+        Key.carInvalidResponse.rawValue: "OpenCode returned an invalid Ambient Mode response.",
         Key.carUnsupportedAction.rawValue: "OpenCode requested an unsupported client action.",
         Key.carMapsUnavailable.rawValue: "Apple Maps could not open this route.",
         Key.carTranscriptionFailed.rawValue: "The recording could not be transcribed.",
+        Key.carLiveModeMenuTitle.rawValue: "Voice Mode",
+        Key.carLiveModeRealtime.rawValue: "Live Voice",
+        Key.carLiveModeTurnByTurn.rawValue: "Sentence by sentence",
+        Key.carLiveConnect.rawValue: "Connect",
+        Key.carLiveDisconnect.rawValue: "End Voice",
+        Key.carLiveReconnect.rawValue: "Reconnect",
+        Key.carLiveMute.rawValue: "Mute",
+        Key.carLiveUnmute.rawValue: "Unmute",
+        Key.carLiveInterruptPlayback.rawValue: "Stop Playback",
+        Key.carLiveRoleUser.rawValue: "You",
+        Key.carLiveRoleAssistant.rawValue: "Assistant",
+        Key.carLiveToolRow.rawValue: "Tool",
+        Key.carLiveToolArgs.rawValue: "Arguments",
+        Key.carLiveToolResult.rawValue: "Result",
+        Key.carLiveEmptyConversation.rawValue: "No conversation yet",
+        Key.carLiveConnecting.rawValue: "Connecting…",
+        Key.carLiveEnding.rawValue: "Ending voice…",
+        Key.carLiveListeningAndSpeaking.rawValue: "Listening & speaking",
+        Key.carLiveDetailsTitle.rawValue: "Connection Details",
+        Key.carLiveInputLevel.rawValue: "Input Level",
+        Key.carLiveOutputLevel.rawValue: "Output Level",
+        Key.carLiveVoiceDuration.rawValue: "Voice Duration",
+        Key.carLiveSessionDuration.rawValue: "Session Duration",
+        Key.carLiveInputUsage.rawValue: "Input Usage",
+        Key.carLiveOutputUsage.rawValue: "Output Usage",
+        Key.carLiveCacheRead.rawValue: "Cache Read",
+        Key.carLiveCacheWrite.rawValue: "Cache Write",
+        Key.carLiveLocalCostEstimate.rawValue: "Local: Estimated %@",
+        Key.carLivePortalCostSnapshot.rawValue: "Portal Snapshot: Estimated %@",
+        Key.carLivePortalNoSnapshot.rawValue: "No portal snapshot",
+        Key.carLiveConnectFailedError.rawValue: "Connection failed. Tap Reconnect.",
+        Key.carLiveToolRunning.rawValue: "Running",
+        Key.carLiveToolSent.rawValue: "Sent",
+        Key.carLiveToolDropped.rawValue: "Dropped",
+        Key.carLiveToolResultPending.rawValue: "Pending",
+        Key.carLiveUsageUnconfirmed.rawValue: "Unconfirmed",
         Key.attachmentImageTitle.rawValue: "Image",
         Key.attachmentFileTitle.rawValue: "Attachment",
         Key.attachmentRemoveImageAccessibilityLabel.rawValue: "Remove image",
@@ -985,7 +1057,7 @@ enum L10n {
         Key.commonOk.rawValue: "确定",
         Key.commonCancel.rawValue: "取消",
         Key.commonRetry.rawValue: "重试",
-        Key.carTab.rawValue: "驾驶",
+        Key.carTab.rawValue: "Ambient Mode",
         Key.navFiles.rawValue: "文件",
         Key.navSettings.rawValue: "设置",
         Key.sidebarHideSessions.rawValue: "隐藏会话栏",
@@ -1029,7 +1101,7 @@ enum L10n {
         Key.settingsAbout.rawValue: "关于",
         Key.settingsServerVersion.rawValue: "服务器版本",
         Key.settingsExperimentalFeatures.rawValue: "实验性功能",
-        Key.settingsCarMode.rawValue: "车载模式",
+        Key.settingsCarMode.rawValue: "Ambient Mode",
         Key.settingsModelShortlist.rawValue: "模型",
         Key.settingsModelShortlistFooter.rawValue: "聊天栏只显示这份短名单。从已连接的 server 目录里搜索添加。",
         Key.settingsModelShortlistEmpty.rawValue: "还没有模型。点右上角 + 搜索添加。",
@@ -1215,7 +1287,7 @@ enum L10n {
         Key.chatSelectText.rawValue: "选择文本",
         Key.chatCopyMessage.rawValue: "复制整条消息",
         Key.chatEditFromHere.rawValue: "从这里编辑",
-        Key.carTitle.rawValue: "驾驶模式",
+        Key.carTitle.rawValue: "Ambient Mode",
         Key.carReady.rawValue: "可以说话",
         Key.carListening.rawValue: "正在听",
         Key.carFinalizing.rawValue: "正在完成转写",
@@ -1229,16 +1301,52 @@ enum L10n {
         Key.carStopResponse.rawValue: "停止响应",
         Key.carSpeakConfirmation.rawValue: "说确认或取消",
         Key.carEmptyPrompt.rawValue: "可以询问家里状态、消息、路况，或要去哪里。",
-        Key.carNewSession.rawValue: "新建驾驶会话",
-        Key.carNewSessionPrompt.rawValue: "新建驾驶会话并离开当前上下文？",
+        Key.carNewSession.rawValue: "新建 Ambient Mode 会话",
+        Key.carNewSessionPrompt.rawValue: "新建 Ambient Mode 会话并离开当前上下文？",
         Key.carConfirmUtterance.rawValue: "确认。",
         Key.carCancelUtterance.rawValue: "取消。",
-        Key.carNotConnected.rawValue: "使用驾驶模式前，请先连接 OpenCode。",
-        Key.carServerDefaultRequired.rawValue: "驾驶模式目前只能在服务器默认工作区新建会话。",
-        Key.carInvalidResponse.rawValue: "OpenCode 返回的驾驶模式响应无效。",
+        Key.carNotConnected.rawValue: "使用 Ambient Mode 前，请先连接 OpenCode。",
+        Key.carServerDefaultRequired.rawValue: "Ambient Mode 目前只能在服务器默认工作区新建会话。",
+        Key.carInvalidResponse.rawValue: "OpenCode 返回的 Ambient Mode 响应无效。",
         Key.carUnsupportedAction.rawValue: "OpenCode 请求了不支持的客户端操作。",
         Key.carMapsUnavailable.rawValue: "Apple 地图无法打开这条路线。",
         Key.carTranscriptionFailed.rawValue: "无法完成这段录音的转写。",
+        Key.carLiveModeMenuTitle.rawValue: "语音模式",
+        Key.carLiveModeRealtime.rawValue: "实时语音",
+        Key.carLiveModeTurnByTurn.rawValue: "逐句语音",
+        Key.carLiveConnect.rawValue: "连接",
+        Key.carLiveDisconnect.rawValue: "结束语音",
+        Key.carLiveReconnect.rawValue: "重新连接",
+        Key.carLiveMute.rawValue: "静音",
+        Key.carLiveUnmute.rawValue: "取消静音",
+        Key.carLiveInterruptPlayback.rawValue: "打断播放",
+        Key.carLiveRoleUser.rawValue: "你",
+        Key.carLiveRoleAssistant.rawValue: "助手",
+        Key.carLiveToolRow.rawValue: "工具",
+        Key.carLiveToolArgs.rawValue: "参数",
+        Key.carLiveToolResult.rawValue: "结果",
+        Key.carLiveEmptyConversation.rawValue: "暂无对话",
+        Key.carLiveConnecting.rawValue: "连接中",
+        Key.carLiveEnding.rawValue: "结束中",
+        Key.carLiveListeningAndSpeaking.rawValue: "同时在听和说",
+        Key.carLiveDetailsTitle.rawValue: "连接详情",
+        Key.carLiveInputLevel.rawValue: "输入电平",
+        Key.carLiveOutputLevel.rawValue: "输出电平",
+        Key.carLiveVoiceDuration.rawValue: "语音时长",
+        Key.carLiveSessionDuration.rawValue: "会话时长",
+        Key.carLiveInputUsage.rawValue: "输入量",
+        Key.carLiveOutputUsage.rawValue: "输出量",
+        Key.carLiveCacheRead.rawValue: "缓存读取",
+        Key.carLiveCacheWrite.rawValue: "缓存写入",
+        Key.carLiveLocalCostEstimate.rawValue: "本地估计 %@",
+        Key.carLivePortalCostSnapshot.rawValue: "门户快照：估计 %@",
+        Key.carLivePortalNoSnapshot.rawValue: "门户暂无快照",
+        Key.carLiveConnectFailedError.rawValue: "连接失败，点重新连接",
+        Key.carLiveToolRunning.rawValue: "执行中",
+        Key.carLiveToolSent.rawValue: "已发送",
+        Key.carLiveToolDropped.rawValue: "已丢弃",
+        Key.carLiveToolResultPending.rawValue: "待返回",
+        Key.carLiveUsageUnconfirmed.rawValue: "未最终确认",
         Key.chatForkFromHere.rawValue: "从这里分叉",
         Key.chatThinkingCard.rawValue: "思考",
         Key.taskNotificationCompleted.rawValue: "已完成",
