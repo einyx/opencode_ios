@@ -108,4 +108,31 @@ struct CarLiveAudioTests {
         #expect(afterStop == .begin)
         #expect(gate.holding)
     }
+
+    @Test func stoppedEngineDoesNotRestartPlayback() {
+        let same = CarLivePlaybackRestart(
+            queuedCapture: 4, currentCapture: 4, queuedPlayback: 2, currentPlayback: 2,
+            intendedRunning: true, engineRunning: true, playerAttached: true, hasAudio: true
+        )
+        let stopped = CarLivePlaybackRestart(
+            queuedCapture: 4, currentCapture: 4, queuedPlayback: 2, currentPlayback: 2,
+            intendedRunning: true, engineRunning: false, playerAttached: true, hasAudio: true
+        )
+        let stale = CarLivePlaybackRestart(
+            queuedCapture: 4, currentCapture: 5, queuedPlayback: 2, currentPlayback: 3,
+            intendedRunning: true, engineRunning: true, playerAttached: true, hasAudio: true
+        )
+        let empty = CarLivePlaybackRestart(
+            queuedCapture: 4, currentCapture: 4, queuedPlayback: 2, currentPlayback: 2,
+            intendedRunning: true, engineRunning: true, playerAttached: true, hasAudio: false
+        )
+        #expect(same.ownsQueuedClear)
+        #expect(same.shouldRestartFromClear == false)
+        #expect(same.shouldPlayScheduled)
+        #expect(stopped.shouldPlayScheduled == false)
+        #expect(stopped.shouldRestartFromClear == false)
+        #expect(stale.ownsQueuedClear == false)
+        #expect(stale.shouldPlayScheduled == false)
+        #expect(empty.shouldPlayScheduled == false)
+    }
 }

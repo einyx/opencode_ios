@@ -108,11 +108,12 @@ extension AppState {
     }
 
     func stopCarLive() async {
+        let requestedAt = ContinuousClock.now
         cancelCarLiveConnect()
         let transportToken = carLiveLease?.transportToken ?? 0
         let controller = carLive
         releaseCarLiveLease()
-        await closeLiveTransportThenStop(token: transportToken, controller: controller)
+        await closeLiveTransportThenStop(token: transportToken, controller: controller, requestedAt: requestedAt)
     }
 
     func resetCarLiveSession() async {
@@ -127,6 +128,8 @@ extension AppState {
     }
 
     func closeCarLiveNow() {
+        let requestedAt = ContinuousClock.now
+        noteCarLiveCloseRequested(requestedAt)
         cancelCarLiveConnect()
         let transportToken = carLiveLease?.transportToken ?? 0
         let controller = carLive
@@ -136,15 +139,28 @@ extension AppState {
             if transportToken != 0 {
                 await client.retireLiveTransport(token: transportToken)
             }
-            await controller?.stop()
+            await controller?.stop(requestedAt: requestedAt)
         }
     }
 
-    private func closeLiveTransportThenStop(token: UInt64, controller: CarLiveController?) async {
+    private func closeLiveTransportThenStop(token: UInt64, controller: CarLiveController?, requestedAt: ContinuousClock.Instant) async {
         if token != 0 {
             await apiClient.retireLiveTransport(token: token)
         }
-        await controller?.stop()
+        await controller?.stop(requestedAt: requestedAt)
+    }
+
+    private func noteCarLiveCloseRequested(_ requestedAt: ContinuousClock.Instant) {
+        CarLiveLifecycleLog.shared.note(CarLiveLifecycleRecord(
+            phase: carLive?.phase.rawValue ?? "idle",
+            event: CarLiveLifecycleKind.appClose,
+            errorCode: "none",
+            closeBegan: true,
+            deadlineRemainingMS: CarLiveCloseBudget.remainingMS(
+                now: .now,
+                deadline: requestedAt.advanced(by: .seconds(CarLiveProtocol.closeGrace))
+            )
+        ))
     }
 
     private func ownsCarLiveConnect(_ run: CarLiveConnectRun) -> Bool {

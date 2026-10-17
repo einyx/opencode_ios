@@ -32,6 +32,8 @@ final class CarLiveController {
     private var closing = false
     private var draining = false
     private var stopping = false
+    private var stopTask: Task<Void, Never>?
+    private var stopID: UInt64 = 0
     private var closeSeen = false
     private var startedReady = false
     private var startWaiter: CheckedContinuation<Bool, Never>?
@@ -49,6 +51,7 @@ final class CarLiveController {
     private let bargeSustain: TimeInterval
     private let bargeRelease: TimeInterval
     private let timeSource: CarLiveClock
+    private let lifecycle: CarLiveLifecycleLog
 
     init(
         transport: any CarLiveTransporting = CarLiveTransport(),
@@ -56,7 +59,8 @@ final class CarLiveController {
         closeGrace: TimeInterval = CarLiveProtocol.closeGrace,
         bargeSustain: TimeInterval = 0.18,
         bargeRelease: TimeInterval = 0.45,
-        clock: CarLiveClock = CarLiveClock()
+        clock: CarLiveClock = CarLiveClock(),
+        lifecycle: CarLiveLifecycleLog = .shared
     ) {
         self.transport = transport
         self.audio = audio ?? CarLiveAudioEngines.makeDefault()
@@ -64,6 +68,7 @@ final class CarLiveController {
         self.bargeSustain = bargeSustain
         self.bargeRelease = bargeRelease
         self.timeSource = clock
+        self.lifecycle = lifecycle
         self.barge = CarLiveBargeGate(sustain: bargeSustain, releaseAfter: bargeRelease)
     }
 
@@ -132,51 +137,8 @@ final class CarLiveController {
         }
     }
 
-    func stop() async {
-        if draining || stopping {
-            while draining || stopping {
-                try? await Task.sleep(for: .milliseconds(20))
-            }
-            return
-        }
-        guard phase != .idle || link != nil else { return }
-        stopping = true
-        defer { stopping = false }
-        let token = runToken
-        closing = true
-        phase = .closing
-        cutPlaybackOnce()
-        resumeWaiter(false)
-        let ownedPump = audioPump
-        let ownedReader = reader
-        let ownedLink = link
-        ownedPump?.cancel()
-        clock?.cancel()
-        await stopOwnedCapture(token: token)
-        if let ownedLink {
-            try? await ownedLink.send(.close)
-            let deadline = Date().addingTimeInterval(closeGrace)
-            while !closeSeen, Date() < deadline, runToken == token {
-                try? await Task.sleep(for: .milliseconds(20))
-            }
-            if !closeSeen, token == runToken {
-                usageUnconfirmed = true
-            }
-        }
-        ownedReader?.cancel()
-        await ownedLink?.close()
-        guard token == runToken else { return }
-        link = nil
-        closing = false
-        closeSeen = false
-        inputLevel = 0
-        outputLevel = 0
-        releasePlaybackHold()
-        noteDiagnostic("stop")
-        runToken &+= 1
-        calls.bind(runToken)
-        flight = CarLiveFlightBook()
-        phase = .idle
+    func stop(requestedAt: ContinuousClock.Instant = .now) async {
+        await beginStop(requestedAt: requestedAt, sendClose: true)
     }
 
     func setMuted(_ muted: Bool) {
@@ -405,40 +367,14 @@ final class CarLiveController {
     }
 
     private func noteAudioSendFailure(token: UInt64) async {
-        guard runToken == token else { return }
+        guard runToken == token, !closing else { return }
         await failLive(CarLiveCopy.disconnected, token: token)
     }
 
     private func finishServerClose(token: UInt64) async {
-        guard token == runToken, !closing, !draining else { return }
-        draining = true
-        defer { draining = false }
-        closing = true
-        phase = .closing
-        audioPump?.cancel()
-        clock?.cancel()
-        await stopOwnedCapture(token: token)
-        let deadline = Date().addingTimeInterval(closeGrace)
-        while Date() < deadline, runToken == token {
-            try? await Task.sleep(for: .milliseconds(20))
-        }
-        guard token == runToken else { return }
-        let ownedReader = reader
-        let ownedLink = link
-        ownedReader?.cancel()
-        await ownedLink?.close()
-        guard token == runToken else { return }
-        link = nil
-        closing = false
-        closeSeen = false
-        inputLevel = 0
-        outputLevel = 0
-        releasePlaybackHold()
-        phase = .idle
-        errorMessage = nil
-        runToken &+= 1
-        calls.bind(runToken)
-        flight = CarLiveFlightBook()
+        guard token == runToken, !closing, !draining, stopTask == nil else { return }
+        noteLifecycle(CarLiveLifecycleKind.serverClose, errorCode: "none", deadline: .now)
+        await beginStop(requestedAt: .now, sendClose: false)
     }
 
     private func stopOwnedCapture(token: UInt64) async {
@@ -496,7 +432,7 @@ final class CarLiveController {
         resumeWaiter(false)
         await stopOwnedCapture(token: token)
         ownedReader?.cancel()
-        await ownedLink?.close()
+        await abandonClose(ownedLink, deadline: ContinuousClock.now.advanced(by: .seconds(closeGrace)))
         guard token == runToken else { return }
         link = nil
         phase = .failed
@@ -505,7 +441,7 @@ final class CarLiveController {
     }
 
     private func failLive(_ message: String, token: UInt64) async {
-        guard token == runToken, phase != .failed, phase != .idle else { return }
+        guard token == runToken, phase != .failed, phase != .idle, !closing else { return }
         let ownedLink = link
         let ownedReader = reader
         let ownedPump = audioPump
@@ -514,7 +450,7 @@ final class CarLiveController {
         clock?.cancel()
         await stopOwnedCapture(token: token)
         ownedReader?.cancel()
-        await ownedLink?.close()
+        await abandonClose(ownedLink, deadline: ContinuousClock.now.advanced(by: .seconds(closeGrace)))
         guard token == runToken else { return }
         link = nil
         phase = .failed
@@ -627,5 +563,186 @@ final class CarLiveController {
         hasher.combine(captionBook.openID(role: "user") ?? "")
         hasher.combine(captionBook.openID(role: "assistant") ?? "")
         return hasher.finalize()
+    }
+
+    private func beginStop(requestedAt: ContinuousClock.Instant, sendClose: Bool) async {
+        if stopID != 0, let existing = stopTask {
+            noteLifecycle(CarLiveLifecycleKind.closeJoin, errorCode: "none", deadline: requestedAt)
+            await existing.value
+            return
+        }
+        stopID &+= 1
+        let id = stopID
+        let task = Task { @MainActor [weak self] () -> Void in
+            guard let self else { return }
+            await self.performShutdown(requestedAt: requestedAt, sendClose: sendClose)
+        }
+        stopTask = task
+        await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
+        if stopID == id {
+            stopTask = nil
+        }
+    }
+
+    private func performShutdown(requestedAt: ContinuousClock.Instant, sendClose: Bool) async {
+        guard phase != .idle || link != nil else { return }
+        let token = runToken
+        let deadline = requestedAt.advanced(by: .seconds(closeGrace))
+        if sendClose == false {
+            draining = true
+        }
+        stopping = true
+        closing = true
+        phase = .closing
+        noteLifecycle(CarLiveLifecycleKind.closeBegin, errorCode: "none", deadline: deadline)
+        cutPlaybackOnce()
+        resumeWaiter(false)
+        audioPump?.cancel()
+        clock?.cancel()
+        let ownedReader = reader
+        let ownedLink = link
+        if CarLiveCloseBudget.exceeded(now: .now, deadline: deadline) || Task.isCancelled {
+            if token == runToken, !closeSeen {
+                usageUnconfirmed = true
+            }
+            noteLifecycle(CarLiveLifecycleKind.budgetExceeded, errorCode: "budget_exceeded", deadline: deadline)
+            await stopOwnedCapture(token: token)
+            await releaseOwned(token: token, link: ownedLink, reader: ownedReader, deadline: .now)
+            return
+        }
+        await stopOwnedCapture(token: token)
+        if Task.isCancelled || CarLiveCloseBudget.exceeded(now: .now, deadline: deadline) {
+            await finishEarly(token: token, link: ownedLink, reader: ownedReader, deadline: deadline)
+            return
+        }
+        if sendClose, let ownedLink {
+            let outcome = CarLiveSendOutcome()
+            let finished = await CarLiveDeadlineHandle.run(until: deadline) {
+                do {
+                    try await ownedLink.send(.close)
+                    outcome.mark(true)
+                } catch {
+                    outcome.mark(false)
+                }
+            }
+            if token == runToken, (!finished || outcome.succeeded == false), !closeSeen {
+                usageUnconfirmed = true
+                noteLifecycle(CarLiveLifecycleKind.sendDeadline, errorCode: "send_timeout", deadline: deadline)
+            }
+        }
+        if token == runToken {
+            await waitForClose(token: token, deadline: deadline, exitOnCloseSeen: sendClose)
+        }
+        if token == runToken, !closeSeen {
+            usageUnconfirmed = true
+        }
+        await releaseOwned(token: token, link: ownedLink, reader: ownedReader, deadline: deadline)
+    }
+
+    private func finishEarly(
+        token: UInt64,
+        link ownedLink: (any CarLiveLink)?,
+        reader ownedReader: Task<Void, Never>?,
+        deadline: ContinuousClock.Instant
+    ) async {
+        if token == runToken, !closeSeen {
+            usageUnconfirmed = true
+        }
+        let code = Task.isCancelled ? "cancelled" : "budget_exceeded"
+        noteLifecycle(code == "cancelled" ? CarLiveLifecycleKind.failClosed : CarLiveLifecycleKind.budgetExceeded, errorCode: code, deadline: deadline)
+        await releaseOwned(token: token, link: ownedLink, reader: ownedReader, deadline: deadline)
+    }
+
+    private func waitForClose(token: UInt64, deadline: ContinuousClock.Instant, exitOnCloseSeen: Bool) async {
+        while token == runToken {
+            if exitOnCloseSeen, closeSeen { return }
+            if Task.isCancelled {
+                noteLifecycle(CarLiveLifecycleKind.failClosed, errorCode: "cancelled", deadline: deadline)
+                return
+            }
+            if CarLiveCloseBudget.exceeded(now: .now, deadline: deadline) {
+                noteLifecycle(CarLiveLifecycleKind.budgetExceeded, errorCode: "budget_exceeded", deadline: deadline)
+                return
+            }
+            do {
+                try await Task.sleep(for: .milliseconds(20), clock: .continuous)
+            } catch {
+                noteLifecycle(CarLiveLifecycleKind.failClosed, errorCode: "cancelled", deadline: deadline)
+                return
+            }
+        }
+    }
+
+    private func releaseOwned(
+        token: UInt64,
+        link ownedLink: (any CarLiveLink)?,
+        reader ownedReader: Task<Void, Never>?,
+        deadline: ContinuousClock.Instant
+    ) async {
+        ownedReader?.cancel()
+        await abandonClose(ownedLink, deadline: deadline)
+        guard token == runToken else { return }
+        link = nil
+        reader = nil
+        audioPump = nil
+        closing = false
+        draining = false
+        stopping = false
+        closeSeen = false
+        inputLevel = 0
+        outputLevel = 0
+        releasePlaybackHold()
+        noteDiagnostic("stop")
+        phase = .idle
+        runToken &+= 1
+        calls.bind(runToken)
+        flight = CarLiveFlightBook()
+        noteLifecycle(CarLiveLifecycleKind.closeEnd, errorCode: usageUnconfirmed ? "usage_unconfirmed" : "none", deadline: deadline)
+    }
+
+    private func abandonClose(_ ownedLink: (any CarLiveLink)?, deadline: ContinuousClock.Instant) async {
+        guard let ownedLink else { return }
+        let finished = await CarLiveDeadlineHandle.run(until: deadline) {
+            await ownedLink.close()
+        }
+        if !finished {
+            Task { await ownedLink.close() }
+        }
+    }
+
+    private func noteLifecycle(_ event: String, errorCode: String, deadline: ContinuousClock.Instant) {
+        lifecycle.note(CarLiveLifecycleRecord(
+            runHash: CarLiveLifecycleLog.runHash(runToken),
+            phase: phase.rawValue,
+            event: event,
+            errorCode: errorCode,
+            taskCancelled: Task.isCancelled,
+            closeBegan: event == CarLiveLifecycleKind.closeBegin || event == CarLiveLifecycleKind.appClose,
+            closeEnded: event == CarLiveLifecycleKind.closeEnd,
+            deadlineRemainingMS: CarLiveCloseBudget.remainingMS(now: .now, deadline: deadline),
+            stopping: stopping,
+            closeSeen: closeSeen
+        ))
+    }
+}
+
+private final class CarLiveSendOutcome: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+
+    var succeeded: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+
+    func mark(_ succeeded: Bool) {
+        lock.lock()
+        value = succeeded
+        lock.unlock()
     }
 }

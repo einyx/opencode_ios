@@ -115,48 +115,65 @@ actor CarLiveSendSerializer {
     private let socket: any CarLiveSocket
     private var tail: Task<Void, Error>?
     private var closed = false
-
-    private static func markClosed() throws {}
+    private var generation: UInt64 = 0
 
     init(socket: any CarLiveSocket) {
         self.socket = socket
     }
 
     func send(_ text: String) async throws {
-        if closed { throw CarLiveTransportError.socket }
-        let previous = tail
         let socket = socket
-        let job = Task {
-            if let previous { _ = try? await previous.value }
+        try await enqueue {
             try await socket.send(text)
         }
-        tail = job
-        try await job.value
     }
 
     func ping() async throws {
-        if closed { throw CarLiveTransportError.socket }
-        let previous = tail
         let socket = socket
-        let job = Task {
-            if let previous { _ = try? await previous.value }
+        try await enqueue {
             try await socket.ping()
         }
-        tail = job
-        try await job.value
     }
 
     func close() async {
         closed = true
+        generation &+= 1
         let previous = tail
-        let socket = socket
-        let job = Task<Void, Error> {
-            if let previous { _ = try? await previous.value }
-            await socket.close()
-            try Self.markClosed()
+        tail = nil
+        previous?.cancel()
+        await socket.close()
+    }
+
+    private func enqueue(_ body: @escaping @Sendable () async throws -> Void) async throws {
+        if closed { throw CarLiveTransportError.socket }
+        let generation = generation
+        let previous = tail
+        let job = Task {
+            if let previous {
+                try await previous.value
+            }
+            try Task.checkCancellation()
+            guard await self.owns(generation) else { throw CarLiveTransportError.socket }
+            try await body()
         }
         tail = job
-        _ = try? await job.value
+        do {
+            try await job.value
+        } catch {
+            await fail(generation)
+            throw error
+        }
+    }
+
+    private func owns(_ generation: UInt64) -> Bool {
+        !closed && self.generation == generation
+    }
+
+    private func fail(_ generation: UInt64) {
+        guard self.generation == generation, !closed else { return }
+        self.generation &+= 1
+        tail?.cancel()
+        tail = nil
     }
 }
 

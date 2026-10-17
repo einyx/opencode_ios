@@ -4,6 +4,17 @@
 
 ## 当前状态
 
+### PR #215 追加修复：后台返回时崩溃 / Ending Voice 收尾（检查通过）
+
+- [x] 两份最新设备 crash 均为音频队列 SIGABRT，指向 clearPlayback 后对停止的引擎调用 player.play；原始设备工件仅保存在 ignored 目录，不提交。
+- [x] clear 入队捕获 capture/playback 代际，只清缓冲并 stop，不再重启 player；仅有 PCM、引擎运行且同代的 schedule 路径才 play，过代清理不碰新 player。
+- [x] 关闭预算起点在任何 await 之前，采用 ContinuousClock；发送 close 与关闭 socket 均受剩余预算约束，不 join 挂起的发送；重复 stop 共用任务，取消不忙等，保留正常 usage grace，不 abort OpenCode。
+- [x] 用户授权的本地 metadata 日志位于 Application Support 的 CarLiveLifecycle/events.jsonl，固定字段/字符串白名单，无正文、音频、凭据、URL；utility 队列写入，正常 I/O 下按 128KiB 目标裁剪，不宣称待写队列或失败场景下有硬上限。
+- [x] 本地 907 项单测（96 suites）与真机签名构建通过；增量 code/privacy review 均 PASS。本轮未重复未改动的 UI suite，不将单测等同真机复现。
+- [ ] 提交、更新 PR #215 并部署 Ether。用户已再次授权直接部署；不恢复 WDA 控制，不 merge。
+
+现有证据与记录位于 `.occlient/live-integration/`：`background-return/metadata.md`、`background-return-unit-3.log`、`background-return-device-build.log`、`background-return-code-review.md`、`background-return-privacy-review.md`。WDA 已关闭会话并 shutdown，owned runner 退出，服务不再可达；仅本地开发继续。真实最小化/恢复效果仍待用户在修复版上验证。
+
 ### PR #215 追加修复：前台跨页面保持语音（已更新并部署）
 
 - [x] App 内切换 Chat / Files / Settings 等页面不结束 Ambient Live；返回时沿用同一会话和字幕。

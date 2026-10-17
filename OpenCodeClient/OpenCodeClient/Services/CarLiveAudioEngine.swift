@@ -88,6 +88,27 @@ nonisolated struct CarLiveCaptureGate: Equatable, Sendable {
     }
 }
 
+nonisolated struct CarLivePlaybackRestart: Equatable, Sendable {
+    var queuedCapture: UInt64
+    var currentCapture: UInt64
+    var queuedPlayback: UInt64
+    var currentPlayback: UInt64
+    var intendedRunning: Bool
+    var engineRunning: Bool
+    var playerAttached: Bool
+    var hasAudio: Bool
+
+    var ownsQueuedClear: Bool {
+        intendedRunning && queuedCapture == currentCapture && queuedPlayback == currentPlayback
+    }
+
+    var shouldRestartFromClear: Bool { false }
+
+    var shouldPlayScheduled: Bool {
+        ownsQueuedClear && engineRunning && playerAttached && hasAudio
+    }
+}
+
 nonisolated struct CarLiveLevelGate: Equatable, Sendable {
     var lastAt: TimeInterval = -.greatestFiniteMagnitude
     var interval: TimeInterval = 0.1
@@ -237,7 +258,8 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
     }
 
     func clearPlayback() {
-        queue.async { self.clearPlaybackOnQueue() }
+        let token = locked { (gate.generation, gate.playbackGeneration) }
+        queue.async { self.clearPlaybackOnQueue(capture: token.0, playback: token.1) }
     }
 
     func setPlaybackHeld(_ held: Bool) {
@@ -318,7 +340,6 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
         tapInstalled = true
         engine.prepare()
         try engine.start()
-        player.play()
         return CarLiveCaptureHandle(generation: token, frames: opened.frames) { [weak opened] in
             opened?.finish()
         }
@@ -350,15 +371,32 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
         try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
     }
 
-    private func clearPlaybackOnQueue() {
-        let running = locked { () -> Bool in
-            playback.removeAll()
-            gate.clearPlayback()
-            return intendedRunning
+    private func clearPlaybackOnQueue(capture: UInt64, playback token: UInt64) {
+        let decision = locked { () -> CarLivePlaybackRestart in
+            let restart = CarLivePlaybackRestart(
+                queuedCapture: capture,
+                currentCapture: gate.generation,
+                queuedPlayback: token,
+                currentPlayback: gate.playbackGeneration,
+                intendedRunning: intendedRunning,
+                engineRunning: engine.isRunning,
+                playerAttached: engine.attachedNodes.contains(player),
+                hasAudio: false
+            )
+            if restart.ownsQueuedClear {
+                playback.removeAll()
+                gate.clearPlayback()
+            }
+            return restart
         }
-        guard running else { return }
-        player.stop()
-        player.play()
+        guard decision.ownsQueuedClear else {
+            notePlayback(CarLiveLifecycleKind.playbackSkipPlay, decision)
+            return
+        }
+        if decision.playerAttached {
+            player.stop()
+        }
+        notePlayback(CarLiveLifecycleKind.playbackSkipPlay, decision)
     }
 
     private func handleInput(_ buffer: AVAudioPCMBuffer, converter: AVAudioConverter, target: AVAudioFormat, generation: UInt64) {
@@ -379,18 +417,33 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
 
     private func scheduleOnQueue() {
         guard locked({ intendedRunning && !playbackHeld }), let playbackFormat, let playbackConverter else { return }
-        let playbackToken = locked { gate.playbackGeneration }
+        let owned = locked { (gate.generation, gate.playbackGeneration) }
+        let playbackToken = owned.1
         while true {
             let slice: Data? = locked {
-                guard gate.playbackGeneration == playbackToken, playback.count >= 2 else { return nil }
+                guard gate.generation == owned.0, gate.playbackGeneration == playbackToken, playback.count >= 2 else { return nil }
                 let count = min(4800, playback.count - playback.count % 2)
                 let piece = Data(playback.prefix(count))
                 playback.removeFirst(count)
                 return piece
             }
             guard let slice, let buffer = floatBuffer(from: slice, format: playbackFormat, converter: playbackConverter) else { return }
+            let decision = locked {
+                CarLivePlaybackRestart(
+                    queuedCapture: owned.0,
+                    currentCapture: gate.generation,
+                    queuedPlayback: playbackToken,
+                    currentPlayback: gate.playbackGeneration,
+                    intendedRunning: intendedRunning && !playbackHeld,
+                    engineRunning: engine.isRunning,
+                    playerAttached: engine.attachedNodes.contains(player),
+                    hasAudio: true
+                )
+            }
+            guard decision.shouldPlayScheduled, engine.isRunning, engine.attachedNodes.contains(player) else { return }
             let admitted = locked { gate.noteScheduled(token: playbackToken) }
-            guard admitted else { return }
+            guard admitted, engine.isRunning, engine.attachedNodes.contains(player) else { return }
+            player.play()
             let now = ProcessInfo.processInfo.systemUptime
             if locked({ outputLevelGate.allow(now: now) }) {
                 let handler = locked { levelHandler }
@@ -480,7 +533,6 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
         tapInstalled = true
         engine.prepare()
         try engine.start()
-        player.play()
     }
 
     private func failCaptureOnQueue() {
@@ -559,6 +611,17 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
         }
         guard error == nil, status != .error, output.frameLength > 0 else { return nil }
         return output
+    }
+
+    private func notePlayback(_ event: String, _ decision: CarLivePlaybackRestart) {
+        CarLiveLifecycleLog.shared.note(CarLiveLifecycleRecord(
+            phase: "audio",
+            event: event,
+            errorCode: "playback_skip",
+            engineRunning: decision.engineRunning,
+            intendedRunning: decision.intendedRunning,
+            playerAttached: decision.playerAttached
+        ))
     }
 }
 

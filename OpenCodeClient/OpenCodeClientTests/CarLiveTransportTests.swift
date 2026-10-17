@@ -390,4 +390,79 @@ struct CarLiveTransportTests {
         #expect(CarLiveHTTPRegistry.shared.hitCount(name) == 0)
         #expect(factory.urls().isEmpty)
     }
+
+    @Test func firstSendFailureDropsLateSend() async {
+        let socket = CarLiveFailingSocket()
+        defer { socket.fail() }
+        let serializer = CarLiveSendSerializer(socket: socket)
+        let first = Task { try? await serializer.send("a") }
+        #expect(await waitSend { socket.enteredCount() == 1 })
+        let second = Task { try? await serializer.send("b") }
+        try? await Task.sleep(for: .milliseconds(40))
+        socket.fail()
+        _ = await first.value
+        _ = await second.value
+        #expect(socket.enteredCount() == 1)
+    }
+
+    @Test func serializerCloseDoesNotWaitForHungSend() async {
+        let socket = CarLiveHoldSocket()
+        defer { socket.releaseAll() }
+        let serializer = CarLiveSendSerializer(socket: socket)
+        let first = Task { try? await serializer.send("a") }
+        #expect(await waitSend { socket.enteredCount() == 1 })
+        let box = CloseFlag()
+        let closing = Task {
+            await serializer.close()
+            await box.mark()
+        }
+        try? await Task.sleep(for: .milliseconds(200))
+        let finished = await box.isDone()
+        if finished == false {
+            socket.releaseAll()
+            _ = await closing.value
+        }
+        #expect(finished)
+        #expect(socket.enteredCount() == 1)
+    }
+}
+
+private final class CarLiveFailingSocket: CarLiveSocket, @unchecked Sendable {
+    private let lock = NSLock()
+    private var entered = 0
+    private var gates: [CheckedContinuation<Void, Error>] = []
+
+    func send(_ text: String) async throws {
+        lock.withLock { entered += 1 }
+        try await withCheckedThrowingContinuation { continuation in
+            lock.withLock { gates.append(continuation) }
+        }
+    }
+
+    func fail() {
+        let pending = lock.withLock { () -> [CheckedContinuation<Void, Error>] in
+            let pending = gates
+            gates.removeAll()
+            return pending
+        }
+        for gate in pending {
+            gate.resume(throwing: CarLiveTransportError.socket)
+        }
+    }
+
+    func receive() async throws -> String { throw CarLiveTransportError.socket }
+    func ping() async throws {}
+    func close() async {}
+
+    func enteredCount() -> Int {
+        lock.withLock { entered }
+    }
+}
+
+private actor CloseFlag {
+    private var done = false
+
+    func mark() { done = true }
+
+    func isDone() -> Bool { done }
 }
