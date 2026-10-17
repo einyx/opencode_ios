@@ -107,6 +107,10 @@ struct CarLiveSnapshot: Equatable {
     var localEstimatedUSD: Double = 0
     var portalEstimatedUSD: Double?
     var usageUnconfirmed = false
+    var voiceDurationKnown = false
+    var voiceDurationUnconfirmed = false
+    var localUnpricedCount = 0
+    var portalSettled = false
     var errorMessage: String?
     var isMuted = false
 
@@ -154,6 +158,14 @@ enum CarLiveFixture {
         UITestFixtures.hasUITestCarLiveFixture
     }
 
+    static var opensDetails: Bool {
+        isActive && ProcessInfo.processInfo.arguments.contains("UITEST_CAR_LIVE_DETAILS_OPEN")
+    }
+
+    static var usesAccessibilityText: Bool {
+        isActive && ProcessInfo.processInfo.arguments.contains("UITEST_CAR_LIVE_ACCESSIBILITY_TEXT")
+    }
+
     static func idleErrorSnapshot() -> CarLiveSnapshot {
         var snapshot = CarLiveSnapshot()
         snapshot.phase = .idle
@@ -192,15 +204,16 @@ enum CarLiveFixture {
             activities: activities,
             inputLevel: 0.40,
             outputLevel: 0.20,
-            elapsedSeconds: 40,
-            voiceSeconds: 12,
-            inputTokens: 0,
-            cachedRead: 0,
-            cacheWrite: 0,
-            outputTokens: 0,
+            elapsedSeconds: 90_061,
+            voiceSeconds: 12.9,
+            inputTokens: 1_234_567,
+            cachedRead: 999,
+            cacheWrite: 1_500,
+            outputTokens: 1_200,
             localEstimatedUSD: 0.12,
             portalEstimatedUSD: 0.34,
             usageUnconfirmed: true,
+            voiceDurationKnown: true,
             errorMessage: nil,
             isMuted: false
         )

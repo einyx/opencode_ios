@@ -73,14 +73,23 @@ final class CarLiveUITests: XCTestCase {
         let portal = app.staticTexts["car-live-cost-portal"]
         XCTAssertTrue(portal.waitForExistence(timeout: 4))
         scroll(detailsBody, untilHittable: portal, swipingDown: false)
-        XCTAssertTrue(local.label.contains("0.120"))
-        XCTAssertTrue(portal.label.contains("0.340"))
-        XCTAssertTrue(local.label.contains("估计") || local.label.contains("Estimated"))
-        XCTAssertTrue(portal.label.contains("估计") || portal.label.contains("Estimated"))
-        XCTAssertFalse(local.label.contains("0.460"))
-        XCTAssertFalse(portal.label.contains("0.460"))
+        XCTAssertTrue(local.label.contains("$0.12"))
+        XCTAssertTrue(portal.label.contains("$0.34"))
+        XCTAssertFalse(local.label.contains("$0.120"))
+        XCTAssertFalse(portal.label.contains("$0.340"))
+        XCTAssertTrue(local.label.contains("Reasoning Reference Estimate (Luna)") || local.label.contains("推理参考估算（Luna）"))
+        XCTAssertTrue(portal.label.contains("Platform Session Estimate (Voice + Reasoning)") || portal.label.contains("平台会话估算（语音＋推理）"))
+        XCTAssertTrue(portal.label.contains("Unconfirmed") || portal.label.contains("未最终确认"))
+        XCTAssertFalse(local.label.contains("Unconfirmed") || local.label.contains("未最终确认"))
+        XCTAssertFalse(local.label.contains("0.46"))
+        XCTAssertFalse(portal.label.contains("0.46"))
         XCTAssertNotEqual(local.label, portal.label)
-        XCTAssertTrue(app.staticTexts["car-live-estimate-note"].exists)
+        let note = app.staticTexts["car-live-estimate-note"]
+        XCTAssertTrue(note.exists)
+        XCTAssertTrue(note.label.contains("do not add them together") || note.label.contains("请勿相加"))
+        let heading = app.staticTexts["car-live-cost-heading"]
+        XCTAssertTrue(heading.waitForExistence(timeout: 4))
+        XCTAssertTrue(heading.label.contains("USD"))
         let unconfirmed = app.staticTexts["car-live-usage-unconfirmed"]
         XCTAssertTrue(unconfirmed.waitForExistence(timeout: 4))
         scroll(detailsBody, untilHittable: unconfirmed, swipingDown: false)
@@ -360,12 +369,222 @@ final class CarLiveUITests: XCTestCase {
     }
 
     @MainActor
-    private func launchPhone() throws -> XCUIApplication {
+    func testDetailsLandscapeDiagnostic() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = try launchPhone(["UITEST_CAR_LIVE_DETAILS_OPEN"], focusLayout: true)
+        let landscape = XCTNSPredicateExpectation(
+            predicate: NSPredicate { evaluated, _ in
+                guard let application = evaluated as? XCUIApplication else { return false }
+                let frame = application.frame
+                return frame.width > frame.height
+            },
+            object: app
+        )
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [landscape], timeout: 6),
+            .completed,
+            "app.frame=\(app.frame) orientation=\(XCUIDevice.shared.orientation)"
+        )
+        let detailsBody = app.scrollViews["car-live-details-body"]
+        XCTAssertTrue(detailsBody.waitForExistence(timeout: 8))
+        XCTAssertGreaterThan(
+            detailsBody.frame.height,
+            40,
+            "detailsBody.frame=\(detailsBody.frame) app.frame=\(app.frame) orientation=\(XCUIDevice.shared.orientation)"
+        )
+        let close = app.buttons["car-live-close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 4))
+        XCTAssertTrue(close.isHittable)
+        keepScreenshot(app, name: "details-landscape-diagnostic")
+    }
+
+    @MainActor
+    func testDetailsMetricsFollowContainerWidth() throws {
+        let app = try launchPhone(["UITEST_CAR_LIVE_DETAILS_OPEN"], focusLayout: true)
+        let detailsBody = app.scrollViews["car-live-details-body"]
+        XCTAssertTrue(detailsBody.waitForExistence(timeout: 8))
+        let voice = app.descendants(matching: .any)["car-live-voice-seconds"]
+        let session = app.descendants(matching: .any)["car-live-session-seconds"]
+        let input = app.descendants(matching: .any)["car-live-input-usage"]
+        XCTAssertTrue(voice.waitForExistence(timeout: 4))
+        revealInDetails(detailsBody, voice)
+        revealInDetails(detailsBody, session)
+        XCTAssertTrue(voice.label.contains("00:00:12"))
+        XCTAssertFalse(voice.label.contains("00:00:00"))
+        XCTAssertTrue(session.label.contains("25:01:01"))
+        revealInDetails(detailsBody, input)
+        XCTAssertTrue(input.label.contains("1.23M"))
+        XCTAssertEqual(input.value as? String, "1234567")
+        XCTAssertFalse(input.label.contains("1234567"))
+        XCTAssertTrue(app.buttons["car-live-close"].isHittable)
+        XCTAssertLessThanOrEqual(detailsBody.frame.height, 260)
+        XCTAssertGreaterThan(app.buttons["car-live-close"].frame.minY, detailsBody.frame.minY)
+        assertDetailsColumns(app, accessibility: false)
+        keepScreenshot(app, name: "details-refresh-portrait")
+
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        keepScreenshot(app, name: "details-refresh-landscape-after-orientation")
+        let rotated = XCTNSPredicateExpectation(
+            predicate: NSPredicate { evaluated, _ in
+                guard let body = evaluated as? XCUIElement else { return false }
+                let frame = body.frame
+                return frame.width > 500 && frame.height > 40
+            },
+            object: detailsBody
+        )
+        let root = app.otherElements["car-live-root"]
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [rotated], timeout: 6),
+            .completed,
+            "app.frame=\(app.frame) detailsBody.frame=\(detailsBody.frame) car-live-root.frame=\(root.frame) orientation=\(XCUIDevice.shared.orientation)"
+        )
+        resetDetailsScroll(detailsBody)
+        keepScreenshot(app, name: "details-refresh-landscape")
+        assertDetailsColumns(app, accessibility: false)
+    }
+
+    @MainActor
+    func testDetailsMetricsUseOneColumnForAccessibilityText() throws {
+        let app = try launchPhone([
+            "UITEST_CAR_LIVE_DETAILS_OPEN",
+            "UITEST_CAR_LIVE_ACCESSIBILITY_TEXT",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL",
+        ], focusLayout: true)
+        let body = app.scrollViews["car-live-details-body"]
+        XCTAssertTrue(body.waitForExistence(timeout: 8))
+        XCTAssertGreaterThan(body.frame.height, 40)
+        XCTAssertLessThanOrEqual(body.frame.height, 260)
+        let voice = app.descendants(matching: .any)["car-live-voice-seconds"]
+        let session = app.descendants(matching: .any)["car-live-session-seconds"]
+        XCTAssertTrue(voice.waitForExistence(timeout: 4))
+        revealInDetails(body, voice)
+        XCTAssertGreaterThan(voice.frame.width, body.frame.width * 0.7)
+        XCTAssertFalse(voice.label.isEmpty)
+        XCTAssertFalse(voice.label.contains("…"))
+        keepScreenshot(app, name: "details-refresh-accessibility")
+        revealInDetails(body, session)
+        XCTAssertGreaterThan(session.frame.width, body.frame.width * 0.7)
+        XCTAssertFalse(session.label.contains("…"))
+        if isOnScreen(voice, in: body) {
+            XCTAssertGreaterThan(session.frame.minY, voice.frame.minY + 4)
+        }
+        let note = app.staticTexts["car-live-estimate-note"]
+        revealInDetails(body, note)
+        XCTAssertTrue(isOnScreen(note, in: body))
+        XCTAssertTrue(note.label.contains("do not add them together") || note.label.contains("请勿相加"))
+        XCTAssertFalse(note.label.contains("…"))
+        XCTAssertTrue(app.buttons["car-live-close"].exists)
+        XCTAssertGreaterThan(body.frame.height, 40)
+    }
+
+    @MainActor
+    private func assertDetailsColumns(_ app: XCUIApplication, accessibility: Bool, file: StaticString = #filePath, line: UInt = #line) {
+        let ids = [
+            "car-live-voice-seconds",
+            "car-live-session-seconds",
+            "car-live-input-usage",
+            "car-live-output-usage",
+            "car-live-cache-read",
+            "car-live-cache-write",
+            "car-live-input-level",
+            "car-live-output-level",
+        ]
+        let body = app.scrollViews["car-live-details-body"]
+        XCTAssertTrue(body.exists, file: file, line: line)
+        let columns = detailsColumnCount(width: body.frame.width, accessibility: accessibility)
+        var index = 0
+        while index < ids.count {
+            let rowCount = min(columns, ids.count - index)
+            let row = (0..<rowCount).map { app.descendants(matching: .any)[ids[index + $0]] }
+            for cell in row {
+                revealInDetails(body, cell, file: file, line: line)
+                XCTAssertTrue(isOnScreen(cell, in: body), "\(ids[index]) stayed off the details scroller", file: file, line: line)
+                XCTAssertFalse(cell.label.isEmpty, file: file, line: line)
+                XCTAssertFalse(cell.label.contains("…"), file: file, line: line)
+            }
+            if rowCount == 1 {
+                XCTAssertGreaterThan(row[0].frame.width, body.frame.width * 0.7, file: file, line: line)
+            } else {
+                XCTAssertLessThan(row[0].frame.width, body.frame.width * 0.75, file: file, line: line)
+                for column in 1..<rowCount {
+                    XCTAssertEqual(row[column].frame.minY, row[0].frame.minY, accuracy: 8, file: file, line: line)
+                    XCTAssertGreaterThan(row[column].frame.minX, row[column - 1].frame.maxX - 4, file: file, line: line)
+                }
+            }
+            index += rowCount
+        }
+    }
+
+    @MainActor
+    private func revealInDetails(_ container: XCUIElement, _ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
+        if isOnScreen(element, in: container) { return }
+        XCTAssertGreaterThan(container.frame.width, 2, file: file, line: line)
+        XCTAssertGreaterThan(container.frame.height, 2, file: file, line: line)
+        for _ in 0..<3 {
+            if isOnScreen(element, in: container) { return }
+            drag(container, upward: false)
+        }
+        var tries = 0
+        while !isOnScreen(element, in: container) && tries < 8 {
+            drag(container, upward: true)
+            tries += 1
+        }
+        XCTAssertTrue(
+            isOnScreen(element, in: container),
+            "failed to reveal \(element.identifier) frame=\(element.frame) container=\(container.frame)",
+            file: file,
+            line: line
+        )
+    }
+
+    private func isOnScreen(_ element: XCUIElement, in container: XCUIElement) -> Bool {
+        guard element.exists, container.frame.width > 2, container.frame.height > 2 else { return false }
+        let overlap = element.frame.intersection(container.frame)
+        return overlap.width > 8 && overlap.height > 8
+    }
+
+    private func resetDetailsScroll(_ container: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertGreaterThan(container.frame.height, 40, file: file, line: line)
+        for _ in 0..<5 {
+            drag(container, upward: false)
+        }
+    }
+
+    private func drag(_ container: XCUIElement, upward: Bool) {
+        if upward {
+            container.swipeUp()
+        } else {
+            container.swipeDown()
+        }
+    }
+
+    private func detailsColumnCount(width: CGFloat, accessibility: Bool) -> Int {
+        if accessibility || width < 240 { return 1 }
+        if width < 560 { return 2 }
+        if width < 800 { return 3 }
+        return 4
+    }
+
+    private func keepScreenshot(_: XCUIApplication, name: String) {
+        let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        shot.lifetime = .keepAlways
+        shot.name = name
+        add(shot)
+    }
+
+    @MainActor
+    private func launchPhone(_ extra: [String] = [], focusLayout: Bool = false) throws -> XCUIApplication {
         guard UIDevice.current.userInterfaceIdiom == .phone else {
             throw XCTSkip("Car Mode is iPhone-only")
         }
         let app = XCUIApplication()
-        app.launchArguments = ["UITEST_CAR_LIVE_FIXTURE"]
+        app.launchArguments = ["UITEST_CAR_LIVE_FIXTURE"] + extra
+        if focusLayout {
+            app.launchEnvironment["UITEST_LAYOUT_PREFERENCE"] = "focus"
+        }
         app.launch()
         return app
     }

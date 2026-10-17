@@ -15,6 +15,9 @@ final class CarLiveController {
     private(set) var backendUsage = CarLiveBackendUsage()
     private(set) var portalEstimatedUSD: Double?
     private(set) var usageUnconfirmed = false
+    var voiceDurationKnown: Bool { voice.hasSnapshot }
+    var voiceDurationUnconfirmed: Bool { voice.unconfirmed }
+    var portalUsageSettled: Bool { portal.settled }
     var errorMessage: String?
     var isMuted = false
     var toolExecutor: (@MainActor (CarLiveFunctionCall) async -> CarLiveToolResult)?
