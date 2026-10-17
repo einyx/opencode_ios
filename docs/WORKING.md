@@ -9,6 +9,14 @@
 - **编译/测试**：父行蓝色提醒确认定向 43 项通过；一次全量 763 项、87 suites 通过（Swift Testing 汇总口径）。xcodebuild、wrapper 及结果包验收均为 0。
 - **Phase**：父级蓝点独立 code/privacy review 通过，主线程定向复跑及设备构建通过；按授权合并后部署 iPad，附件 A/B 随后执行。
 
+### 2026-10-16 — 预览关闭与来源校验收尾
+
+追加三栏导航简化：删除 Sessions 齿轮旁重复布局入口，三栏只保留聊天模型按钮左侧入口，隐藏最右聊天栏的系统 Chat / Files / Settings；Focus、窄窗口与 iPhone 恢复系统导航，聊天仍为原 TabView 子实例。布局选择改为同图标按钮加 confirmationDialog。最终 807 项单测、iPad 导航 UI 3 项（另 1 项 phone-only 跳过）及 iPhone UI 1 项正常通过，主线程已核对结果包和 Regular / Focus 截图。最终导航代码通过 visionOS Simulator 编译；前一版预览代码的 visionOS archive 成功，不混作最终导航 archive。新一轮合并范围 code/privacy review 在后台进行；按最新授权提交 PR 并部署两台设备，等待用户验收后再合并。
+
+PR #213 合并后的 follow-up：sheet dismiss 在 `Task.yield` 后仅清捕获序号，不擦新 pending 请求；布局测试按钮仅限 `DEBUG`；Files 导航栈已空时不设 `ignoreNextShrink`，避免吞掉下一次返回。外部文件链接以 `ExternalFileOpenOwner` 保存已加载文档的 host 快照与 chat-bound session（Files 为 nil），于 stage / adopt / layout 校验。同文件从 Files 转为 Chat 时仅重绑 session，不重拉正文。WK 按文档 identity 重建，晚到回调仍校验原 owner；pending 事件按序号观察，使同 path 不同 workspace 不漏。
+
+最终验证：807 项单测（89 suites）、PreviewMigration UI 2 项、同文件来源重绑定 UI 1 项均正常 exit 0，结果包为 Passed；Xcode 27.1 generic visionOS Release unsigned archive 成功。重绑定回归保持正文加载次数 1，并通过已渲染页面 bridge 和生产 handler 断言链接 pending owner 为 session-b，不声称验证了网页链接的真实点按。此前失败源于 fixture 当前 session 未匹配及 probe 重置，失败记录保留。独立 code/privacy review 无剩余 must-fix。用户随后要求追加三栏导航简化，完成后提交 PR 并原位部署 iPad 与 iPhone，保持未合并，等待用户验收。
+
 ### 2026-10-16 — visionOS 归档输入辅助栏兼容修复
 
 修复 build 135 中 `ChatComposerTextView` 调用 visionOS 不可用的 `leadingBarButtonGroups` / `trailingBarButtonGroups` 导致的六处编译错误。辅助栏的状态、保存、清空与还原限制在 `#if os(iOS)` 内，其他平台使用空实现；保留跨平台 `inputView`、焦点与中文输入处理，iOS 执行顺序不变。

@@ -17,7 +17,7 @@ struct FilesTabView: View {
             .navigationTitle(L10n.t(.navFiles))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if sizeClass == .regular {
+                if sizeClass == .regular, effectiveLayout != .regular {
                     ToolbarItem(placement: .primaryAction) {
                         LayoutPreferenceMenu(state: state)
                     }

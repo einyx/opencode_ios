@@ -111,6 +111,39 @@ final class FileSearchUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["file-content-share"].exists)
     }
 
+    func testSameFileRebindsSessionWithoutReload() {
+        let app = launchReuse(mode: "session-rebind")
+        let probe = app.descendants(matching: .any)["file-content-probe"]
+        XCTAssertTrue(probe.waitForExistence(timeout: 8))
+        let loaded = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "count:1"), object: probe)
+        XCTAssertEqual(XCTWaiter.wait(for: [loaded], timeout: 8), .completed)
+        let link = app.links["Open other"]
+        XCTAssertTrue(link.waitForExistence(timeout: 20))
+        XCTAssertTrue(app.staticTexts["SESSION_REBIND_BODY"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.navigationBars["notes.md"].waitForExistence(timeout: 4))
+        let before = requestCount(probe.label)
+        XCTAssertEqual(before, 1)
+        XCTAssertTrue(probe.label.contains("pending:-"))
+        app.descendants(matching: .any)["file-content-bind-session"].tap()
+        let screen = app.descendants(matching: .any)["file-content-screen"]
+        let reboundOwner = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "session-b"), object: screen)
+        XCTAssertEqual(XCTWaiter.wait(for: [reboundOwner], timeout: 8), .completed, probe.label)
+        XCTAssertTrue(app.navigationBars["notes.md"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["file-content-loading"].exists)
+        let stillLoaded = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "count:1"), object: probe)
+        XCTAssertEqual(XCTWaiter.wait(for: [stillLoaded], timeout: 4), .completed, "label=\(probe.label) value=\(probe.value ?? "")")
+        XCTAssertEqual(requestCount(probe.label), before, probe.label)
+        XCTAssertTrue(app.links["Open other"].waitForExistence(timeout: 20))
+        app.descendants(matching: .any)["file-content-activate-link"].tap()
+        let staged = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "pending:session-b"), object: probe)
+        XCTAssertEqual(XCTWaiter.wait(for: [staged], timeout: 8), .completed, probe.label)
+        XCTAssertTrue(probe.label.contains("open:other.md"), probe.label)
+        XCTAssertEqual(requestCount(probe.label), before)
+        XCTAssertTrue(app.staticTexts["SESSION_REBIND_BODY"].exists)
+        XCTAssertTrue(app.navigationBars["notes.md"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["file-content-loading"].exists)
+    }
+
     func testSinglePullRefreshIssuesOneRequest() {
         let app = launchReuse(mode: "refresh")
         let probe = app.descendants(matching: .any)["file-content-probe"]

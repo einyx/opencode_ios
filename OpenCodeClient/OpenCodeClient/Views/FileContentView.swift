@@ -46,6 +46,7 @@ struct FileContentView: View {
     @Bindable var state: AppState
     let filePath: String
     var workspaceDirectory: String? = nil
+    var boundSessionID: String? = nil
     @State private var content: String?
     @State private var imageData: Data?
     @State private var isLoading = false
@@ -53,6 +54,7 @@ struct FileContentView: View {
     @State private var previewMode: MarkdownPreviewMode = .web
     @State private var refreshGeneration: UInt64 = 0
     @State private var activeLoadKey: FileContentLoadKey?
+    @State private var renderedOpenOwner: ExternalFileOpenOwner?
 
     private var isImage: Bool {
         ImageFileUtils.isImage(filePath)
@@ -143,10 +145,36 @@ struct FileContentView: View {
         .toolbar { toolbarContent }
         .toolbarBackground(.visible, for: .navigationBar)
         .accessibilityIdentifier("file-content-screen")
+        .accessibilityValue(openOwnerForRender?.sessionID ?? "-")
         .task(id: loadKey) {
             let key = loadKey
             activeLoadKey = key
+            renderedOpenOwner = ExternalFileOpenOwner(load: key, sessionID: boundSessionID)
             await loadContent(key)
+        }
+        .onChange(of: boundSessionID) { _, sessionID in
+            rebindRenderedOpenOwner(sessionID: sessionID)
+        }
+    }
+
+    private var openOwnerForRender: ExternalFileOpenOwner? {
+        if var owner = renderedOpenOwner {
+            owner.sessionID = boundSessionID
+            return owner
+        }
+        if let key = activeLoadKey {
+            return ExternalFileOpenOwner(load: key, sessionID: boundSessionID)
+        }
+        return nil
+    }
+
+    private func rebindRenderedOpenOwner(sessionID: String?) {
+        if var owner = renderedOpenOwner {
+            guard owner.sessionID != sessionID else { return }
+            owner.sessionID = sessionID
+            renderedOpenOwner = owner
+        } else if let key = activeLoadKey {
+            renderedOpenOwner = ExternalFileOpenOwner(load: key, sessionID: sessionID)
         }
     }
 
@@ -195,6 +223,7 @@ struct FileContentView: View {
                     state: state,
                     markdownFilePath: filePath,
                     workspaceDirectory: effectiveWorkspaceDirectory,
+                    openOwner: openOwnerForRender,
                     isOversized: useRaw,
                     onSwitchToNative: { previewMode = .native },
                     onSwitchToSource: { previewMode = .source }

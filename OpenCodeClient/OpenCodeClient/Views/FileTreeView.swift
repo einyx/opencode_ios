@@ -42,7 +42,7 @@ struct FileTreeView: View {
             }
         }
         .navigationDestination(for: String.self) { path in
-            FileContentView(state: state, filePath: path, workspaceDirectory: openedWorkspaceDirectory)
+            FileContentView(state: state, filePath: path, workspaceDirectory: openedWorkspaceDirectory, boundSessionID: nil)
         }
         .onAppear {
             state.discardUnownedFileSearch()
@@ -142,10 +142,10 @@ struct FileTreeView: View {
         state.previewHostID = state.currentHostProfileID
         state.previewSessionID = nil
         state.filesNavigationHostID = state.currentHostProfileID
-        state.ignoreNextFilesPathShrink = true
-        state.filesNavigationPath = []
+        state.clearFilesNavigationPathIgnoringNextShrink()
         state.fileToOpenInFilesTab = nil
         state.fileToOpenInFilesTabWorkspaceDirectory = nil
+        state.pendingFileOpenOwner = nil
     }
 
     private var visibleNodes: [TreeNodeItem] {
