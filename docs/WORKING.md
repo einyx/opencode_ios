@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-### Ambient Mode 本轮收尾（等待发布与用户真机验收）
+### Ambient Mode 本轮收尾（已发布 PR，等待用户真机验收）
 
 - [x] Ambient Mode 可见命名、同排大图标、Mute 明确选中状态、瞬时 Stop Playback、红色 End Voice；保留本地化读屏标签。
 - [x] 播放音量条复用系统 MPVolumeView，不新增音频放大链路。模拟器只验证真实容器布局，不冒充硬件音量可调。
@@ -12,18 +12,18 @@
 - [x] 八工具包含 archive_job / unarchive_job：发现服务端子树，归档子孙先、根后，恢复根先、子孙后；取消归档写 0，逐项回读，部分失败不报全树成功，不 abort 或重建任务。
 - [x] 独立 subagent code review 和 privacy review 最终均 PASS；修复 token 复用、HTTP 退役延迟、TLS 降级和折叠读屏正文等 finding。
 - [x] 最终 886 项单测（94 suites）、4 项 Ambient UI 正常通过，wrapper / xcodebuild / 结果包均验收；真机签名构建成功，合成界面截图已读回。普通编译与测试问题已修复并保留失败记录。
-- [ ] 检查通过后原位部署 Ether。
+- [x] 正式客户端已原位安装并正常启动 Ether；安装、启动记录均为 success，未自动打开麦克风或发起付费语音。
 
 用户最新确认按 as-is 收尾：不加入正式客户端后台或息屏持续通话；仅后台停止，临时 inactive 保持。允许提交并发布新 PR、部署 Ether；不 merge，等待用户真机测试及明确确认。
 
-首次实际查询确认当前分支没有 PR，已先告知用户；用户随后明确授权 publish 新 PR，待主线程执行。
+首次实际查询确认当前分支没有 PR，已先告知用户；用户随后明确授权 publish 新 PR。功能提交 `f79df5d` 已发布为 [PR #215](https://github.com/grapeot/opencode_ios_client/pull/215)，状态 OPEN、未合并，GitHub 报告 MERGEABLE / CLEAN。等待用户真机测试和明确确认。
 
 最终证据：`.occlient/live-integration/ambient-release-unit.log`、`ambient-release-ui-2.log`、`ambient-release-device-build.log`；审查记录为 `final-code-review.md`、`final-privacy-review.md`，均在同一 ignored 目录。图标截图为 `ambient-release-ui.png`。非阻断后续项：部分子节点写入失败时，partial 中的根 archived 元数据仍可能沿用发现快照；返回 ok=false，不会报告全树归档成功。工具实际语音与系统音量滑块由用户真机验收。
 
 - **最后更新**：2026-10-16
 - **基线**：`4a9b11e`；本轮分支 `feat/car-mode-hosted-live`。
 - **编译/测试**：最终 886 项单测、94 suites 和 4 项 Ambient UI 正常通过；code/privacy review 均 PASS；真机签名构建成功。初轮 856 项及旧模式 UI 记录保留如下。
-- **Phase**：按 as-is 发布 PR 并原位部署，保持未合并；更早的 Hosted Live 版本已安装，不混作本轮最终版本的部署。
+- **Phase**：本轮 as-is 版本已发布 PR #215 并原位部署；证据 `.occlient/live-integration/ambient-release-install.json`、`ambient-release-launch.json` 均为 success。保持未合并，等待用户确认。
 
 ### 2026-10-16 — Hosted Live Car Mode 初轮接入记录
 
