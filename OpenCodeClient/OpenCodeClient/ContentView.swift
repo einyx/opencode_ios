@@ -558,7 +558,7 @@ struct ContentView: View {
                 .tag(RootTab.files.rawValue)
 
             systemTabBar(CarModeView(state: state))
-                .tabItem { Label(L10n.t(.carTab), systemImage: "car.fill") }
+                .tabItem { Label(L10n.t(.carTab), systemImage: "waveform") }
                 .tag(RootTab.car.rawValue)
 
             systemTabBar(SettingsTabView(state: state, isCarModeEnabled: carModeEnabledBinding))

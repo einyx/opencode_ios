@@ -355,6 +355,7 @@ struct CarLiveView: View {
 
     private var muteControl: some View {
         let muted = snapshot.isMuted
+        let foreground: Color = muted ? .white : DesignColors.Brand.primary
         return iconControl(
             symbol: muted ? "mic.slash" : "mic",
             label: L10n.t(muted ? .carLiveUnmute : .carLiveMute),
@@ -363,10 +364,18 @@ struct CarLiveView: View {
             selected: muted,
             enabled: snapshot.isSessionUp,
             fill: muted ? DesignColors.Brand.primary : neutralFill,
-            foreground: muted ? .white : DesignColors.Brand.primary,
+            foreground: foreground,
             bordered: !muted,
+            hidesIconAccessibility: true,
             action: toggleMute
-        )
+        ) {
+            CarLiveMicrophoneMeterIcon(
+                inputLevel: snapshot.inputLevel,
+                phase: snapshot.phase,
+                isMuted: muted,
+                foreground: foreground
+            )
+        }
     }
 
     private var stopControl: some View {
@@ -415,9 +424,42 @@ struct CarLiveView: View {
         role: ButtonRole? = nil,
         action: @escaping () -> Void
     ) -> some View {
-        Button(role: role, action: action) {
+        iconControl(
+            symbol: symbol,
+            label: label,
+            identifier: identifier,
+            value: value,
+            selected: selected,
+            enabled: enabled,
+            fill: fill,
+            foreground: foreground,
+            bordered: bordered,
+            role: role,
+            action: action
+        ) {
             Image(systemName: symbol)
+        }
+    }
+
+    private func iconControl<Icon: View>(
+        symbol: String,
+        label: String,
+        identifier: String,
+        value: String?,
+        selected: Bool,
+        enabled: Bool,
+        fill: Color,
+        foreground: Color,
+        bordered: Bool,
+        role: ButtonRole? = nil,
+        hidesIconAccessibility: Bool = false,
+        action: @escaping () -> Void,
+        @ViewBuilder icon: () -> Icon
+    ) -> some View {
+        Button(role: role, action: action) {
+            icon()
                 .accessibilityIdentifier("\(identifier)-icon-\(symbol)")
+                .modifier(CarLiveIconAccessibility(hidden: hidesIconAccessibility))
         }
         .buttonStyle(
             CarLiveIconButtonStyle(
@@ -590,6 +632,18 @@ private struct CarLiveIconButtonStyle: ButtonStyle {
             }
             .contentShape(RoundedRectangle(cornerRadius: DesignCorners.large, style: .continuous))
             .opacity(isEnabled ? (configuration.isPressed ? 0.72 : 1) : 0.38)
+    }
+}
+
+private struct CarLiveIconAccessibility: ViewModifier {
+    var hidden: Bool
+
+    func body(content: Content) -> some View {
+        if hidden {
+            content.accessibilityHidden(true)
+        } else {
+            content
+        }
     }
 }
 

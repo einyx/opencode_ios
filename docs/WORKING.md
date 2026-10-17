@@ -4,6 +4,16 @@
 
 ## 当前状态
 
+### PR #215 追加 UI：麦克风胶囊输入电平（48pt 已部署）
+
+- [x] 保持三按钮布局，48pt 麦克风 capsule 内部按真实 inputLevel 自底向上填充，外轮廓、支架、底座固定；上升 65ms、回落 320ms。另两个图标仍 28pt，按钮高仍 72pt。
+- [x] Ambient Mode Tab 将 car.fill 改为静态 waveform，沿用现有选中样式；内部标识和设置键不变。
+- [x] 静音保留斜杠与选中底色，填充立即清空；未连接、连接中或正在结束时停用；详情保留原始 RMS 精确数值。UI 使用 sqrt(raw / 0.25) 映射，不改写真实输入值。
+- [x] 电平初版全量 917 项单测（97 suites）与 5 项 Ambient UI 通过；40pt 定向 10 项电平单测和图标 UI 通过；最终 48pt 再跑 10 项电平单测及真机签名构建通过。低/中/高/静音及深色合成截图已读回，40pt 截图无裁切；48pt 尺寸变更后不重复无关全量测试。
+- [x] 用户授权 review 在后台继续、不等待其完成即可部署。48pt 正式客户端已原位安装并正常启动 Ether，证据 `microphone-meter-install.json` / `microphone-meter-launch.json` 均为 success。WDA 保持关闭，不自动开麦、不 merge。
+
+证据在 `.occlient/live-integration/`：`microphone-meter-unit.log`、`microphone-meter-ui.log`、`microphone-meter-48-unit.log`、`microphone-meter-48-device-build.log` 和 `microphone-meter-visual/`。截图仅为合成数据，不代表手机实际收音验收。代码与验证说明待同步更新到现有 PR #215。
+
 ### PR #215 追加修复：后台返回时崩溃 / Ending Voice 收尾（已部署）
 
 - [x] 两份最新设备 crash 均为音频队列 SIGABRT，指向 clearPlayback 后对停止的引擎调用 player.play；原始设备工件仅保存在 ignored 目录，不提交。

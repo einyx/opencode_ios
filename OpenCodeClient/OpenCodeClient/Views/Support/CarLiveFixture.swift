@@ -186,7 +186,7 @@ enum CarLiveFixture {
                 sequence: 31
             ),
         ]
-        return CarLiveSnapshot(
+        var snapshot = CarLiveSnapshot(
             phase: .listening,
             captions: captions,
             activities: activities,
@@ -204,6 +204,66 @@ enum CarLiveFixture {
             errorMessage: nil,
             isMuted: false
         )
+        applyMeterPreset(&snapshot)
+        return snapshot
+    }
+
+    static func applyMeterPreset(_ snapshot: inout CarLiveSnapshot) {
+        let preset = CarLiveMeterPreset.resolve(
+            arguments: ProcessInfo.processInfo.arguments,
+            environment: ProcessInfo.processInfo.environment
+        )
+        snapshot = CarLiveMeterPreset.applying(preset, active: isActive, to: snapshot)
+    }
+}
+
+enum CarLiveMeterPreset: String, Equatable {
+    case quiet
+    case mid
+    case high
+    case muted
+
+    static let quietLevel = 0.02
+    static let midLevel = 0.08
+    static let highLevel = 0.15
+    static let mutedLevel = 0.08
+
+    var inputLevel: Double {
+        switch self {
+        case .quiet:
+            return Self.quietLevel
+        case .mid:
+            return Self.midLevel
+        case .high:
+            return Self.highLevel
+        case .muted:
+            return Self.mutedLevel
+        }
+    }
+
+    var isMuted: Bool {
+        self == .muted
+    }
+
+    static func applying(_ preset: CarLiveMeterPreset?, active: Bool, to snapshot: CarLiveSnapshot) -> CarLiveSnapshot {
+        guard active, let preset else { return snapshot }
+        var next = snapshot
+        next.phase = .listening
+        next.inputLevel = preset.inputLevel
+        next.isMuted = preset.isMuted
+        return next
+    }
+
+    static func resolve(arguments: [String], environment: [String: String]) -> CarLiveMeterPreset? {
+        if arguments.contains("UITEST_CAR_LIVE_METER_QUIET") { return .quiet }
+        if arguments.contains("UITEST_CAR_LIVE_METER_MID") { return .mid }
+        if arguments.contains("UITEST_CAR_LIVE_METER_HIGH") { return .high }
+        if arguments.contains("UITEST_CAR_LIVE_METER_MUTED") { return .muted }
+        let raw = environment["UITEST_CAR_LIVE_METER"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard let raw else { return nil }
+        return CarLiveMeterPreset(rawValue: raw)
     }
 }
 
