@@ -103,17 +103,20 @@ extension AppState {
         )
         carLiveLease = lease
         let configuration = carLiveConfiguration(portal: portal, token: token, ownerToken: ownerToken)
+        bindBackgroundVoiceHold(epoch: backgroundVoiceEpoch)
         await carLive?.start(configuration: configuration)
         finishCarLiveStart(connectRun: connectRun, lease: lease)
     }
 
     func stopCarLive() async {
+        let epoch = backgroundVoiceEpoch
         let requestedAt = ContinuousClock.now
         cancelCarLiveConnect()
         let transportToken = carLiveLease?.transportToken ?? 0
         let controller = carLive
         releaseCarLiveLease()
         await closeLiveTransportThenStop(token: transportToken, controller: controller, requestedAt: requestedAt)
+        releaseBackgroundNetworkAfterLiveEnd(expectedEpoch: epoch)
     }
 
     func resetCarLiveSession() async {
@@ -128,6 +131,7 @@ extension AppState {
     }
 
     func closeCarLiveNow() {
+        let epoch = backgroundVoiceEpoch
         let requestedAt = ContinuousClock.now
         noteCarLiveCloseRequested(requestedAt)
         cancelCarLiveConnect()
@@ -141,6 +145,7 @@ extension AppState {
             }
             await controller?.stop(requestedAt: requestedAt)
         }
+        releaseBackgroundNetworkAfterLiveEnd(expectedEpoch: epoch)
     }
 
     private func closeLiveTransportThenStop(token: UInt64, controller: CarLiveController?, requestedAt: ContinuousClock.Instant) async {
@@ -182,7 +187,7 @@ extension AppState {
         }
     }
 
-    private func cancelCarLiveConnect() {
+    func cancelCarLiveConnect() {
         carLiveConnectTask?.cancel()
         carLiveConnectTask = nil
         carLiveConnectRun = nil

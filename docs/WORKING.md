@@ -4,6 +4,24 @@
 
 ## 当前状态
 
+### 下一轮：Ambient 后台 / 耳机 / 息屏语音（本地验证通过，准备新 PR）
+
+PR #215 的最终 48pt UI 增量 review 为 PASS，无 blocker；按用户最新授权已合并，merge commit `f3b6485`。本轮分支 `feat/ambient-background-voice` 从合并后的 master 创建。当前手机仍是已部署的 48pt 前台版本，不把调研或新代码当成后台能力已上线。
+
+- [x] 复核 Apple playAndRecord / record 后台 audio 要求及 route-disconnect / interruption 行为；参考独立 App 的后台实现。
+- [x] 正式客户端适配：延续用户已开启且已启动采集的通话，保留必要 SSE/SSH；未通话时正常后台断开，后台结束后回收连接。
+- [x] 保留系统中断、耳机/USB/AirPlay/CarAudio 外部路由断开、显式结束、host/project/功能开关失效后的清理，不自动重开麦克风；更新现有麦克风用途说明。
+- [x] 独立 Cursor code/privacy 审查文件均已读回，结论 PASS。修复低项：await 前捕获 background epoch，晚到网络清理必须仍属于同一 epoch，不能断开替换连接。
+- [x] 最终 940 项单测（99 suites）正常通过；5 项 Ambient UI 在最后 epoch-only 修正前通过，签名 iPhone 构建已在修正后重查成功，产物 UIBackgroundModes 只有 audio。没有真机/耳机/息屏实测。
+- [ ] 发布新的后台通话 PR，保持未合并。
+- [ ] 新 PR 保持未合并，等待用户测试及后续指示。手机 WDA 自动化保持关闭。
+
+调研依据与范围记录在 ignored 的 `.occlient/live-integration/background-voice-next-plan.md`、`background-voice-apple-evidence.md`，实现交接及未验收边界后续追加。
+
+前一 checkpoint 记录：原实现 owner 停止后保留研究与源码；Cursor 大范围接管任务 900 秒超时、无最终 JSON，未据此认定无修改或已完成。随后用预创建 chat、stream-json 和先写 checkpoint 的小任务修复跨文件 private 访问，exit 0、最终 success/is_error=false、session 匹配。当时主线程本地 939 项单测（99 suites）、5 项 Ambient UI 均正常通过，真机签名构建成功并核对产物 `UIBackgroundModes=[audio]`，审查仍在独立进行。未部署新后台版、未开启手机自动化，不把这些本地结果当作耳机/息屏实测。
+
+最终验收补记：epoch 最小修复调用仍超时，但源码及 completed checkpoint 已落盘，主线程读回并通过 940 项实际测试后接纳源码，不把 CLI 退出 124 改成成功。最后 code-review 续接已写完 PASS 文件和 PR 稿，CLI 收尾报 WritableIterable closed/exit1；调用保留失败，审查产物与相应源码/回归证据由主线程再次核对。privacy 续接 exit0、同 session、两项 nit 关闭。发布证据：`background-voice-epoch-unit.log`、`background-voice-ui.log`、`background-voice-publish-device-build.log`、`cursor-background-code-review.md`、`cursor-background-privacy-review.md`，均在 ignored `.occlient/live-integration/`。仍不部署手机、不启动 WDA，新 PR 不 merge。
+
 ### PR #215 追加 UI：麦克风胶囊输入电平（48pt 已部署）
 
 - [x] 保持三按钮布局，48pt 麦克风 capsule 内部按真实 inputLevel 自底向上填充，外轮廓、支架、底座固定；上升 65ms、回落 320ms。另两个图标仍 28pt，按钮高仍 72pt。

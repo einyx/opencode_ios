@@ -25,11 +25,13 @@ nonisolated protocol CarLiveAudioEngine: Sendable {
     func setLevelHandler(_ handler: (@Sendable (Double, Double) -> Void)?)
     func setPlaybackIdleHandler(_ handler: (@Sendable () -> Void)?)
     func setFailureHandler(_ handler: (@Sendable (String) -> Void)?)
+    func setHoldHandler(_ handler: (@Sendable (BackgroundVoiceHoldKind, UInt64) -> Void)?)
 }
 
 extension CarLiveAudioEngine {
     func setPlaybackHeld(_ held: Bool) {}
     func setFailureHandler(_ handler: (@Sendable (String) -> Void)?) {}
+    func setHoldHandler(_ handler: (@Sendable (BackgroundVoiceHoldKind, UInt64) -> Void)?) {}
 }
 
 nonisolated enum CarLiveAudioRoute {
@@ -44,6 +46,18 @@ nonisolated enum CarLiveAudioRoute {
 
     static func isSpeaker(_ port: String) -> Bool {
         ["Speaker", "Receiver", "BuiltInSpeaker", "BuiltInReceiver"].contains(port)
+    }
+
+    /// Previous-route ports whose `oldDeviceUnavailable` must end Live.
+    /// Personal headsets stay here. USB, AirPlay, and car output are included
+    /// without joining `isHeadset`, which still selects voice processing.
+    static func isExternalOutputDisconnect(_ port: String) -> Bool {
+        if isHeadset(port) { return true }
+        return ["USBAudio", "AirPlay", "CarAudio"].contains(port)
+    }
+
+    static func closesForExternalOutputDisconnect(oldDeviceUnavailable: Bool, previousPorts: [String]) -> Bool {
+        oldDeviceUnavailable && previousPorts.contains(where: isExternalOutputDisconnect)
     }
 }
 
@@ -203,6 +217,9 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
     private var observers: [NSObjectProtocol] = []
     private var recoveryStarts = 0
     private var intendedRunning = false
+    private var acceptSessionEvents = false
+    private var audioHold: BackgroundVoiceHoldKind?
+    private var holdHandler: (@Sendable (BackgroundVoiceHoldKind, UInt64) -> Void)?
     private var levelHandler: (@Sendable (Double, Double) -> Void)?
     private var idleHandler: (@Sendable () -> Void)?
     private var failureHandler: (@Sendable (String) -> Void)?
@@ -289,11 +306,18 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
         lock.unlock()
     }
 
+    func setHoldHandler(_ handler: (@Sendable (BackgroundVoiceHoldKind, UInt64) -> Void)?) {
+        lock.lock()
+        holdHandler = handler
+        lock.unlock()
+    }
+
     private func startOnQueue() throws -> CarLiveCaptureHandle {
         if intendedRunning { stopOnQueue() }
         installObserversOnQueue()
+        acceptSessionEvents = true
         let session = AVAudioSession.sharedInstance()
-        try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetoothHFP])
+        try session.setCategory(.playAndRecord, mode: .voiceChat, options: Self.categoryOptions())
         try session.setPreferredSampleRate(48_000)
         try session.setPreferredIOBufferDuration(0.02)
         var ports = routePorts(session)
@@ -320,6 +344,7 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
         let token = locked {
             recoveryStarts = 0
             intendedRunning = true
+            audioHold = nil
             playbackHeld = false
             playback.removeAll()
             return gate.open()
@@ -346,8 +371,10 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
     }
 
     private func stopOnQueue() {
+        acceptSessionEvents = false
         let opened = locked { () -> CarLiveFrameStream? in
             intendedRunning = false
+            audioHold = nil
             playbackHeld = false
             gate.finishStream()
             gate.clearPlayback()
@@ -440,7 +467,8 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
                     hasAudio: true
                 )
             }
-            guard decision.shouldPlayScheduled, engine.isRunning, engine.attachedNodes.contains(player) else { return }
+            let held = locked { audioHold != nil }
+            guard !held, decision.shouldPlayScheduled, engine.isRunning, engine.attachedNodes.contains(player) else { return }
             let admitted = locked { gate.noteScheduled(token: playbackToken) }
             guard admitted, engine.isRunning, engine.attachedNodes.contains(player) else { return }
             player.play()
@@ -480,9 +508,110 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
     private func installObserversOnQueue() {
         guard observers.isEmpty else { return }
         let center = NotificationCenter.default
+        let session = AVAudioSession.sharedInstance()
         observers.append(center.addObserver(forName: Notification.Name("AVAudioEngineConfigurationChangeNotification"), object: engine, queue: nil) { [weak self] _ in
             self?.queue.async { self?.recoverOnceOnQueue() }
         })
+        observers.append(center.addObserver(forName: AVAudioSession.routeChangeNotification, object: session, queue: nil) { [weak self] note in
+            let reason = (note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? NSNumber)?.intValue ?? -1
+            let previous = Self.previousPorts(note)
+            let unavailable = reason == Int(AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue)
+            let generation = self?.currentGeneration() ?? 0
+            self?.queue.async {
+                self?.handleRouteOnQueue(oldDeviceUnavailable: unavailable, previousPorts: previous, eventGeneration: generation)
+            }
+        })
+        observers.append(center.addObserver(forName: AVAudioSession.interruptionNotification, object: session, queue: nil) { [weak self] note in
+            let type = (note.userInfo?[AVAudioSessionInterruptionTypeKey] as? NSNumber)?.uintValue ?? 0
+            let began = type == AVAudioSession.InterruptionType.began.rawValue
+            let generation = self?.currentGeneration() ?? 0
+            self?.queue.async { self?.handleLegacyInterruptionOnQueue(began: began, eventGeneration: generation) }
+        })
+        if #available(iOS 27, *) {
+            observers.append(center.addObserver(forName: AVAudioSession.didBecomeInactiveNotification, object: session, queue: nil) { [weak self] note in
+                let parsed = Self.inactiveParts(note)
+                let generation = self?.currentGeneration() ?? 0
+                self?.queue.async {
+                    self?.handleInactiveOnQueue(source: parsed.source, interruptionReason: parsed.reason, eventGeneration: generation)
+                }
+            })
+        }
+    }
+
+    private func currentGeneration() -> UInt64 {
+        locked { gate.generation }
+    }
+
+    private static func previousPorts(_ note: Notification) -> [String] {
+        guard let route = note.userInfo?[AVAudioSessionRouteChangePreviousRouteKey] as? AVAudioSessionRouteDescription else {
+            return []
+        }
+        return route.inputs.map(\.portType.rawValue) + route.outputs.map(\.portType.rawValue)
+    }
+
+    @available(iOS 27, *)
+    private static func inactiveParts(_ note: Notification) -> (source: Int, reason: Int?) {
+        guard let context = note.userInfo?[AVAudioSession.deactivationContextKey] as? AVAudioSession.DeactivationContext else {
+            return (-1, nil)
+        }
+        let reason: Int?
+        if let interruption = context.interruptionContext {
+            reason = Int(interruption.reason.rawValue)
+        } else {
+            reason = nil
+        }
+        return (context.source.rawValue, reason)
+    }
+
+    private func handleRouteOnQueue(oldDeviceUnavailable: Bool, previousPorts: [String], eventGeneration: UInt64) {
+        guard acceptSessionEvents else { return }
+        guard CarLiveAudioRoute.closesForExternalOutputDisconnect(
+            oldDeviceUnavailable: oldDeviceUnavailable,
+            previousPorts: previousPorts
+        ) else { return }
+        applyHoldOnQueue(.headphoneRemoved, releaseSession: true, eventGeneration: eventGeneration)
+    }
+
+    private func handleLegacyInterruptionOnQueue(began: Bool, eventGeneration: UInt64) {
+        guard acceptSessionEvents else { return }
+        guard BackgroundVoicePolicy.closesForLegacyInterruptionBegan(began) else { return }
+        applyHoldOnQueue(.systemInterruption, releaseSession: false, eventGeneration: eventGeneration)
+    }
+
+    private func handleInactiveOnQueue(source: Int, interruptionReason: Int?, eventGeneration: UInt64) {
+        guard acceptSessionEvents else { return }
+        guard BackgroundVoicePolicy.closesForSystemInterruption(sourceRaw: source, interruptionReasonRaw: interruptionReason) else { return }
+        applyHoldOnQueue(.systemInterruption, releaseSession: false, eventGeneration: eventGeneration)
+    }
+
+    private func applyHoldOnQueue(_ kind: BackgroundVoiceHoldKind, releaseSession: Bool, eventGeneration: UInt64) {
+        let applied = locked { () -> (UInt64, CarLiveFrameStream?)? in
+            guard audioHold == nil, intendedRunning, gate.accepts(eventGeneration) else { return nil }
+            audioHold = kind
+            intendedRunning = false
+            acceptSessionEvents = false
+            gate.finishStream()
+            gate.clearPlayback()
+            playback.removeAll()
+            let current = stream
+            stream = nil
+            return (eventGeneration, current)
+        }
+        guard let applied else { return }
+        applied.1?.finish()
+        if tapInstalled {
+            engine.inputNode.removeTap(onBus: 0)
+            tapInstalled = false
+        }
+        if engine.attachedNodes.contains(player) {
+            player.stop()
+        }
+        if engine.isRunning { engine.stop() }
+        if releaseSession {
+            try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+        }
+        let handler = locked { holdHandler }
+        handler?(kind, applied.0)
     }
 
     private func removeObserversOnQueue() {
@@ -492,10 +621,15 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
     }
 
     private func recoverOnceOnQueue() {
-        let snapshot = locked { () -> (Bool, Int, UInt64) in
-            (intendedRunning && gate.accepts(gate.generation), recoveryStarts, gate.generation)
+        let snapshot = locked { () -> (Bool, Int, UInt64, Bool) in
+            (intendedRunning && gate.accepts(gate.generation), recoveryStarts, gate.generation, audioHold != nil)
         }
-        guard snapshot.0, snapshot.1 == 0, engine.isRunning == false else { return }
+        guard BackgroundVoicePolicy.shouldRecoverGraph(
+            intendedRunning: snapshot.0,
+            held: snapshot.3,
+            recoveryStarts: snapshot.1,
+            engineRunning: engine.isRunning
+        ) else { return }
         locked { recoveryStarts += 1 }
         do {
             try rebuildInputChainOnQueue(generation: snapshot.2)
@@ -561,6 +695,21 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
         lock.lock()
         defer { lock.unlock() }
         return body()
+    }
+
+    private static func categoryOptions() -> AVAudioSession.CategoryOptions {
+        var options: AVAudioSession.CategoryOptions = []
+        for name in CarLiveCaptureSessionPlan.optionNames {
+            switch name {
+            case "defaultToSpeaker":
+                options.insert(.defaultToSpeaker)
+            case "allowBluetoothHFP":
+                options.insert(.allowBluetoothHFP)
+            default:
+                continue
+            }
+        }
+        return options
     }
 
     private func routePorts(_ session: AVAudioSession) -> [String] {
