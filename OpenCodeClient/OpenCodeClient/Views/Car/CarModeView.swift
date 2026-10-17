@@ -31,7 +31,31 @@ enum CarSpeechAttemptGate {
 }
 
 struct CarModeView: View {
+    var state: AppState
+    @AppStorage(CarVoiceMode.storageKey) private var carVoiceModeRaw = CarVoiceMode.hostedLive
+
+    private var showsLegacy: Bool {
+        if UITestFixtures.hasUITestCarModeFixture {
+            return true
+        }
+        if UITestFixtures.hasUITestCarLiveFixture {
+            return false
+        }
+        return carVoiceModeRaw == CarVoiceMode.turnByTurn
+    }
+
+    var body: some View {
+        if showsLegacy {
+            LegacyCarModeView(state: state)
+        } else {
+            CarLiveView(state: state)
+        }
+    }
+}
+
+struct LegacyCarModeView: View {
     @Bindable var state: AppState
+    @AppStorage(CarVoiceMode.storageKey) private var carVoiceModeRaw = CarVoiceMode.hostedLive
     @State private var microphone = VoiceFlowMicrophone()
     @State private var speechSession: VoiceFlowSession?
     @State private var audioSender: OrderedSpeechAudioSender?
@@ -114,6 +138,18 @@ struct CarModeView: View {
             .navigationTitle(L10n.t(.carTitle))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Menu {
+                        Button(L10n.t(.carLiveModeRealtime)) {
+                            Task { await switchToHostedLive() }
+                        }
+                        Button(L10n.t(.carLiveModeTurnByTurn)) {}
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                    .accessibilityLabel(L10n.t(.carLiveModeMenuTitle))
+                    .accessibilityIdentifier("car-voice-mode-menu")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showNewSessionConfirmation = true
@@ -630,6 +666,11 @@ struct CarModeView: View {
             state.carError = error.localizedDescription
             state.carPhase = .failed
         }
+    }
+
+    private func switchToHostedLive() async {
+        await stopForBackground()
+        carVoiceModeRaw = CarVoiceMode.hostedLive
     }
 
     private func stopForBackground() async {

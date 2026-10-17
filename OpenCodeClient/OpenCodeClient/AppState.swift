@@ -206,6 +206,7 @@ final class AppState {
     static let voiceFirstInputKey = "voiceFirstInput"
     static let languagePreferenceKey = L10n.languagePreferenceUserDefaultsKey
     static let carSessionsByContextKey = "carSessionsByContext.v1"
+    static let carLiveBindingsByContextKey = "carLiveBindingsByContext.v1"
     static let healthExportPermissionKey = "clientCapability.healthExportAll.permission.v1"
     static let modelShortlistKey = "modelShortlist.v1"
 
@@ -301,6 +302,10 @@ final class AppState {
         if let data = defaults.data(forKey: Self.carSessionsByContextKey),
            let decoded = try? JSONDecoder().decode([String: CarSessionRecord].self, from: data) {
             carSessionsByContext = decoded
+        }
+        if let data = defaults.data(forKey: Self.carLiveBindingsByContextKey),
+           let decoded = try? JSONDecoder().decode([String: CarLiveBinding].self, from: data) {
+            carLiveBindingsByContext = decoded
         }
 
         if let data = defaults.data(forKey: Self.modelShortlistKey),
@@ -447,7 +452,12 @@ final class AppState {
     var voiceFirstInput = false {
         didSet { defaults.set(voiceFirstInput, forKey: Self.voiceFirstInputKey) }
     }
-    var isConnected: Bool = false
+    var isConnected: Bool = false {
+        didSet {
+            guard oldValue, !isConnected else { return }
+            closeCarLiveNow()
+        }
+    }
     var serverVersion: String?
     var connectionError: String?
     var connectionDiagnostic: ConnectionDiagnostic?
@@ -1112,6 +1122,12 @@ final class AppState {
     nonisolated static let sseSilenceThreshold: TimeInterval = 20
 
     var carSessionsByContext: [String: CarSessionRecord] = [:]
+    var carLive: CarLiveController?
+    var carLiveEpoch: UInt64 = 0
+    var carLiveLease: CarLiveLease?
+    var carLivePoll: Task<Void, Never>?
+    var carLiveBindingsByContext: [String: CarLiveBinding] = [:]
+    var carLiveAnnouncedMessageIDs: Set<String> = []
     var carPhase: CarModePhase = .idle
     var carLastTranscript = ""
     var carLastResponse: CarResponseEnvelope?

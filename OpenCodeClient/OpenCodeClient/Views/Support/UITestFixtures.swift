@@ -17,6 +17,7 @@ enum UITestFixtures {
             || QuestionRecoveryFixture.isActive
             || hasUITestQuotaFixture
             || hasUITestCarModeFixture
+            || hasUITestCarLiveFixture
             || hasUITestCarHistoryFixture
             || hasUITestCarDisabledFixture
             || hasUITestClientCapabilityFixture
@@ -101,6 +102,14 @@ enum UITestFixtures {
 
     static var hasUITestCarModeFixture: Bool {
         ProcessInfo.processInfo.arguments.contains("UITEST_CAR_MODE_FIXTURE")
+    }
+
+    static var hasUITestCarLiveFixture: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("UITEST_CAR_LIVE_FIXTURE")
+        #else
+        false
+        #endif
     }
 
     static var hasUITestCarHistoryFixture: Bool {
@@ -263,6 +272,13 @@ enum UITestFixtures {
         if hasUITestCarDisabledFixture {
             state.isCarModeEnabled = false
             state.selectedTab = RootTab.chat.rawValue
+            return state
+        }
+
+        if hasUITestCarLiveFixture {
+            state.isConnected = true
+            state.isCarModeEnabled = true
+            state.selectedTab = RootTab.car.rawValue
             return state
         }
 
@@ -442,7 +458,7 @@ enum UITestFixtures {
                 projectID: "p1",
                 directory: "/tmp/car-history",
                 parentID: nil,
-                title: "Car Mode",
+                title: "Ambient Mode",
                 version: "1",
                 time: .init(created: 1, updated: 3, archived: nil),
                 share: nil,
