@@ -8,6 +8,21 @@ import Testing
 import VoiceFlowKit
 @testable import OpenCodeClient
 
+@MainActor
+private final class FakeChatSpeechMicrophone: ChatSpeechMicrophoneControlling {
+    private(set) var events: [String] = []
+    var stopResult: URL?
+
+    func stop() async throws -> URL? {
+        events.append("stop")
+        return stopResult
+    }
+
+    func discard() {
+        events.append("discard")
+    }
+}
+
 private actor SpeechSenderTestLatch {
     private var isOpen = false
     private var waiters: [CheckedContinuation<Void, Never>] = []
@@ -228,6 +243,63 @@ struct ChatComposerSpeechTests {
             sourceSessionID: "speech-source",
             currentSessionID: "speech-destination"
         ) == .cancelAndPreserve)
+    }
+
+    @Test @MainActor func idleChatBackgroundAndNavigationLeaveMicrophoneAlone() async {
+        let plan = ChatSpeechRouting.cleanupPlan(
+            isRecording: false,
+            isStartingRecording: false,
+            isTranscribing: false
+        )
+        let microphone = FakeChatSpeechMicrophone()
+
+        let audioURL = await ChatSpeechCaptureCleanup.releaseOwnedMicrophone(microphone, plan: plan)
+
+        #expect(audioURL == nil)
+        #expect(microphone.events.isEmpty)
+        #expect(!plan.releasesOwnedMicrophone)
+        #expect(!plan.preservesBackendCapture)
+    }
+
+    @Test @MainActor func activeComposerCleanupStopsCaptureAndPreservesIt() async {
+        let recording = ChatSpeechRouting.cleanupPlan(
+            isRecording: true,
+            isStartingRecording: false,
+            isTranscribing: false
+        )
+        let starting = ChatSpeechRouting.cleanupPlan(
+            isRecording: false,
+            isStartingRecording: true,
+            isTranscribing: false
+        )
+        #expect(recording.releasesOwnedMicrophone)
+        #expect(recording.preservesBackendCapture)
+        #expect(starting.releasesOwnedMicrophone)
+        #expect(starting.preservesBackendCapture)
+
+        let microphone = FakeChatSpeechMicrophone()
+        microphone.stopResult = URL(fileURLWithPath: "/tmp/owned-capture.wav")
+        let audioURL = await ChatSpeechCaptureCleanup.releaseOwnedMicrophone(microphone, plan: recording)
+
+        #expect(audioURL == microphone.stopResult)
+        #expect(microphone.events == ["stop", "discard"])
+    }
+
+    @Test @MainActor func transcriptionOnlyCleanupPreservesBackendWithoutDeactivatingHardware() async {
+        let plan = ChatSpeechRouting.cleanupPlan(
+            isRecording: false,
+            isStartingRecording: false,
+            isTranscribing: true
+        )
+        let microphone = FakeChatSpeechMicrophone()
+        microphone.stopResult = URL(fileURLWithPath: "/tmp/should-not-stop.wav")
+
+        let audioURL = await ChatSpeechCaptureCleanup.releaseOwnedMicrophone(microphone, plan: plan)
+
+        #expect(audioURL == nil)
+        #expect(microphone.events.isEmpty)
+        #expect(!plan.releasesOwnedMicrophone)
+        #expect(plan.preservesBackendCapture)
     }
 
     @Test @MainActor func completedSpeechWithoutSwitchStillTargetsCurrentComposer() {

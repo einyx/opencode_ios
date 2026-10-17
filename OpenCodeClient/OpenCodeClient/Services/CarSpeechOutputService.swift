@@ -13,6 +13,14 @@ nonisolated enum CarSpeechAudioPolicy {
     static let options: AVAudioSession.CategoryOptions = [.duckOthers]
 }
 
+nonisolated enum CarSpeechSessionOwnership {
+    /// Deactivate the shared session only after this service has started an utterance.
+    /// Idle `stop()` must leave another owner's session, such as Ambient capture, alone.
+    static func shouldDeactivateSharedSession(isSpeaking: Bool, hasPendingUtterance: Bool) -> Bool {
+        isSpeaking || hasPendingUtterance
+    }
+}
+
 @MainActor
 final class CarSpeechOutputService: NSObject, AVSpeechSynthesizerDelegate, CarSpeechOutputProviding {
     private let synthesizer = AVSpeechSynthesizer()
@@ -57,10 +65,14 @@ final class CarSpeechOutputService: NSObject, AVSpeechSynthesizerDelegate, CarSp
     }
 
     func stop() {
+        let ownsSharedSession = CarSpeechSessionOwnership.shouldDeactivateSharedSession(
+            isSpeaking: synthesizer.isSpeaking,
+            hasPendingUtterance: continuation != nil
+        )
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)
         }
-        finishCurrentUtterance()
+        finishCurrentUtterance(ownsSharedSession: ownsSharedSession)
     }
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
@@ -71,11 +83,16 @@ final class CarSpeechOutputService: NSObject, AVSpeechSynthesizerDelegate, CarSp
         Task { @MainActor [weak self] in self?.finishCurrentUtterance() }
     }
 
-    private func finishCurrentUtterance() {
+    private func finishCurrentUtterance(ownsSharedSession: Bool? = nil) {
+        let shouldDeactivate = ownsSharedSession ?? CarSpeechSessionOwnership.shouldDeactivateSharedSession(
+            isSpeaking: synthesizer.isSpeaking,
+            hasPendingUtterance: continuation != nil
+        )
         let pending = continuation
         continuation = nil
         pending?.resume()
         #if os(iOS)
+        guard shouldDeactivate else { return }
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         #endif
     }

@@ -47,6 +47,8 @@ final class SpeechPartialTranscriptBuffer: Sendable {
     }
 }
 
+extension VoiceFlowMicrophone: ChatSpeechMicrophoneControlling {}
+
 enum ChatSpeechOwner: Hashable {
     case session(String)
     case noSession
@@ -319,7 +321,11 @@ extension ChatTabView {
         let owner = ChatSpeechOwner(sessionID: originSessionID)
         let prefix = recordingInputPrefix
         let strategy = activeSpeechStrategy
-        let hadActiveCapture = isRecording || isStartingRecording || isTranscribing
+        let cleanupPlan = ChatSpeechRouting.cleanupPlan(
+            isRecording: isRecording,
+            isStartingRecording: isStartingRecording,
+            isTranscribing: isTranscribing
+        )
         speechStartID = nil
         speechFinalizationID = nil
         speechRetryID = nil
@@ -327,8 +333,7 @@ extension ChatTabView {
         stopSpeechHeartbeat()
         stopSpeechEventConsumer()
         stopSpeechAudioLevelConsumer()
-        let audioURL = try? await microphone.stop()
-        microphone.discard()
+        let audioURL = await ChatSpeechCaptureCleanup.releaseOwnedMicrophone(microphone, plan: cleanupPlan)
         await finishSpeechAudioSender()
 
         let session = speechSession
@@ -339,7 +344,7 @@ extension ChatTabView {
         isStartingRecording = false
         isRetryingSpeech = false
 
-        guard hadActiveCapture else {
+        guard cleanupPlan.preservesBackendCapture else {
             if let audioURL { try? FileManager.default.removeItem(at: audioURL) }
             return
         }
@@ -670,6 +675,11 @@ extension ChatTabView {
     func abortSpeechRecognition() async {
         let originSessionID = speechOriginSessionID
         let owner = ChatSpeechOwner(sessionID: originSessionID)
+        let cleanupPlan = ChatSpeechRouting.cleanupPlan(
+            isRecording: isRecording,
+            isStartingRecording: isStartingRecording,
+            isTranscribing: isTranscribing
+        )
         speechStartID = nil
         speechFinalizationID = nil
         speechRetryID = nil
@@ -677,8 +687,7 @@ extension ChatTabView {
         stopSpeechHeartbeat()
         stopSpeechEventConsumer()
         stopSpeechAudioLevelConsumer()
-        let audioURL = try? await microphone.stop()
-        microphone.discard()
+        let audioURL = await ChatSpeechCaptureCleanup.releaseOwnedMicrophone(microphone, plan: cleanupPlan)
         await finishSpeechAudioSender()
 
         let session = speechSession

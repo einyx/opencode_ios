@@ -4,16 +4,19 @@
 
 ## 当前状态
 
-### 下一轮：Ambient 后台 / 耳机 / 息屏语音（PR #216 已发布，未合并）
+### 当前轮：Ambient 后台 / 耳机 / 息屏语音（PR #216 已发布，未合并）
 
-PR #215 的最终 48pt UI 增量 review 为 PASS，无 blocker；按用户最新授权已合并，merge commit `f3b6485`。本轮分支 `feat/ambient-background-voice` 从合并后的 master 创建。当前手机仍是已部署的 48pt 前台版本，不把调研或新代码当成后台能力已上线。
+PR #215 的最终 48pt UI 增量 review 为 PASS，无 blocker；按用户授权已合并，merge commit `f3b6485`。本轮分支 `feat/ambient-background-voice` 从合并后的 master 创建。2026-10-17 已按用户授权原位部署后台版本，随后部署共享音频会话清理修复；后台实际收音与播放效果仍待用户复测，不能以安装成功代替真机行为验收。
 
 - [x] 复核 Apple playAndRecord / record 后台 audio 要求及 route-disconnect / interruption 行为；参考独立 App 的后台实现。
 - [x] 正式客户端适配：延续用户已开启且已启动采集的通话，保留必要 SSE/SSH；未通话时正常后台断开，后台结束后回收连接。
 - [x] 保留系统中断、耳机/USB/AirPlay/CarAudio 外部路由断开、显式结束、host/project/功能开关失效后的清理，不自动重开麦克风；更新现有麦克风用途说明。
 - [x] 独立 Cursor code/privacy 审查文件均已读回，结论 PASS。修复低项：await 前捕获 background epoch，晚到网络清理必须仍属于同一 epoch，不能断开替换连接。
 - [x] 最终 940 项单测（99 suites）正常通过；5 项 Ambient UI 在最后 epoch-only 修正前通过，签名 iPhone 构建已在修正后重查成功，产物 UIBackgroundModes 只有 audio。没有真机/耳机/息屏实测。
-- [x] 后台语音提交 `b2f79e6` 已发布为 [PR #216](https://github.com/grapeot/opencode_ios_client/pull/216)，保持未合并；未部署新后台版，等待用户设备测试安排。
+- [x] 后台语音提交 `b2f79e6` 已发布为 [PR #216](https://github.com/grapeot/opencode_ios_client/pull/216)，保持未合并；初次发布时未部署，2026-10-17 后续部署记录见下。
+- [x] 2026-10-17 修复空闲或仅在转写的 Chat 清理误调用麦克风 discard，以及空闲旧 TTS 清理误释放共享音频会话。新增回归覆盖真实清理辅助入口与所有权判断；未执行真实 SwiftUI scenePhase 或 AVAudioSession 设备断言，不宣称已证明用户报告的唯一原因。修复版已原位安装并启动。
+- [x] 按用户要求，由 Antigravity 整体重写为“项目经理 + 语音助理”的精简 prompt：定位会话后先读历史，按上下文派发；进度询问只查询；明确原文转发时保留原文；当前入口、用户及另一个会话的称呼分开，本地纠正不自动转告。继续工具不提供模型参数，异常模型依据实际可见元数据核查；已受理不等于完成，也不承诺未实现的主动通知。iPhone 前端 169、后端 1325 个 Unicode 字符；与 Android 共用核心，仅替换平台名。八工具及 required 参数未改。
+- [x] 新 prompt 与音频清理修复合并验证：945 项单测 / 99 suites 正常通过，签名 iPhone 构建通过。三类交互场景已做文案审核；未做付费模型行为评测。部署、测试及 prompt 对齐证据仅保存在 ignored 工件目录。
 - [ ] 新 PR 保持未合并，等待用户测试及后续指示。手机 WDA 自动化保持关闭。
 
 调研依据与范围记录在 ignored 的 `.occlient/live-integration/background-voice-next-plan.md`、`background-voice-apple-evidence.md`，实现交接及未验收边界后续追加。
