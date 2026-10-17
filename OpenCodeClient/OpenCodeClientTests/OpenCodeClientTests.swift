@@ -154,6 +154,28 @@ struct OpenCodeClientTests {
         #expect(!CarSpeechAudioPolicy.options.contains(.allowBluetoothHFP))
     }
 
+    @Test func idleLegacySpeechStopDoesNotDeactivateSharedSession() {
+        #expect(!CarSpeechSessionOwnership.shouldDeactivateSharedSession(
+            isSpeaking: false,
+            hasPendingUtterance: false
+        ))
+    }
+
+    @Test func ownedSpeechCleanupStillDeactivatesSharedSession() {
+        #expect(CarSpeechSessionOwnership.shouldDeactivateSharedSession(
+            isSpeaking: true,
+            hasPendingUtterance: false
+        ))
+        #expect(CarSpeechSessionOwnership.shouldDeactivateSharedSession(
+            isSpeaking: false,
+            hasPendingUtterance: true
+        ))
+        #expect(CarSpeechSessionOwnership.shouldDeactivateSharedSession(
+            isSpeaking: true,
+            hasPendingUtterance: true
+        ))
+    }
+
     @Test func rootTabOrderKeepsCarModeOnIPhoneAfterFiles() {
         #expect(RootTab.chat.rawValue == 0)
         #expect(RootTab.files.rawValue == 1)

@@ -67,6 +67,23 @@ struct CarLiveAudioTests {
         #expect(CarLiveAudioRoute.usesVoiceProcessing(portTypes: ["Speaker"]) == true)
         #expect(CarLiveAudioRoute.usesVoiceProcessing(portTypes: ["BuiltInReceiver"]) == true)
         #expect(CarLiveAudioRoute.usesVoiceProcessing(portTypes: []) == false)
+        #expect(CarLiveAudioRoute.isHeadset("USBAudio") == false)
+        #expect(CarLiveAudioRoute.isHeadset("AirPlay") == false)
+        #expect(CarLiveAudioRoute.isHeadset("CarAudio") == false)
+        #expect(CarLiveAudioRoute.usesVoiceProcessing(portTypes: ["USBAudio"]) == false)
+        #expect(CarLiveAudioRoute.usesVoiceProcessing(portTypes: ["AirPlay"]) == false)
+        #expect(CarLiveAudioRoute.usesVoiceProcessing(portTypes: ["CarAudio"]) == false)
+        #expect(CarLiveAudioRoute.usesVoiceProcessing(portTypes: ["Speaker", "USBAudio"]) == true)
+        #expect(CarLiveAudioRoute.isExternalOutputDisconnect("USBAudio"))
+        #expect(CarLiveAudioRoute.isExternalOutputDisconnect("AirPlay"))
+        #expect(CarLiveAudioRoute.isExternalOutputDisconnect("CarAudio"))
+        #expect(CarLiveAudioRoute.isExternalOutputDisconnect("Headphones"))
+        #expect(CarLiveAudioRoute.isExternalOutputDisconnect("Speaker") == false)
+        #expect(CarLiveAudioRoute.closesForExternalOutputDisconnect(oldDeviceUnavailable: true, previousPorts: ["USBAudio"]))
+        #expect(CarLiveAudioRoute.closesForExternalOutputDisconnect(oldDeviceUnavailable: true, previousPorts: ["AirPlay"]))
+        #expect(CarLiveAudioRoute.closesForExternalOutputDisconnect(oldDeviceUnavailable: true, previousPorts: ["CarAudio"]))
+        #expect(CarLiveAudioRoute.closesForExternalOutputDisconnect(oldDeviceUnavailable: true, previousPorts: ["BuiltInReceiver"]) == false)
+        #expect(CarLiveAudioRoute.closesForExternalOutputDisconnect(oldDeviceUnavailable: false, previousPorts: ["USBAudio", "BuiltInSpeaker"]) == false)
     }
 
     @Test func silenceFramesAreEvenZerosAndLevelIsTenHertz() {

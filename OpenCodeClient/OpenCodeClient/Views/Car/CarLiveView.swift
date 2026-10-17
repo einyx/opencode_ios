@@ -3,8 +3,10 @@ import SwiftUI
 struct CarLiveView: View {
     @Bindable var state: AppState
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var expandedToolIDs: Set<String> = []
-    @State private var detailsExpanded = false
+    @State private var detailsExpanded = CarLiveFixture.opensDetails
 
     private var snapshot: CarLiveSnapshot {
         if CarLiveFixture.isActive {
@@ -16,11 +18,16 @@ struct CarLiveView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                statusRail
-                transcript
-                details
-                controls
+            GeometryReader { proxy in
+                let viewport = detailsViewport(availableHeight: proxy.size.height)
+                VStack(spacing: 0) {
+                    statusRail
+                    transcript
+                    details(viewport: viewport)
+                        .layoutPriority(1)
+                    controls
+                        .layoutPriority(2)
+                }
             }
             .padding(.horizontal, DesignSpacing.lg)
             .padding(.bottom, DesignSpacing.lg)
@@ -106,7 +113,18 @@ struct CarLiveView: View {
         }
     }
 
-    private var details: some View {
+    /// Keeps a non-zero Details scroller when the conversation ScrollView and the
+    /// control tray compete for a short landscape or large-text height.
+    private func detailsViewport(availableHeight: CGFloat) -> CGFloat {
+        let compact = verticalSizeClass == .compact
+        let preferred: CGFloat = compact ? 112 : 240
+        let floor: CGFloat = 72
+        let reserved: CGFloat = compact ? 200 : 220
+        let room = availableHeight - reserved
+        return min(preferred, max(floor, room))
+    }
+
+    private func details(viewport: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: DesignSpacing.sm) {
             Button {
                 detailsExpanded.toggle()
@@ -130,7 +148,7 @@ struct CarLiveView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxHeight: 240)
+                .frame(minHeight: 72, idealHeight: viewport, maxHeight: viewport)
                 .accessibilityIdentifier("car-live-details-body")
             }
         }
@@ -226,53 +244,147 @@ struct CarLiveView: View {
         }
     }
 
+    private var detailsDynamicTypeSize: DynamicTypeSize {
+        if CarLiveFixture.usesAccessibilityText {
+            return .accessibility5
+        }
+        return dynamicTypeSize
+    }
+
     private var detailBody: some View {
-        Group {
-            detailRow(L10n.t(.carLiveInputLevel), String(format: "%.2f", snapshot.inputLevel), id: "car-live-input-level")
-            detailRow(L10n.t(.carLiveOutputLevel), String(format: "%.2f", snapshot.outputLevel), id: "car-live-output-level")
-            detailRow(L10n.t(.carLiveVoiceDuration), clock(snapshot.voiceSeconds), id: "car-live-voice-seconds")
-            detailRow(L10n.t(.carLiveSessionDuration), clock(Double(snapshot.elapsedSeconds)), id: "car-live-session-seconds")
-            detailRow(L10n.t(.carLiveInputUsage), "\(snapshot.inputTokens)", id: "car-live-input-usage")
-            detailRow(L10n.t(.carLiveOutputUsage), "\(snapshot.outputTokens)", id: "car-live-output-usage")
-            detailRow(L10n.t(.carLiveCacheRead), "\(snapshot.cachedRead)", id: "car-live-cache-read")
-            detailRow(L10n.t(.carLiveCacheWrite), "\(snapshot.cacheWrite)", id: "car-live-cache-write")
-            Text(L10n.t(.carLiveLocalCostEstimate, Self.money(snapshot.localEstimatedUSD)))
-                .font(.callout)
-                .accessibilityIdentifier("car-live-cost-local")
-            Text(CarLiveBackendUsage.estimateNote)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .accessibilityIdentifier("car-live-estimate-note")
-            Text(portalCostText)
-                .font(.callout)
-                .accessibilityIdentifier("car-live-cost-portal")
+        VStack(alignment: .leading, spacing: DesignSpacing.sm) {
+            detailMetrics
+            costSection
             if snapshot.usageUnconfirmed {
                 Text(L10n.t(.carLiveUsageUnconfirmed))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("car-live-usage-unconfirmed")
             }
         }
+        .dynamicTypeSize(detailsDynamicTypeSize)
     }
 
-    private func detailRow(_ title: String, _ value: String, id: String) -> some View {
-        HStack {
-            Text(title)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text(value)
-                .font(.system(.callout, design: .monospaced))
+    private var detailMetrics: some View {
+        let voice = CarLiveDetailsFormat.voiceDuration(
+            seconds: snapshot.voiceSeconds,
+            known: snapshot.voiceDurationKnown,
+            unconfirmed: snapshot.voiceDurationUnconfirmed
+        )
+        let session = CarLiveDetailsFormat.sessionDuration(seconds: snapshot.elapsedSeconds)
+        let ordinary = CarLiveDetailsFormat.tokens(snapshot.inputTokens)
+        let output = CarLiveDetailsFormat.tokens(snapshot.outputTokens)
+        let cacheRead = CarLiveDetailsFormat.tokens(snapshot.cachedRead)
+        let cacheWrite = CarLiveDetailsFormat.tokens(snapshot.cacheWrite)
+        let unconfirmed = L10n.t(.carLiveUsageUnconfirmed)
+        return CarLiveMetricGrid(
+            accessibilityText: detailsDynamicTypeSize.isAccessibilitySize,
+            spacing: DesignSpacing.sm
+        ) {
+            durationCell(L10n.t(.carLiveVoiceDuration), voice, fallback: unconfirmed, id: "car-live-voice-seconds")
+            durationCell(L10n.t(.carLiveSessionDuration), session, fallback: unconfirmed, id: "car-live-session-seconds")
+            tokenCell(L10n.t(.carLiveInputUsage), ordinary, id: "car-live-input-usage")
+            tokenCell(L10n.t(.carLiveOutputUsage), output, id: "car-live-output-usage")
+            tokenCell(L10n.t(.carLiveCacheRead), cacheRead, id: "car-live-cache-read")
+            tokenCell(L10n.t(.carLiveCacheWrite), cacheWrite, id: "car-live-cache-write")
+            metricCell(
+                L10n.t(.carLiveInputLevel),
+                value: CarLiveDetailsFormat.level(snapshot.inputLevel) ?? unconfirmed,
+                exact: CarLiveDetailsFormat.level(snapshot.inputLevel) ?? unconfirmed,
+                id: "car-live-input-level"
+            )
+            metricCell(
+                L10n.t(.carLiveOutputLevel),
+                value: CarLiveDetailsFormat.level(snapshot.outputLevel) ?? unconfirmed,
+                exact: CarLiveDetailsFormat.level(snapshot.outputLevel) ?? unconfirmed,
+                id: "car-live-output-level"
+            )
         }
-        .font(.callout)
+    }
+
+    private var costSection: some View {
+        let unconfirmed = L10n.t(.carLiveUsageUnconfirmed)
+        let local = CarLiveDetailsFormat.localCost(
+            usd: snapshot.localEstimatedUSD,
+            unpricedCount: snapshot.localUnpricedCount
+        )
+        let portal = CarLiveDetailsFormat.portalCost(
+            usd: snapshot.portalEstimatedUSD,
+            settled: snapshot.portalSettled
+        )
+        return VStack(alignment: .leading, spacing: DesignSpacing.xs) {
+            Text(L10n.t(.carLiveCostHeading))
+                .font(.caption.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("car-live-cost-heading")
+            costLine(
+                title: L10n.t(.carLiveLocalCostEstimate),
+                presentation: local,
+                unknown: unconfirmed,
+                id: "car-live-cost-local"
+            )
+            costLine(
+                title: L10n.t(.carLivePortalCostSnapshot),
+                presentation: portal,
+                unknown: L10n.t(.carLivePortalNoSnapshot),
+                id: "car-live-cost-portal"
+            )
+            Text(L10n.t(.carLiveCostExplanation))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("car-live-estimate-note")
+        }
+    }
+
+    private func durationCell(
+        _ title: String,
+        _ presentation: CarLiveDetailsFormat.DurationPresentation,
+        fallback: String,
+        id: String
+    ) -> some View {
+        let shown: String
+        switch presentation {
+        case .unknown:
+            shown = fallback
+        case .clock(let text, let unconfirmed):
+            shown = unconfirmed ? "\(text) \(fallback)" : text
+        }
+        return metricCell(title, value: shown, exact: shown, id: id)
+    }
+
+    private func tokenCell(_ title: String, _ token: CarLiveDetailsFormat.TokenText, id: String) -> some View {
+        metricCell(title, value: token.display, exact: token.exactAccessibility, id: id)
+    }
+
+    private func metricCell(_ title: String, value: String, exact: String, id: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(value)
+                .font(.system(.body, design: .monospaced))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier(id)
+        .accessibilityValue(exact)
     }
 
-    private var portalCostText: String {
-        guard let portal = snapshot.portalEstimatedUSD else {
-            return L10n.t(.carLivePortalNoSnapshot)
-        }
-        return L10n.t(.carLivePortalCostSnapshot, Self.money(portal))
+    private func costLine(
+        title: String,
+        presentation: CarLiveDetailsFormat.CostPresentation,
+        unknown: String,
+        id: String
+    ) -> some View {
+        Text("\(title)\n\(presentation.valueText(unknown: unknown, unconfirmedLabel: L10n.t(.carLiveUsageUnconfirmed)))")
+            .font(.callout)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier(id)
     }
 
     private var statusText: String {
@@ -523,15 +635,6 @@ struct CarLiveView: View {
         }
     }
 
-    private func clock(_ seconds: Double) -> String {
-        let total = max(0, Int(seconds.rounded(.down)))
-        return String(format: "%d:%02d", total / 60, total % 60)
-    }
-
-    private static func money(_ value: Double) -> String {
-        String(format: "$%.3f", locale: Locale(identifier: "en_US_POSIX"), value)
-    }
-
     private func toggleMute() {
         if CarLiveFixture.isActive {
             mutateFixture { $0.isMuted.toggle() }
@@ -595,6 +698,10 @@ extension CarLiveSnapshot {
         localEstimatedUSD = controller.backendUsage.estimatedUSD
         portalEstimatedUSD = controller.portalEstimatedUSD
         usageUnconfirmed = controller.usageUnconfirmed
+        voiceDurationKnown = controller.voiceDurationKnown
+        voiceDurationUnconfirmed = controller.voiceDurationUnconfirmed
+        localUnpricedCount = controller.backendUsage.unpricedCount
+        portalSettled = controller.portalUsageSettled
         errorMessage = controller.errorMessage
         isMuted = controller.isMuted
     }
@@ -668,5 +775,62 @@ private struct CarLiveSelectionTrait: ViewModifier {
         } else {
             content.accessibilityRemoveTraits(.isSelected)
         }
+    }
+}
+
+private struct CarLiveMetricGrid: Layout {
+    var accessibilityText: Bool
+    var spacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        measure(width: proposal.width ?? 360, subviews: subviews).size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let plan = measure(width: bounds.width, subviews: subviews)
+        for (index, subview) in subviews.enumerated() where index < plan.frames.count {
+            let frame = plan.frames[index]
+            subview.place(
+                at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+                anchor: .topLeading,
+                proposal: ProposedViewSize(width: frame.width, height: nil)
+            )
+        }
+    }
+
+    private func measure(width: CGFloat, subviews: Subviews) -> Plan {
+        let columns = max(
+            1,
+            CarLiveDetailsFormat.metricColumnCount(containerWidth: width, accessibilityText: accessibilityText)
+        )
+        let columnWidth = max(0, (width - spacing * CGFloat(columns - 1)) / CGFloat(columns))
+        var frames: [CGRect] = []
+        var y: CGFloat = 0
+        var index = 0
+        while index < subviews.count {
+            let end = min(index + columns, subviews.count)
+            var rowHeight: CGFloat = 0
+            var sizes: [CGSize] = []
+            for item in index..<end {
+                let size = subviews[item].sizeThatFits(ProposedViewSize(width: columnWidth, height: nil))
+                sizes.append(size)
+                rowHeight = max(rowHeight, size.height)
+            }
+            for column in 0..<(end - index) {
+                let x = CGFloat(column) * (columnWidth + spacing)
+                frames.append(CGRect(x: x, y: y, width: columnWidth, height: sizes[column].height))
+            }
+            y += rowHeight
+            index = end
+            if index < subviews.count {
+                y += spacing
+            }
+        }
+        return Plan(frames: frames, size: CGSize(width: width, height: y))
+    }
+
+    private struct Plan {
+        var frames: [CGRect]
+        var size: CGSize
     }
 }

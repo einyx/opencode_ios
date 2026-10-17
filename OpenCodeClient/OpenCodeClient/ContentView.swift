@@ -22,6 +22,7 @@ enum SettingsFocus: Equatable {
 struct ContentView: View {
     @State private var state: AppState
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.scenePhase) private var scenePhase
     @State private var showSettingsSheet = false
     @State private var showTabletSettings = false
     @State private var selectedTab = 0
@@ -198,34 +199,7 @@ struct ContentView: View {
         if UITestFixtures.shouldSkipConnectionRestore {
             return
         }
-
-        #if !os(visionOS)
-        if state.sshTunnelManager.config.isEnabled,
-           state.sshTunnelManager.status != .connected {
-            await state.sshTunnelManager.connect()
-        }
-        #endif
-
-        await state.refresh()
-
-        // iOS suspend/restore can leave SSH state stale (status still connected but
-        // actual tunnel already dropped). If refresh still cannot reach server through
-        // localhost after an enabled SSH config, force a tunnel re-establish once.
-        #if !os(visionOS)
-        if state.sshTunnelManager.config.isEnabled, !state.isConnected {
-            state.sshTunnelManager.disconnect()
-            await state.sshTunnelManager.connect()
-            await state.refresh()
-        }
-        #endif
-
-        if state.isConnected {
-            state.connectSSE()
-            await state.processPendingDeepLinkIfPossible()
-            await state.retryClientCapabilityOutbox()
-        } else {
-            state.disconnectSSE()
-        }
+        await state.restoreConnectionsAfterForeground()
     }
 
     private static var webPreviewFixtureColorScheme: ColorScheme {
@@ -366,6 +340,18 @@ struct ContentView: View {
             await restoreConnectionFlow()
             await state.processPendingDeepLinkIfPossible()
         }
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .active:
+                state.handleApplicationScene(.active)
+            case .inactive:
+                state.handleApplicationScene(.inactive)
+            case .background:
+                state.handleApplicationScene(.background)
+            @unknown default:
+                state.handleApplicationScene(.other)
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             Task {
                 await restoreConnectionFlow()
@@ -373,14 +359,7 @@ struct ContentView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
-            state.invalidateDeepLinkRoute(keepPending: true)
-            state.isConnected = false
-            state.disconnectSSE()
-            #if !os(visionOS)
-            if state.sshTunnelManager.config.isEnabled {
-                state.sshTunnelManager.disconnect()
-            }
-            #endif
+            state.handleApplicationScene(.background)
         }
         .onOpenURL { url in
             state.receiveDeepLink(url)

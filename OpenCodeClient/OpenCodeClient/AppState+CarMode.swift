@@ -260,6 +260,7 @@ extension AppState {
     }
 
     func invalidateCarTurnForRealProjectChange() {
+        invalidateBackgroundVoicePolicy()
         closeCarLiveNow()
         guard carActiveTurnID != nil
             || carPhase == .waitingReply

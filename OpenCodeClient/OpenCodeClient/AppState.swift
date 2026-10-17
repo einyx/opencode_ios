@@ -1132,6 +1132,13 @@ final class AppState {
     var carLivePoll: Task<Void, Never>?
     var carLiveConnectTask: Task<Void, Never>?
     var carLiveConnectRun: CarLiveConnectRun?
+    var backgroundVoiceScene: BackgroundVoiceSceneKind = .active
+    var backgroundVoiceEpoch: UInt64 = 0
+    var holdingBackgroundVoice = false
+    var skipForegroundConnectionRestore = false
+    var foregroundHoldRestoreConsumed = false
+    var backgroundCleanupApplied = false
+    var applyingBackgroundCleanup = false
     var carLiveBeforeLease: (@MainActor () async -> Void)?
     var carLiveBindingsByContext: [String: CarLiveBinding] = [:]
     var carLiveAnnouncedMessageIDs: Set<String> = []

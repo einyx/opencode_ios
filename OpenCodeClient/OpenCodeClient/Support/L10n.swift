@@ -341,6 +341,8 @@ enum L10n {
         case carLiveLocalCostEstimate
         case carLivePortalCostSnapshot
         case carLivePortalNoSnapshot
+        case carLiveCostHeading
+        case carLiveCostExplanation
         case carLiveConnectFailedError
         case carLiveToolRunning
         case carLiveToolSent
@@ -835,13 +837,15 @@ enum L10n {
         Key.carLiveOutputLevel.rawValue: "Output Level",
         Key.carLiveVoiceDuration.rawValue: "Voice Duration",
         Key.carLiveSessionDuration.rawValue: "Session Duration",
-        Key.carLiveInputUsage.rawValue: "Input Usage",
+        Key.carLiveInputUsage.rawValue: "Ordinary Input",
         Key.carLiveOutputUsage.rawValue: "Output Usage",
         Key.carLiveCacheRead.rawValue: "Cache Read",
         Key.carLiveCacheWrite.rawValue: "Cache Write",
-        Key.carLiveLocalCostEstimate.rawValue: "Local: Estimated %@",
-        Key.carLivePortalCostSnapshot.rawValue: "Portal Snapshot: Estimated %@",
+        Key.carLiveLocalCostEstimate.rawValue: "Reasoning Reference Estimate (Luna)",
+        Key.carLivePortalCostSnapshot.rawValue: "Platform Session Estimate (Voice + Reasoning)",
         Key.carLivePortalNoSnapshot.rawValue: "No portal snapshot",
+        Key.carLiveCostHeading.rawValue: "Cost Reference (USD)",
+        Key.carLiveCostExplanation.rawValue: "Both figures are reference estimates only, not a final bill; the platform estimate already includes reasoning, so do not add them together. The Luna estimate covers hosted reasoning tokens only and excludes voice and delegated worker execution.",
         Key.carLiveConnectFailedError.rawValue: "Connection failed. Tap Reconnect.",
         Key.carLiveToolRunning.rawValue: "Running",
         Key.carLiveToolSent.rawValue: "Sent",
@@ -1334,13 +1338,15 @@ enum L10n {
         Key.carLiveOutputLevel.rawValue: "输出电平",
         Key.carLiveVoiceDuration.rawValue: "语音时长",
         Key.carLiveSessionDuration.rawValue: "会话时长",
-        Key.carLiveInputUsage.rawValue: "输入量",
+        Key.carLiveInputUsage.rawValue: "普通输入",
         Key.carLiveOutputUsage.rawValue: "输出量",
         Key.carLiveCacheRead.rawValue: "缓存读取",
         Key.carLiveCacheWrite.rawValue: "缓存写入",
-        Key.carLiveLocalCostEstimate.rawValue: "本地估计 %@",
-        Key.carLivePortalCostSnapshot.rawValue: "门户快照：估计 %@",
+        Key.carLiveLocalCostEstimate.rawValue: "推理参考估算（Luna）",
+        Key.carLivePortalCostSnapshot.rawValue: "平台会话估算（语音＋推理）",
         Key.carLivePortalNoSnapshot.rawValue: "门户暂无快照",
+        Key.carLiveCostHeading.rawValue: "费用参考（USD）",
+        Key.carLiveCostExplanation.rawValue: "两项均为非账单参考值，平台估算已包含当前会话的推理部分，请勿相加。Luna 估算仅统计云端推理 token，不含语音时长及委派任务开销。",
         Key.carLiveConnectFailedError.rawValue: "连接失败，点重新连接",
         Key.carLiveToolRunning.rawValue: "执行中",
         Key.carLiveToolSent.rawValue: "已发送",

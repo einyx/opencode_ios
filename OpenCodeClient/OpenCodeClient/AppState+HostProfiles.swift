@@ -294,6 +294,7 @@ extension AppState {
 
     func beginHostTransportTransition(to id: UUID) {
         guard hostProfiles.contains(where: { $0.id == id }) else { return }
+        invalidateBackgroundVoicePolicy()
         closeCarLiveNow()
         markCurrentSessionViewed()
         invalidateLocalCarTurn()

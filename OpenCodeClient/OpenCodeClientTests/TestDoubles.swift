@@ -335,7 +335,10 @@ actor MockAPIClient: APIClientProtocol {
         configuredPassword = password
     }
 
+    var healthCallCount = 0
+
     func health() async throws -> HealthResponse {
+        healthCallCount += 1
         if let healthError { throw healthError }
         return healthResult
     }
