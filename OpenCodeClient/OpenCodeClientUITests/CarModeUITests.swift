@@ -8,7 +8,7 @@ final class CarModeUITests: XCTestCase {
     }
 
     @MainActor
-    func testCarModeFixtureShowsDrivingSurface() throws {
+    func testCarModeFixtureShowsLiveSurface() throws {
         guard UIDevice.current.userInterfaceIdiom == .phone else {
             throw XCTSkip("Car Mode is iPhone-only")
         }
@@ -16,15 +16,31 @@ final class CarModeUITests: XCTestCase {
         app.launchArguments = ["UITEST_CAR_MODE_FIXTURE"]
         app.launch()
 
-        XCTAssertTrue(app.otherElements["car-mode-root"].waitForExistence(timeout: 8))
-        XCTAssertTrue(app.staticTexts["car-last-response"].exists)
-        XCTAssertTrue(app.buttons["car-primary-action"].exists)
-        XCTAssertTrue(app.buttons["car-new-session"].exists)
+        XCTAssertTrue(app.otherElements["car-live-root"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["car-live-connect"].exists)
+        XCTAssertFalse(app.otherElements["car-mode-root"].exists)
+        XCTAssertFalse(app.buttons["car-primary-action"].exists)
+        assertRemovedVoiceEntries(app)
 
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = "car-mode-fixture"
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    @MainActor
+    func testStoredTurnByTurnStillShowsLive() throws {
+        guard UIDevice.current.userInterfaceIdiom == .phone else {
+            throw XCTSkip("Car Mode is iPhone-only")
+        }
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST_CAR_MODE_FIXTURE", "UITEST_CAR_STORED_TURN_BY_TURN"]
+        app.launch()
+
+        XCTAssertTrue(app.otherElements["car-live-root"].waitForExistence(timeout: 8))
+        XCTAssertFalse(app.otherElements["car-mode-root"].exists)
+        XCTAssertFalse(app.buttons["car-primary-action"].exists)
+        assertRemovedVoiceEntries(app)
     }
 
     @MainActor
@@ -80,6 +96,7 @@ final class CarModeUITests: XCTestCase {
 
         XCTAssertTrue(app.otherElements["ipad-workspace-layout"].waitForExistence(timeout: 8))
         XCTAssertFalse(app.otherElements["car-mode-root"].exists)
+        XCTAssertFalse(app.otherElements["car-live-root"].exists)
         app.buttons["ipad-settings-button"].tap()
         XCTAssertFalse(app.switches["settings-car-mode-toggle"].exists)
     }
@@ -120,5 +137,14 @@ final class CarModeUITests: XCTestCase {
 
         app.buttons["capability-cancel"].tap()
         XCTAssertFalse(app.buttons["capability-allow-once"].waitForExistence(timeout: 1))
+    }
+
+    @MainActor
+    private func assertRemovedVoiceEntries(_ app: XCUIApplication) {
+        for identifier in ["car-voice-mode-menu", "car-new-session", "car-live-new-session"] {
+            let button = app.buttons[identifier]
+            XCTAssertFalse(button.exists)
+            XCTAssertFalse(button.isHittable)
+        }
     }
 }

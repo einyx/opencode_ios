@@ -270,7 +270,7 @@ final class AppState {
         applyCurrentHostProfileToRuntime(persistLegacy: false)
 
         _aiBuilderBaseURL = defaults.string(forKey: Self.aiBuilderBaseURLKey) ?? "https://space.ai-builders.com/backend"
-        _aiBuilderToken = (try? KeychainHelper.load(forKey: Self.aiBuilderTokenKeychainKey)) ?? ""
+        _aiBuilderToken = (try? hostCredentialAccess.load(Self.aiBuilderTokenKeychainKey)) ?? ""
         _aiBuilderCustomPrompt = defaults.string(forKey: Self.aiBuilderCustomPromptKey) ?? Self.defaultAIBuilderCustomPrompt
         _aiBuilderTerminology = defaults.string(forKey: Self.aiBuilderTerminologyKey) ?? Self.defaultAIBuilderTerminology
         _aiBuilderRecordingStrategy = VoiceFlowRecordingStrategy(
@@ -379,9 +379,9 @@ final class AppState {
         set {
             _aiBuilderToken = newValue
             if newValue.isEmpty {
-                try? KeychainHelper.delete(Self.aiBuilderTokenKeychainKey)
+                try? hostCredentialAccess.delete(Self.aiBuilderTokenKeychainKey)
             } else {
-                try? KeychainHelper.save(newValue, forKey: Self.aiBuilderTokenKeychainKey)
+                try? hostCredentialAccess.save(newValue, Self.aiBuilderTokenKeychainKey)
             }
             aiBuilderConnectionOK = false
             aiBuilderConnectionError = nil
@@ -444,7 +444,11 @@ final class AppState {
     var aiUsageQuotaTestOK = false
     var aiUsageQuotaError: String?
     var isCarModeEnabled = false {
-        didSet { defaults.set(isCarModeEnabled, forKey: Self.carModeEnabledKey) }
+        didSet {
+            defaults.set(isCarModeEnabled, forKey: Self.carModeEnabledKey)
+            guard oldValue, !isCarModeEnabled else { return }
+            closeCarLiveNow()
+        }
     }
     var layoutPreference: LayoutPreference = .automatic {
         didSet { defaults.set(layoutPreference.rawValue, forKey: Self.layoutPreferenceKey) }
@@ -1126,6 +1130,9 @@ final class AppState {
     var carLiveEpoch: UInt64 = 0
     var carLiveLease: CarLiveLease?
     var carLivePoll: Task<Void, Never>?
+    var carLiveConnectTask: Task<Void, Never>?
+    var carLiveConnectRun: CarLiveConnectRun?
+    var carLiveBeforeLease: (@MainActor () async -> Void)?
     var carLiveBindingsByContext: [String: CarLiveBinding] = [:]
     var carLiveAnnouncedMessageIDs: Set<String> = []
     var carPhase: CarModePhase = .idle

@@ -320,6 +320,46 @@ final class CarLiveUITests: XCTestCase {
     }
 
     @MainActor
+    func testSwitchingTabsKeepsMutedCaptions() throws {
+        let app = try launchPhone()
+        let mute = app.buttons["car-live-mute"]
+        XCTAssertTrue(mute.waitForExistence(timeout: 8))
+        mute.tap()
+        let muted = app.buttons["car-live-mute"]
+        let selected = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "isSelected == true AND value == 'muted'"),
+            object: muted
+        )
+        XCTAssertEqual(XCTWaiter().wait(for: [selected], timeout: 4), .completed)
+        let caption = app.staticTexts["car-live-caption-assistant-reply"]
+        XCTAssertTrue(caption.waitForExistence(timeout: 4))
+        for identifier in ["car-voice-mode-menu", "car-new-session", "car-live-new-session"] {
+            let button = app.buttons[identifier]
+            XCTAssertFalse(button.exists)
+            XCTAssertFalse(button.isHittable)
+        }
+
+        let chat = app.tabBars.buttons["Chat"]
+        chat.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["chat-input"].waitForExistence(timeout: 8))
+        let files = app.tabBars.buttons["Files"]
+        files.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["file-tree"].waitForExistence(timeout: 8))
+        let settings = app.tabBars.buttons["Settings"]
+        settings.tap()
+        XCTAssertTrue(app.buttons["settings-current-host"].waitForExistence(timeout: 8))
+        app.tabBars.buttons["Ambient Mode"].tap()
+
+        XCTAssertTrue(app.otherElements["car-live-root"].waitForExistence(timeout: 8))
+        let returned = app.buttons["car-live-mute"]
+        XCTAssertTrue(returned.waitForExistence(timeout: 4))
+        XCTAssertEqual(returned.value as? String, "muted")
+        XCTAssertTrue(returned.isSelected)
+        XCTAssertTrue(app.staticTexts["car-live-caption-assistant-reply"].exists)
+        XCTAssertTrue(app.staticTexts["car-live-caption-user-early"].exists)
+    }
+
+    @MainActor
     private func launchPhone() throws -> XCUIApplication {
         guard UIDevice.current.userInterfaceIdiom == .phone else {
             throw XCTSkip("Car Mode is iPhone-only")

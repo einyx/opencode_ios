@@ -2,19 +2,13 @@ import SwiftUI
 
 struct CarLiveView: View {
     @Bindable var state: AppState
-    @AppStorage(CarVoiceMode.storageKey) private var carVoiceModeRaw = CarVoiceMode.hostedLive
-    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) private var colorScheme
-    @State private var fixture = CarLiveFixture.connectedSnapshot()
     @State private var expandedToolIDs: Set<String> = []
     @State private var detailsExpanded = false
-    @State private var showNewSessionConfirmation = false
-    @State private var connectTask: Task<Void, Never>?
-    @State private var stopTask: Task<Void, Never>?
 
     private var snapshot: CarLiveSnapshot {
         if CarLiveFixture.isActive {
-            return fixture
+            return CarLiveFixtureSession.shared.snapshot
         }
         guard let live = state.carLive else { return .disconnected }
         return CarLiveSnapshot(controller: live)
@@ -33,42 +27,22 @@ struct CarLiveView: View {
             .navigationTitle(L10n.t(.carTitle))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
-            .confirmationDialog(L10n.t(.carNewSessionPrompt), isPresented: $showNewSessionConfirmation) {
-                Button(L10n.t(.carNewSession), role: .destructive) {
-                    Task { await confirmNewSession() }
-                }
-                Button(L10n.t(.commonCancel), role: .cancel) {}
-            }
         }
         .accessibilityIdentifier("car-live-root")
-        .onChange(of: scenePhase) { _, phase in
-            guard phase == .background else { return }
-            guard CarLiveScenePolicy.shouldRelinquish(Self.scenePolicyPhase(phase)) else { return }
-            relinquishLive()
+        .onAppear {
+            state.noteCarLivePageShown()
         }
         .onDisappear {
-            relinquishLive()
+            state.noteCarLivePageHidden()
         }
     }
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            modeMenu
-        }
-        ToolbarItem(placement: .topBarTrailing) {
-            Button {
-                showNewSessionConfirmation = true
-            } label: {
-                Image(systemName: "plus.message")
-            }
-            .accessibilityLabel(L10n.t(.carNewSession))
-            .accessibilityIdentifier("car-live-new-session")
-        }
         if showsFixtureUpdate {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    fixture.updateToolResult()
+                    mutateFixture { $0.updateToolResult() }
                 } label: {
                     Image(systemName: "plus.circle")
                 }
@@ -83,19 +57,6 @@ struct CarLiveView: View {
         #else
         false
         #endif
-    }
-
-    private var modeMenu: some View {
-        Menu {
-            Button(L10n.t(.carLiveModeRealtime)) {}
-            Button(L10n.t(.carLiveModeTurnByTurn)) {
-                Task { await switchToTurnByTurn() }
-            }
-        } label: {
-            Image(systemName: "ellipsis.circle")
-        }
-        .accessibilityLabel(L10n.t(.carLiveModeMenuTitle))
-        .accessibilityIdentifier("car-voice-mode-menu")
     }
 
     private var statusRail: some View {
@@ -531,7 +492,7 @@ struct CarLiveView: View {
 
     private func toggleMute() {
         if CarLiveFixture.isActive {
-            fixture.isMuted.toggle()
+            mutateFixture { $0.isMuted.toggle() }
             return
         }
         guard let live = state.carLive else { return }
@@ -545,73 +506,32 @@ struct CarLiveView: View {
 
     private func connect() {
         if CarLiveFixture.isActive {
-            fixture.phase = .listening
-            fixture.errorMessage = nil
+            mutateFixture {
+                $0.phase = .listening
+                $0.errorMessage = nil
+            }
             return
         }
-        connectTask?.cancel()
-        connectTask = Task { @MainActor in
-            guard !Task.isCancelled else { return }
-            state.prepareCarLive()
-            guard !Task.isCancelled else { return }
-            await state.startCarLive()
-        }
+        state.beginCarLiveConnect()
     }
 
     private func endVoice() async {
         if CarLiveFixture.isActive {
-            fixture.phase = .idle
-            fixture.inputLevel = 0
-            fixture.outputLevel = 0
-            fixture.isMuted = false
+            mutateFixture {
+                $0.phase = .idle
+                $0.inputLevel = 0
+                $0.outputLevel = 0
+                $0.isMuted = false
+            }
             return
         }
-        connectTask?.cancel()
-        connectTask = nil
         await state.stopCarLive()
     }
 
-    private func confirmNewSession() async {
-        if CarLiveFixture.isActive {
-            fixture.captions = []
-            fixture.activities = []
-            fixture.errorMessage = nil
-            return
-        }
-        await state.resetCarLiveSession()
-    }
-
-    private func switchToTurnByTurn() async {
-        connectTask?.cancel()
-        connectTask = nil
-        if !CarLiveFixture.isActive {
-            await state.stopCarLive()
-        }
-        carVoiceModeRaw = CarVoiceMode.turnByTurn
-    }
-
-    private static func scenePolicyPhase(_ phase: ScenePhase) -> CarLiveScenePolicy.Phase {
-        switch phase {
-        case .background:
-            return .background
-        case .inactive:
-            return .inactive
-        case .active:
-            return .active
-        @unknown default:
-            return .active
-        }
-    }
-
-    private func relinquishLive() {
-        guard !CarLiveFixture.isActive else { return }
-        connectTask?.cancel()
-        connectTask = nil
-        guard stopTask == nil else { return }
-        stopTask = Task { @MainActor in
-            await state.stopCarLive()
-            stopTask = nil
-        }
+    private func mutateFixture(_ change: (inout CarLiveSnapshot) -> Void) {
+        var next = CarLiveFixtureSession.shared.snapshot
+        change(&next)
+        CarLiveFixtureSession.shared.snapshot = next
     }
 
     private static let bottomID = "car-live-bottom"

@@ -107,8 +107,12 @@ struct HostProfileTests {
         #expect(rebuilt.sshTunnelManager.config.isEnabled == false)
         #expect(recorder.saves.isEmpty)
         #expect(recorder.deletes.isEmpty)
-        #expect(!recorder.loads.isEmpty)
-        #expect(recorder.loads.allSatisfy { $0 == AppState.passwordKeychainKey })
+        #expect(recorder.loads == [
+            AppState.passwordKeychainKey,
+            AppState.aiBuilderTokenKeychainKey,
+            AppState.passwordKeychainKey,
+            AppState.aiBuilderTokenKeychainKey,
+        ])
 
         #expect(UserDefaults.standard.data(forKey: "sshTunnelConfig") == enabledData)
         #expect(UserDefaults.standard.data(forKey: AppState.hostProfilesKey) == profilesBefore)

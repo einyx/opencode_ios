@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 enum CarVoiceMode {
     static let storageKey = "carVoiceMode.v1"
@@ -137,6 +138,15 @@ struct CarLiveSnapshot: Equatable {
         guard let index = activities.firstIndex(where: { $0.id == "echo" }) else { return }
         activities[index].result = "FIXTURE_TOOL_UPDATE_SENTINEL"
     }
+}
+
+@MainActor
+@Observable
+final class CarLiveFixtureSession {
+    static let shared = CarLiveFixtureSession()
+    var snapshot = CarLiveFixture.connectedSnapshot()
+
+    private init() {}
 }
 
 enum CarLiveFixture {

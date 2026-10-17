@@ -1,5 +1,10 @@
 import Foundation
 
+struct CarLiveConnectRun: Equatable {
+    var id: UUID
+    var epoch: UInt64
+}
+
 extension AppState {
     func prepareCarLive() {
         if carLive == nil {
@@ -13,8 +18,32 @@ extension AppState {
         }
     }
 
+    func beginCarLiveConnect() {
+        cancelCarLiveConnect()
+        carLiveEpoch &+= 1
+        let run = CarLiveConnectRun(id: UUID(), epoch: carLiveEpoch)
+        carLiveConnectRun = run
+        carLiveConnectTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            guard self.ownsCarLiveConnect(run), !Task.isCancelled else { return }
+            self.prepareCarLive()
+            guard self.ownsCarLiveConnect(run), !Task.isCancelled else { return }
+            await self.startCarLive(connectRun: run)
+        }
+    }
+
+    func noteCarLivePageHidden() {}
+
+    func noteCarLivePageShown() {}
+
     func startCarLive() async {
+        await startCarLive(connectRun: nil)
+    }
+
+    private func startCarLive(connectRun: CarLiveConnectRun?) async {
         prepareCarLive()
+        if let connectRun, !ownsCarLiveConnect(connectRun) { return }
+        guard !Task.isCancelled else { return }
         guard isConnected else {
             rejectCarLiveStart(L10n.t(.carNotConnected))
             return
@@ -35,33 +64,51 @@ extension AppState {
             return
         }
         let transportToken = await apiClient.armLiveTransport()
+        if let connectRun, !ownsCarLiveConnect(connectRun) || Task.isCancelled {
+            await apiClient.retireLiveTransport(token: transportToken)
+            return
+        }
+        guard !Task.isCancelled else {
+            await apiClient.retireLiveTransport(token: transportToken)
+            return
+        }
         guard isConnected, isCurrentHostRequest(host), carLiveContextMatches(contextKey) else {
             await apiClient.retireLiveTransport(token: transportToken)
             rejectCarLiveStart(L10n.t(.carNotConnected))
             return
         }
+        if let pause = carLiveBeforeLease {
+            await pause()
+        }
+        if let connectRun, !ownsCarLiveConnect(connectRun) || Task.isCancelled {
+            await apiClient.retireLiveTransport(token: transportToken)
+            return
+        }
         carLive?.errorMessage = nil
-        carLiveEpoch &+= 1
+        let epoch: UInt64
+        if let connectRun {
+            epoch = connectRun.epoch
+        } else {
+            carLiveEpoch &+= 1
+            epoch = carLiveEpoch
+        }
         let ownerToken = UUID().uuidString
         let lease = CarLiveLease(
             hostID: currentHostProfileID,
             generation: hostRequestGeneration,
             contextKey: contextKey,
-            epoch: carLiveEpoch,
+            epoch: epoch,
             ownerToken: ownerToken,
             transportToken: transportToken
         )
         carLiveLease = lease
         let configuration = carLiveConfiguration(portal: portal, token: token, ownerToken: ownerToken)
         await carLive?.start(configuration: configuration)
-        guard CarLiveRunOwner.shouldClose(current: carLiveLease, owned: lease) else { return }
-        guard carLiveAllows(lease) else {
-            closeCarLiveNow()
-            return
-        }
+        finishCarLiveStart(connectRun: connectRun, lease: lease)
     }
 
     func stopCarLive() async {
+        cancelCarLiveConnect()
         let transportToken = carLiveLease?.transportToken ?? 0
         let controller = carLive
         releaseCarLiveLease()
@@ -80,6 +127,7 @@ extension AppState {
     }
 
     func closeCarLiveNow() {
+        cancelCarLiveConnect()
         let transportToken = carLiveLease?.transportToken ?? 0
         let controller = carLive
         let client = apiClient
@@ -97,6 +145,31 @@ extension AppState {
             await apiClient.retireLiveTransport(token: token)
         }
         await controller?.stop()
+    }
+
+    private func ownsCarLiveConnect(_ run: CarLiveConnectRun) -> Bool {
+        carLiveConnectRun == run && carLiveEpoch == run.epoch
+    }
+
+    private func finishCarLiveStart(connectRun: CarLiveConnectRun?, lease: CarLiveLease) {
+        if let connectRun, !ownsCarLiveConnect(connectRun) {
+            return
+        }
+        guard let current = carLiveLease else { return }
+        if current.hostID == lease.hostID, current.contextKey == lease.contextKey, current != lease {
+            return
+        }
+        guard CarLiveRunOwner.shouldClose(current: current, owned: lease) else { return }
+        guard carLiveAllows(lease) else {
+            closeCarLiveNow()
+            return
+        }
+    }
+
+    private func cancelCarLiveConnect() {
+        carLiveConnectTask?.cancel()
+        carLiveConnectTask = nil
+        carLiveConnectRun = nil
     }
 
     private func releaseCarLiveLease() {

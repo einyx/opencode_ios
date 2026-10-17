@@ -188,6 +188,9 @@ enum UITestFixtures {
     }
 
     static func makeInitialState() -> AppState {
+        if ProcessInfo.processInfo.arguments.contains("UITEST_CAR_STORED_TURN_BY_TURN") {
+            UserDefaults.standard.set(CarVoiceMode.turnByTurn, forKey: CarVoiceMode.storageKey)
+        }
         if isUITestLaunch {
             L10n.useEphemeralLanguage(.en)
         }
@@ -286,14 +289,6 @@ enum UITestFixtures {
             state.isConnected = true
             state.isCarModeEnabled = true
             state.selectedTab = RootTab.car.rawValue
-            state.carLastTranscript = "Navigate to Space Needle and avoid the traffic on I-5."
-            state.carLastResponse = CarResponseEnvelope(
-                version: 1,
-                status: .completed,
-                speech: "I found a faster route. It saves twelve minutes and is ready in Apple Maps.",
-                confirmation: nil,
-                clientActions: []
-            )
             return state
         }
 
