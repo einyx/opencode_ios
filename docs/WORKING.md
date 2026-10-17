@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-### 下一轮：Ambient 后台 / 耳机 / 息屏语音（本地验证通过，准备新 PR）
+### 下一轮：Ambient 后台 / 耳机 / 息屏语音（PR #216 已发布，未合并）
 
 PR #215 的最终 48pt UI 增量 review 为 PASS，无 blocker；按用户最新授权已合并，merge commit `f3b6485`。本轮分支 `feat/ambient-background-voice` 从合并后的 master 创建。当前手机仍是已部署的 48pt 前台版本，不把调研或新代码当成后台能力已上线。
 
@@ -13,7 +13,7 @@ PR #215 的最终 48pt UI 增量 review 为 PASS，无 blocker；按用户最新
 - [x] 保留系统中断、耳机/USB/AirPlay/CarAudio 外部路由断开、显式结束、host/project/功能开关失效后的清理，不自动重开麦克风；更新现有麦克风用途说明。
 - [x] 独立 Cursor code/privacy 审查文件均已读回，结论 PASS。修复低项：await 前捕获 background epoch，晚到网络清理必须仍属于同一 epoch，不能断开替换连接。
 - [x] 最终 940 项单测（99 suites）正常通过；5 项 Ambient UI 在最后 epoch-only 修正前通过，签名 iPhone 构建已在修正后重查成功，产物 UIBackgroundModes 只有 audio。没有真机/耳机/息屏实测。
-- [ ] 发布新的后台通话 PR，保持未合并。
+- [x] 后台语音提交 `b2f79e6` 已发布为 [PR #216](https://github.com/grapeot/opencode_ios_client/pull/216)，保持未合并；未部署新后台版，等待用户设备测试安排。
 - [ ] 新 PR 保持未合并，等待用户测试及后续指示。手机 WDA 自动化保持关闭。
 
 调研依据与范围记录在 ignored 的 `.occlient/live-integration/background-voice-next-plan.md`、`background-voice-apple-evidence.md`，实现交接及未验收边界后续追加。
