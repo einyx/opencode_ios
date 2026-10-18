@@ -195,6 +195,22 @@ struct CarLiveMessagePage: Sendable {
     var messages: [MessageWithParts]
     var hasOlder: Bool
     var requestedLimit: Int
+    var nextCursor: String?
+    var hasDecodeGaps: Bool
+
+    init(
+        messages: [MessageWithParts],
+        hasOlder: Bool,
+        requestedLimit: Int,
+        nextCursor: String? = nil,
+        hasDecodeGaps: Bool = false
+    ) {
+        self.messages = messages
+        self.hasOlder = hasOlder
+        self.requestedLimit = requestedLimit
+        self.nextCursor = nextCursor
+        self.hasDecodeGaps = hasDecodeGaps
+    }
 }
 
 struct CarLiveListItem: Equatable {
@@ -533,6 +549,8 @@ struct CarLiveToolContext {
     var directory: String?
     var startAgent: String
     var allows: () async -> Bool
+    var reserveReply: ((CarLiveReplyReservation) async -> Void)? = nil
+    var rollbackReply: ((String) async -> Void)? = nil
 }
 
 struct CarLiveToolEffect: Equatable {
@@ -543,6 +561,7 @@ struct CarLiveToolEffect: Equatable {
     var model: String?
     var clearSessionID: String?
     var poll: Bool = false
+    var prepareToken: String? = nil
 }
 
 protocol CarLiveToolClient: Actor {
@@ -703,17 +722,25 @@ enum CarLiveToolHandler {
                 }
                 let messageID = newMessageID()
                 let agent = context.startAgent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "build" : context.startAgent
-                guard let _ = try await stage(context, {
-                    try await client.startPrompt(
-                    sessionID: session.id,
-                    messageID: messageID,
-                    text: text,
-                    agent: agent,
-                    model: Message.ModelInfo(providerID: spec.providerID, modelID: spec.modelID),
-                    directory: context.directory
-                )
-                }) else {
-                    return stale()
+                let reserved = await reserveReply(context, sessionID: session.id, directory: session.directory, userMessageID: messageID, title: session.title, isNewSession: true)
+                if case .stale = reserved { return stale() }
+                do {
+                    guard let _ = try await stage(context, {
+                        try await client.startPrompt(
+                        sessionID: session.id,
+                        messageID: messageID,
+                        text: text,
+                        agent: agent,
+                        model: Message.ModelInfo(providerID: spec.providerID, modelID: spec.modelID),
+                        directory: context.directory
+                    )
+                    }) else {
+                        await rollback(reserved, context)
+                        return stale()
+                    }
+                } catch {
+                    await rollback(reserved, context)
+                    return CarLiveToolEffect(output: CarLiveToolJSON.error(code: "failed", message: "任务没有提交成功"))
                 }
                 return CarLiveToolEffect(
                     output: CarLiveToolJSON.accepted(sessionID: session.id, messageID: messageID, model: ref),
@@ -721,7 +748,8 @@ enum CarLiveToolHandler {
                     messageID: messageID,
                     directory: session.directory,
                     model: ref,
-                    poll: true
+                    poll: true,
+                    prepareToken: token(reserved)
                 )
             } catch {
                 return CarLiveToolEffect(output: CarLiveToolJSON.error(code: "failed", message: "任务没有提交成功"))
@@ -751,6 +779,8 @@ enum CarLiveToolHandler {
             return CarLiveToolEffect(output: CarLiveToolJSON.error(code: "directory_unknown", message: "会话目录没有核对"))
         }
         let messageID = newMessageID()
+        let reserved = await reserveReply(context, sessionID: session.id, directory: directory, userMessageID: messageID, title: session.title, isNewSession: false)
+        if case .stale = reserved { return stale() }
         do {
             guard let _ = try await stage(context, {
                 try await client.continuePrompt(
@@ -762,6 +792,7 @@ enum CarLiveToolHandler {
                     directory: directory
                 )
             }) else {
+                await rollback(reserved, context)
                 return stale()
             }
             return CarLiveToolEffect(
@@ -769,9 +800,11 @@ enum CarLiveToolHandler {
                 sessionID: session.id,
                 messageID: messageID,
                 directory: directory,
-                poll: true
+                poll: true,
+                prepareToken: token(reserved)
             )
         } catch {
+            await rollback(reserved, context)
             return CarLiveToolEffect(output: CarLiveToolJSON.error(code: "failed", message: "任务没有提交成功"))
         }
     }
@@ -1085,6 +1118,34 @@ enum CarLiveToolHandler {
 
     private static func stale() -> CarLiveToolEffect {
         CarLiveToolEffect(output: CarLiveToolJSON.error(code: "stale_context", message: "语音上下文已关闭"))
+    }
+
+    private enum Reserved {
+        case skipped
+        case token(String)
+        case stale
+    }
+
+    private static func reserveReply(_ context: CarLiveToolContext, sessionID: String, directory: String, userMessageID: String, title: String, isNewSession: Bool) async -> Reserved {
+        guard context.reserveReply != nil else { return .skipped }
+        guard await context.allows() else { return .stale }
+        let token = UUID().uuidString
+        await context.reserveReply?(CarLiveReplyReservation(token: token, sessionID: sessionID, directory: directory, userMessageID: userMessageID, title: title, isNewSession: isNewSession))
+        guard await context.allows() else {
+            await context.rollbackReply?(token)
+            return .stale
+        }
+        return .token(token)
+    }
+
+    private static func token(_ reserved: Reserved) -> String? {
+        if case .token(let token) = reserved { return token }
+        return nil
+    }
+
+    private static func rollback(_ reserved: Reserved, _ context: CarLiveToolContext) async {
+        guard let token = token(reserved) else { return }
+        await context.rollbackReply?(token)
     }
 
     private static func stage<T>(_ context: CarLiveToolContext, _ work: () async throws -> T) async throws -> T? {

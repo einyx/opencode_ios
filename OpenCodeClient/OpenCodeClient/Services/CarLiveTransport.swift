@@ -25,8 +25,15 @@ nonisolated protocol CarLiveSocketFactory: Sendable {
 nonisolated protocol CarLiveLink: Sendable {
     var events: AsyncStream<CarLiveServerEvent> { get }
     func send(_ event: CarLiveClientEvent) async throws
+    func send(_ event: CarLiveClientEvent, eventID: String) async throws
     func ping() async throws
     func close() async
+}
+
+nonisolated extension CarLiveLink {
+    func send(_ event: CarLiveClientEvent, eventID: String) async throws {
+        throw CarLiveTransportError.rejected
+    }
 }
 
 nonisolated protocol CarLiveTransporting: Sendable {
@@ -208,7 +215,21 @@ nonisolated final class CarLiveSocketLink: CarLiveLink, @unchecked Sendable {
     }
 
     func send(_ event: CarLiveClientEvent) async throws {
-        guard let text = CarLiveWire.encode(event), let type = CarLiveWire.eventType(text), CarLiveWire.forbidden(type) == false else {
+        try await transmit(event, eventID: CarLiveWire.eventID())
+    }
+
+    func send(_ event: CarLiveClientEvent, eventID: String) async throws {
+        guard CarLiveWire.commentaryClientEventID(eventID) == eventID else {
+            throw CarLiveTransportError.rejected
+        }
+        try await transmit(event, eventID: eventID)
+    }
+
+    private func transmit(_ event: CarLiveClientEvent, eventID: String) async throws {
+        guard let text = CarLiveWire.encode(event, eventID: eventID),
+              let type = CarLiveWire.eventType(text),
+              CarLiveWire.forbidden(type) == false,
+              CarLiveWire.encodedEventID(text) == eventID else {
             throw CarLiveTransportError.rejected
         }
         try await sender.send(text)

@@ -16,6 +16,9 @@ extension AppState {
             }
             return await self.executeCarLiveTool(call)
         }
+        carLive?.onCommentaryAppended = { [weak self] eventID in
+            self?.carLiveReplies.noteAppended(eventID)
+        }
     }
 
     func beginCarLiveConnect() {
@@ -104,6 +107,14 @@ extension AppState {
         carLiveLease = lease
         let configuration = carLiveConfiguration(portal: portal, token: token, ownerToken: ownerToken)
         bindBackgroundVoiceHold(epoch: backgroundVoiceEpoch)
+        let ended = carLive?.onLiveEnded
+        let endedOwner = ownerToken
+        let endedEpoch = epoch
+        let endedTransport = transportToken
+        carLive?.onLiveEnded = { [weak self] token in
+            ended?(token)
+            self?.noteNaturalLiveEnded(ownerToken: endedOwner, epoch: endedEpoch, transportToken: endedTransport, endedToken: token)
+        }
         await carLive?.start(configuration: configuration)
         finishCarLiveStart(connectRun: connectRun, lease: lease)
     }
@@ -196,8 +207,21 @@ extension AppState {
     private func releaseCarLiveLease() {
         carLiveEpoch &+= 1
         carLiveLease = nil
-        carLivePoll?.cancel()
-        carLivePoll = nil
+        carLiveReplies.invalidate()
+    }
+
+    private func noteNaturalLiveEnded(ownerToken: String, epoch: UInt64, transportToken: UInt64, endedToken: UInt64) {
+        guard let lease = carLiveLease, lease.ownerToken == ownerToken, lease.epoch == epoch, lease.transportToken == transportToken else { return }
+        guard let live = carLive, live.sessionOwnerForPolicy == ownerToken else { return }
+        let current = live.runTokenForPolicy
+        guard current == endedToken || current == endedToken &+ 1 else { return }
+        let token = lease.transportToken
+        carLiveEpoch &+= 1
+        carLiveLease = nil
+        carLiveReplies.invalidate()
+        guard token != 0 else { return }
+        let client = apiClient
+        Task { await client.retireLiveTransport(token: token) }
     }
 
     private func rejectCarLiveStart(_ message: String) {
@@ -213,6 +237,7 @@ extension AppState {
         if call.name == CarLiveToolName.answerPending {
             return await answerCarLivePending(call, lease: lease, sessionID: binding?.sessionID)
         }
+        attachCarLiveReplyHooks()
         let context = CarLiveToolContext(
             trackedSessionID: binding?.sessionID,
             directory: effectiveProjectDirectory,
@@ -220,6 +245,13 @@ extension AppState {
             allows: { [weak self] in
                 guard let self else { return false }
                 return self.carLiveAllows(lease)
+            },
+            reserveReply: { [weak self] reservation in
+                guard let self else { return }
+                await self.carLiveReplies.reserve(reservation, lease: lease)
+            },
+            rollbackReply: { [weak self] token in
+                self?.carLiveReplies.rollback(token)
             }
         )
         let box = CarLiveAPIBox(apiClient)
@@ -274,44 +306,30 @@ extension AppState {
                 model: effect.model ?? ""
             )
             persistCarLiveBindings()
-            startCarLivePoll(sessionID: sessionID, messageID: effect.messageID ?? "")
-        }
-    }
-
-    private func startCarLivePoll(sessionID: String, messageID: String) {
-        guard !messageID.isEmpty, let lease = carLiveLease else { return }
-        carLivePoll?.cancel()
-        carLivePoll = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(2))
-                guard let self, !Task.isCancelled else { return }
-                if await self.refreshCarLiveJob(sessionID: sessionID, messageID: messageID, lease: lease) {
-                    return
-                }
+            if let token = effect.prepareToken {
+                carLiveReplies.accept(token)
             }
         }
     }
 
-    private func refreshCarLiveJob(sessionID: String, messageID: String, lease: CarLiveLease) async -> Bool {
-        guard carLiveAllows(lease) else { return true }
-        if carLiveAnnouncedMessageIDs.contains(messageID) { return true }
-        let box = CarLiveAPIBox(apiClient)
-        await box.bindOwner { [weak self] in
-            guard let self else { return false }
-            return self.carLiveAllows(lease)
+    private func attachCarLiveReplyHooks() {
+        carLiveReplies.allows = { [weak self] lease in
+            self?.carLiveAllows(lease) ?? false
         }
-        await box.bindTransport(lease.transportToken)
-        do {
-            guard carLiveAllows(lease) else { return true }
-            let snapshot = try await box.round(sessionID: sessionID, messageID: messageID)
-            guard carLiveAllows(lease) else { return true }
-            guard let text = CarLiveRound.commentary(snapshot) else { return false }
-            guard carLiveAllows(lease) else { return true }
-            carLiveAnnouncedMessageIDs.insert(messageID)
-            await carLive?.appendCommentary(text)
-            return true
-        } catch {
-            return false
+        carLiveReplies.page = { [weak self] sessionID, before, directory, token in
+            guard let self else { throw CancellationError() }
+            return try await self.apiClient.messagePageForLive(sessionID: sessionID, limit: 100, before: before, directory: directory, transportToken: token)
+        }
+        carLiveReplies.status = { [weak self] directory, token in
+            guard let self else { throw CancellationError() }
+            return try await self.apiClient.sessionStatusForLive(directory: directory, transportToken: token)
+        }
+        carLiveReplies.submit = { [weak self] text, eventID, owner in
+            guard let self, let live = self.carLive else { return false }
+            return await live.appendCommentary(text, eventID: eventID, expectedOwner: owner)
+        }
+        carLiveReplies.revision = { [weak self] in
+            self?.statusRevision ?? 0
         }
     }
 

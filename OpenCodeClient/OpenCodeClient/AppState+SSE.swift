@@ -64,6 +64,7 @@ extension AppState {
                     statusStreamConnected = true
                     await bootstrapSyncCurrentSession(reason: "sse.reconnect")
                     guard !Task.isCancelled, isOwnedSSEConnection(token, host) else { return false }
+                    carLiveReplies.noteConnected()
                     sseLastFrameAt = Date()
                     launchSSEWatchdog(token: token)
                     for try await event in lease.events {
@@ -199,6 +200,8 @@ extension AppState {
             await refreshPendingQuestions()
             guard isCurrentHostRequest(host), pendingRequestEpoch == epoch else { return }
             await syncSessionStatusesFromPoll(markMissingBusyAsIdle: true)
+            guard isCurrentHostRequest(host), pendingRequestEpoch == epoch else { return }
+            carLiveReplies.noteConnected()
         case "session.status":
             if let sessionID = props["sessionID"]?.value as? String,
                 let statusObj = props["status"]?.value as? [String: Any] {
@@ -213,6 +216,7 @@ extension AppState {
                     statusConfirmedAt[sessionID] = Date()
                     sessionStatusUpdatedAt[sessionID] = Date()
                     reconcileSessionFailure(sessionID: sessionID, previous: prev, current: decoded)
+                    routeCarLiveReplyStatus(sessionID: sessionID, type: decoded.type)
                     guard prev != decoded else { return }
 
                     sessionStatuses[sessionID] = decoded
@@ -272,6 +276,7 @@ extension AppState {
                 await loadSessions()
             }
         case "message.updated":
+            routeCarLiveReplyMessageUpdated(props)
             let eventSessionID = props["sessionID"]?.value as? String
             if let eventSessionID, eventSessionID != currentSessionID {
                 acknowledgeOffscreenOutboundUser(properties: props, sessionID: eventSessionID)
@@ -705,5 +710,22 @@ extension AppState {
 
     func applySSEEventForTesting(_ event: SSEEvent) async {
         await handleSSEEvent(event)
+    }
+
+    private func routeCarLiveReplyStatus(sessionID: String, type: String) {
+        if type == "idle" {
+            carLiveReplies.noteExplicitIdle(sessionID: sessionID)
+        } else if type == "busy" || type == "retry" {
+            carLiveReplies.noteBusy(sessionID: sessionID)
+        }
+    }
+
+    private func routeCarLiveReplyMessageUpdated(_ props: [String: AnyCodable]) {
+        let info = props["info"]?.value as? [String: Any]
+        guard let sessionID = CarLiveReplyEvent.sessionID(
+            topLevel: props["sessionID"]?.value as? String,
+            infoSessionID: info?["sessionID"] as? String
+        ), CarLiveReplyEvent.isCompletion(info) else { return }
+        carLiveReplies.noteMessageUpdated(sessionID: sessionID)
     }
 }
