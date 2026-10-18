@@ -68,8 +68,8 @@ struct FileContentView: View {
         filePath.split(separator: "/").last.map(String.init) ?? filePath
     }
 
-    private var effectiveWorkspaceDirectory: String? {
-        workspaceDirectory ?? state.currentSession?.directory
+    private var effectiveWorkspaceDirectory: String {
+        PreviewWorkspacePin.previewDirectory(stored: workspaceDirectory)
     }
 
     @ToolbarContentBuilder

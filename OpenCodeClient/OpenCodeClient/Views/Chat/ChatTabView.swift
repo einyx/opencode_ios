@@ -1787,31 +1787,19 @@ struct ChatTabView: View {
 
     private func openFileInChat(_ resolvedPath: String, workspaceDirectory: String? = nil) {
         guard !resolvedPath.isEmpty else { return }
-        state.clearFilesNavigationPathIgnoringNextShrink()
-        state.fileToOpenInFilesTab = nil
-        state.fileToOpenInFilesTabWorkspaceDirectory = nil
-        state.pendingFileOpenOwner = nil
-        state.previewEventSequence &+= 1
-        state.previewHostID = state.currentHostProfileID
-        state.previewSessionID = state.currentSessionID
-        state.pendingEventSequence = 0
-        state.fileToOpenInFilesTab = nil
-        state.fileToOpenInFilesTabWorkspaceDirectory = nil
         if effectiveLayout == .regular {
-            state.columnEventSequence = state.previewEventSequence
-            state.inlineEventSequence = 0
-            state.previewFilePath = resolvedPath
-            state.previewFileWorkspaceDirectory = workspaceDirectory
-            state.inlinePreviewPath = nil
-            state.inlinePreviewWorkspaceDirectory = nil
+            state.presentChatFilePreview(
+                path: resolvedPath,
+                workspaceDirectory: workspaceDirectory,
+                layout: .regular
+            )
         } else {
             withAnimation(DesignAnimation.spring) {
-                state.inlineEventSequence = state.previewEventSequence
-                state.columnEventSequence = 0
-                state.inlinePreviewPath = resolvedPath
-                state.inlinePreviewWorkspaceDirectory = workspaceDirectory
-                state.previewFilePath = nil
-                state.previewFileWorkspaceDirectory = nil
+                state.presentChatFilePreview(
+                    path: resolvedPath,
+                    workspaceDirectory: workspaceDirectory,
+                    layout: .compact
+                )
             }
         }
     }

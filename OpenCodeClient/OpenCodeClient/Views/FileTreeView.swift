@@ -42,7 +42,12 @@ struct FileTreeView: View {
             }
         }
         .navigationDestination(for: String.self) { path in
-            FileContentView(state: state, filePath: path, workspaceDirectory: openedWorkspaceDirectory, boundSessionID: nil)
+            FileContentView(
+                state: state,
+                filePath: path,
+                workspaceDirectory: pinnedPushWorkspace,
+                boundSessionID: nil
+            )
         }
         .onAppear {
             state.discardUnownedFileSearch()
@@ -59,6 +64,10 @@ struct FileTreeView: View {
 
     private var openedWorkspaceDirectory: String {
         state.effectiveProjectDirectory ?? ""
+    }
+
+    private var pinnedPushWorkspace: String {
+        state.filesNavigationWorkspace ?? openedWorkspaceDirectory
     }
 
     private var treeList: some View {
@@ -131,21 +140,7 @@ struct FileTreeView: View {
     }
 
     private func openFile(_ path: String) {
-        state.previewEventSequence &+= 1
-        state.columnEventSequence = state.previewEventSequence
-        state.inlineEventSequence = 0
-        state.pendingEventSequence = 0
-        state.previewFilePath = path
-        state.previewFileWorkspaceDirectory = openedWorkspaceDirectory
-        state.inlinePreviewPath = nil
-        state.inlinePreviewWorkspaceDirectory = nil
-        state.previewHostID = state.currentHostProfileID
-        state.previewSessionID = nil
-        state.filesNavigationHostID = state.currentHostProfileID
-        state.clearFilesNavigationPathIgnoringNextShrink()
-        state.fileToOpenInFilesTab = nil
-        state.fileToOpenInFilesTabWorkspaceDirectory = nil
-        state.pendingFileOpenOwner = nil
+        state.presentFilesColumnPreview(path: path, workspaceDirectory: openedWorkspaceDirectory)
     }
 
     private var visibleNodes: [TreeNodeItem] {

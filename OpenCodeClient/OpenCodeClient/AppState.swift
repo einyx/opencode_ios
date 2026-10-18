@@ -909,7 +909,10 @@ final class AppState {
         previewEventSequence &+= 1
         pendingEventSequence = previewEventSequence
         fileToOpenInFilesTab = trimmed
-        fileToOpenInFilesTabWorkspaceDirectory = workspaceDirectory
+        fileToOpenInFilesTabWorkspaceDirectory = PreviewWorkspacePin.freeze(
+            explicit: workspaceDirectory,
+            sessionDirectory: currentSession?.directory
+        )
         pendingFileOpenOwner = owner
     }
 
@@ -917,27 +920,82 @@ final class AppState {
         guard !filesNavigationPath.isEmpty else { return }
         ignoreNextFilesPathShrink = true
         filesNavigationPath = []
+        filesNavigationWorkspace = nil
     }
 
     func adoptFilesPush(_ path: String) {
         let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        let workspace = effectiveProjectDirectory ?? ""
         previewEventSequence &+= 1
         columnEventSequence = previewEventSequence
         filesEventSequence = previewEventSequence
         inlineEventSequence = 0
         pendingEventSequence = 0
         previewFilePath = trimmed
-        previewFileWorkspaceDirectory = effectiveProjectDirectory
+        previewFileWorkspaceDirectory = workspace
         inlinePreviewPath = nil
         inlinePreviewWorkspaceDirectory = nil
         fileToOpenInFilesTab = nil
         fileToOpenInFilesTabWorkspaceDirectory = nil
         pendingFileOpenOwner = nil
-        filesNavigationWorkspace = effectiveProjectDirectory
+        filesNavigationWorkspace = workspace
         filesNavigationHostID = currentHostProfileID
         previewHostID = currentHostProfileID
         previewSessionID = nil
+    }
+
+    func presentChatFilePreview(path: String, workspaceDirectory: String?, layout: EffectiveLayout) {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let workspace = PreviewWorkspacePin.freeze(
+            explicit: workspaceDirectory,
+            sessionDirectory: currentSession?.directory
+        )
+        clearFilesNavigationPathIgnoringNextShrink()
+        fileToOpenInFilesTab = nil
+        fileToOpenInFilesTabWorkspaceDirectory = nil
+        pendingFileOpenOwner = nil
+        previewEventSequence &+= 1
+        previewHostID = currentHostProfileID
+        previewSessionID = currentSessionID
+        pendingEventSequence = 0
+        if layout == .regular {
+            columnEventSequence = previewEventSequence
+            inlineEventSequence = 0
+            previewFilePath = trimmed
+            previewFileWorkspaceDirectory = workspace
+            inlinePreviewPath = nil
+            inlinePreviewWorkspaceDirectory = nil
+        } else {
+            inlineEventSequence = previewEventSequence
+            columnEventSequence = 0
+            inlinePreviewPath = trimmed
+            inlinePreviewWorkspaceDirectory = workspace
+            previewFilePath = nil
+            previewFileWorkspaceDirectory = nil
+        }
+    }
+
+    func presentFilesColumnPreview(path: String, workspaceDirectory: String?) {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let workspace = workspaceDirectory ?? ""
+        previewEventSequence &+= 1
+        columnEventSequence = previewEventSequence
+        inlineEventSequence = 0
+        pendingEventSequence = 0
+        previewFilePath = trimmed
+        previewFileWorkspaceDirectory = workspace
+        inlinePreviewPath = nil
+        inlinePreviewWorkspaceDirectory = nil
+        previewHostID = currentHostProfileID
+        previewSessionID = nil
+        filesNavigationHostID = currentHostProfileID
+        clearFilesNavigationPathIgnoringNextShrink()
+        fileToOpenInFilesTab = nil
+        fileToOpenInFilesTabWorkspaceDirectory = nil
+        pendingFileOpenOwner = nil
     }
 
     func closeMatchingPreview(_ path: String?) {
@@ -968,11 +1026,14 @@ final class AppState {
     }
 
     func discardChatPreviewIfSessionChanged(from oldSession: String?, to newSession: String?) {
-        guard oldSession != newSession, previewSessionID == oldSession, previewSessionID != nil else { return }
-        previewFilePath = nil
-        previewFileWorkspaceDirectory = nil
+        guard oldSession != newSession, let boundSession = previewSessionID, boundSession == oldSession else { return }
         inlinePreviewPath = nil
         inlinePreviewWorkspaceDirectory = nil
+        let columnPath = previewFilePath?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if columnPath.isEmpty {
+            previewFilePath = nil
+            previewFileWorkspaceDirectory = nil
+        }
         previewSessionID = nil
     }
 
@@ -1004,6 +1065,9 @@ final class AppState {
         inlinePreviewWorkspaceDirectory = output.slots.inlineWorkspace
         previewFilePath = output.slots.columnPath
         previewFileWorkspaceDirectory = output.slots.columnWorkspace
+        if output.slots.inlinePath != nil, previewSessionID == nil {
+            previewSessionID = currentSessionID
+        }
         if output.slots.inlinePath != nil {
             inlineEventSequence = output.winnerSequence
             columnEventSequence = 0
@@ -1020,6 +1084,9 @@ final class AppState {
         if output.filesPath != filesNavigationPath {
             ignoreNextFilesPathShrink = true
             filesNavigationPath = output.filesPath
+        }
+        if output.filesPath.isEmpty {
+            filesNavigationWorkspace = nil
         }
     }
 
@@ -1039,7 +1106,10 @@ final class AppState {
             pendingFileOpenOwner = nil
             return
         }
-        let workspace = fileToOpenInFilesTabWorkspaceDirectory
+        let workspace = PreviewWorkspacePin.freeze(
+            explicit: fileToOpenInFilesTabWorkspaceDirectory,
+            sessionDirectory: currentSession?.directory
+        )
         previewHostID = owner.host.hostProfileID
         previewSessionID = owner.sessionID
         clearFilesNavigationPathIgnoringNextShrink()

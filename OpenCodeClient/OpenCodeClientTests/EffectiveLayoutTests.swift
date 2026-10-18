@@ -546,6 +546,249 @@ struct EffectiveLayoutTests {
         )
         #expect(unknown.layoutPreference == .automatic)
     }
+
+    @Test func previewWorkspacePinKeepsServerDefaultDistinctFromLiveSession() {
+        #expect(PreviewWorkspacePin.freeze(explicit: "/given", sessionDirectory: "/live") == "/given")
+        #expect(PreviewWorkspacePin.freeze(explicit: "", sessionDirectory: "/live") == "")
+        #expect(PreviewWorkspacePin.freeze(explicit: nil, sessionDirectory: "/live") == "/live")
+        #expect(PreviewWorkspacePin.freeze(explicit: nil, sessionDirectory: nil) == "")
+        #expect(PreviewWorkspacePin.freeze(explicit: nil, sessionDirectory: "") == "")
+        #expect(PreviewWorkspacePin.previewDirectory(stored: nil) == "")
+        #expect(PreviewWorkspacePin.previewDirectory(stored: "") == "")
+        #expect(PreviewWorkspacePin.previewDirectory(stored: "/given") == "/given")
+    }
+
+    @MainActor
+    @Test func regularChatColumnKeepsPinnedFileAcrossSessionSwitch() async throws {
+        let api = MockAPIClient()
+        let state = makePreviewState(apiClient: api)
+        state.sessions = [
+            previewSession(id: "session-a", directory: "/proj/old"),
+            previewSession(id: "session-b", directory: "/proj/new"),
+        ]
+        state.currentSessionID = "session-a"
+        let host = state.currentHostProfileID
+        state.presentChatFilePreview(path: "notes.md", workspaceDirectory: nil, layout: .regular)
+        #expect(state.previewFilePath == "notes.md")
+        #expect(state.previewFileWorkspaceDirectory == "/proj/old")
+        #expect(state.previewSessionID == "session-a")
+        #expect(state.inlinePreviewPath == nil)
+
+        let pinnedKey = FileContentLoadKey.current(
+            state: state,
+            path: "notes.md",
+            workspaceDirectory: state.previewFileWorkspaceDirectory,
+            revision: 0
+        )
+        _ = try await state.loadFileContent(path: "notes.md", workspaceDirectory: state.previewFileWorkspaceDirectory)
+        state.currentSessionID = "session-b"
+        state.discardChatPreviewIfSessionChanged(from: "session-a", to: "session-b")
+        let keyAfterSwitch = FileContentLoadKey.current(
+            state: state,
+            path: state.previewFilePath ?? "",
+            workspaceDirectory: state.previewFileWorkspaceDirectory,
+            revision: 0
+        )
+        _ = try await state.loadFileContent(path: "notes.md", workspaceDirectory: state.previewFileWorkspaceDirectory)
+
+        #expect(state.previewFilePath == "notes.md")
+        #expect(state.previewFileWorkspaceDirectory == "/proj/old")
+        #expect(state.previewSessionID == nil)
+        #expect(state.previewHostID == host)
+        #expect(state.inlinePreviewPath == nil)
+        #expect(keyAfterSwitch == pinnedKey)
+        let requests = await api.fileContentRequests
+        #expect(requests.count == 2)
+        #expect(requests.allSatisfy { $0.path == "notes.md" && $0.directory == "/proj/old" })
+
+        state.closeFilePreview()
+        #expect(state.previewFilePath == nil)
+        #expect(state.previewFileWorkspaceDirectory == nil)
+    }
+
+    @MainActor
+    @Test func regularFilesColumnStaysAfterSessionSwitch() async throws {
+        let api = MockAPIClient()
+        let state = makePreviewState(apiClient: api)
+        state.sessions = [
+            previewSession(id: "session-a", directory: "/proj/old"),
+            previewSession(id: "session-b", directory: "/proj/new"),
+        ]
+        state.currentSessionID = "session-a"
+        state.selectedProjectWorktree = "/files/old"
+        state.presentFilesColumnPreview(path: "readme.md", workspaceDirectory: state.effectiveProjectDirectory ?? "")
+        state.currentSessionID = "session-b"
+        state.selectedProjectWorktree = "/files/new"
+        state.discardChatPreviewIfSessionChanged(from: "session-a", to: "session-b")
+        _ = try await state.loadFileContent(path: "readme.md", workspaceDirectory: state.previewFileWorkspaceDirectory)
+
+        #expect(state.previewFilePath == "readme.md")
+        #expect(state.previewFileWorkspaceDirectory == "/files/old")
+        #expect(state.previewSessionID == nil)
+        #expect(await api.fileContentRequests.map(\.directory) == ["/files/old"])
+    }
+
+    @MainActor
+    @Test func compactInlinePreviewClosesOnSessionSwitch() {
+        let state = makePreviewState()
+        state.sessions = [
+            previewSession(id: "session-a", directory: "/proj/old"),
+            previewSession(id: "session-b", directory: "/proj/new"),
+        ]
+        state.currentSessionID = "session-a"
+        state.presentChatFilePreview(path: "notes.md", workspaceDirectory: nil, layout: .compact)
+        #expect(state.inlinePreviewPath == "notes.md")
+        #expect(state.inlinePreviewWorkspaceDirectory == "/proj/old")
+        #expect(state.previewSessionID == "session-a")
+        state.currentSessionID = "session-b"
+        state.discardChatPreviewIfSessionChanged(from: "session-a", to: "session-b")
+        #expect(state.inlinePreviewPath == nil)
+        #expect(state.inlinePreviewWorkspaceDirectory == nil)
+        #expect(state.previewFilePath == nil)
+        #expect(state.previewSessionID == nil)
+    }
+
+    @MainActor
+    @Test func pinnedColumnDoesNotAcceptLatePendingOpenFromPreviousSession() {
+        let state = makePreviewState()
+        state.sessions = [previewSession(id: "session-a", directory: "/proj/old")]
+        state.currentSessionID = "session-a"
+        let owner = ExternalFileOpenOwner(host: state.captureHostRequestSnapshot(), sessionID: "session-a")
+        state.presentChatFilePreview(path: "visible.md", workspaceDirectory: "/proj/old", layout: .regular)
+        state.currentSessionID = "session-b"
+        state.discardChatPreviewIfSessionChanged(from: "session-a", to: "session-b")
+        let sequence = state.previewEventSequence
+        state.stageExternalFileOpen(path: "late.md", workspaceDirectory: "/proj/late", owner: owner)
+        state.adoptPendingFileOpen(layout: .regular)
+        #expect(state.previewEventSequence == sequence)
+        #expect(state.fileToOpenInFilesTab == nil)
+        #expect(state.pendingFileOpenOwner == nil)
+        #expect(state.previewFilePath == "visible.md")
+        #expect(state.previewFileWorkspaceDirectory == "/proj/old")
+    }
+
+    @MainActor
+    @Test func hostSwitchClearsPinnedColumnPreview() {
+        let state = makePreviewState()
+        state.sessions = [previewSession(id: "session-a", directory: "/proj/old")]
+        state.currentSessionID = "session-a"
+        state.presentChatFilePreview(path: "notes.md", workspaceDirectory: "/proj/old", layout: .regular)
+        let oldHost = state.currentHostProfileID
+        let newHost = UUID()
+        state.currentHostProfileID = newHost
+        state.discardPreviewIfHostChanged(from: oldHost, to: newHost)
+        #expect(state.previewFilePath == nil)
+        #expect(state.previewFileWorkspaceDirectory == nil)
+        #expect(state.inlinePreviewPath == nil)
+        #expect(state.previewSessionID == nil)
+        #expect(state.previewHostID == nil)
+    }
+
+    @MainActor
+    @Test func pinnedServerDefaultDoesNotReloadFromLaterSessionDirectory() async throws {
+        let api = MockAPIClient()
+        let state = makePreviewState(apiClient: api)
+        state.presentChatFilePreview(path: "notes.md", workspaceDirectory: nil, layout: .regular)
+        #expect(state.previewFileWorkspaceDirectory == "")
+        state.sessions = [previewSession(id: "session-b", directory: "/proj/new")]
+        state.currentSessionID = "session-b"
+        _ = try await state.loadFileContent(path: "notes.md", workspaceDirectory: state.previewFileWorkspaceDirectory)
+        _ = try await state.loadFileContent(path: "notes.md", workspaceDirectory: nil)
+        _ = try await state.loadFileContent(path: "/tmp/proj/notes.md", workspaceDirectory: "")
+        let requests = await api.fileContentRequests
+        #expect(requests.map(\.directory) == ["", "/proj/new", "/tmp/proj"])
+        #expect(requests.map(\.path) == ["notes.md", "notes.md", "notes.md"])
+        #expect(state.previewFilePath == "notes.md")
+        #expect(state.previewFileWorkspaceDirectory == "")
+    }
+
+    @MainActor
+    @Test func deletingCurrentSessionClearsChatBoundPreviewOnly() async throws {
+        let state = makePreviewState()
+        state.sessions = [
+            previewSession(id: "session-a", directory: "/proj/a"),
+            previewSession(id: "session-b", directory: "/proj/b"),
+            previewSession(id: "session-c", directory: "/proj/c"),
+        ]
+        state.currentSessionID = "session-a"
+        state.presentChatFilePreview(path: "notes.md", workspaceDirectory: nil, layout: .regular)
+        state.inlinePreviewPath = "also.md"
+        state.inlinePreviewWorkspaceDirectory = "/proj/a"
+        #expect(state.previewFilePath == "notes.md")
+        #expect(state.previewSessionID == "session-a")
+
+        try await state.deleteSession(sessionID: "session-b")
+        #expect(state.currentSessionID == "session-a")
+        #expect(state.previewFilePath == "notes.md")
+        #expect(state.previewFileWorkspaceDirectory == "/proj/a")
+        #expect(state.inlinePreviewPath == "also.md")
+        #expect(state.inlinePreviewWorkspaceDirectory == "/proj/a")
+        #expect(state.previewSessionID == "session-a")
+
+        try await state.deleteSession(sessionID: "session-a")
+        #expect(state.currentSessionID == "session-c")
+        #expect(state.previewFilePath == nil)
+        #expect(state.previewFileWorkspaceDirectory == nil)
+        #expect(state.inlinePreviewPath == nil)
+        #expect(state.inlinePreviewWorkspaceDirectory == nil)
+        #expect(state.previewSessionID == nil)
+
+        let files = makePreviewState()
+        files.sessions = [
+            previewSession(id: "session-a", directory: "/proj/a"),
+            previewSession(id: "session-c", directory: "/proj/c"),
+        ]
+        files.currentSessionID = "session-a"
+        files.presentFilesColumnPreview(path: "readme.md", workspaceDirectory: "/files")
+        #expect(files.previewSessionID == nil)
+        try await files.deleteSession(sessionID: "session-a")
+        #expect(files.previewFilePath == "readme.md")
+        #expect(files.previewFileWorkspaceDirectory == "/files")
+        #expect(files.inlinePreviewPath == nil)
+        #expect(files.previewSessionID == nil)
+    }
+
+    @MainActor
+    @Test func unboundColumnBecomesSessionBoundInlineAndClosesOnNextSwitch() {
+        let state = makePreviewState()
+        state.sessions = [
+            previewSession(id: "session-a", directory: "/proj/a"),
+            previewSession(id: "session-b", directory: "/proj/b"),
+            previewSession(id: "session-c", directory: "/proj/c"),
+        ]
+        state.currentSessionID = "session-a"
+        state.presentChatFilePreview(path: "notes.md", workspaceDirectory: nil, layout: .regular)
+
+        state.currentSessionID = "session-b"
+        state.discardChatPreviewIfSessionChanged(from: "session-a", to: "session-b")
+        #expect(state.previewFilePath == "notes.md")
+        #expect(state.previewFileWorkspaceDirectory == "/proj/a")
+        #expect(state.previewSessionID == nil)
+
+        state.applyPreviewLayout(from: .regular, to: .regular)
+        #expect(state.previewFilePath == "notes.md")
+        #expect(state.previewSessionID == nil)
+
+        state.applyPreviewLayout(from: .regular, to: .compact)
+        #expect(state.inlinePreviewPath == "notes.md")
+        #expect(state.inlinePreviewWorkspaceDirectory == "/proj/a")
+        #expect(state.previewFilePath == nil)
+        #expect(state.previewSessionID == "session-b")
+
+        state.currentSessionID = "session-c"
+        state.discardChatPreviewIfSessionChanged(from: "session-b", to: "session-c")
+        #expect(state.inlinePreviewPath == nil)
+        #expect(state.inlinePreviewWorkspaceDirectory == nil)
+        #expect(state.previewFilePath == nil)
+        #expect(state.previewSessionID == nil)
+
+        let unbound = makePreviewState()
+        unbound.presentChatFilePreview(path: "notes.md", workspaceDirectory: "/proj/a", layout: .regular)
+        #expect(unbound.previewSessionID == nil)
+        unbound.applyPreviewLayout(from: .regular, to: .compact)
+        #expect(unbound.inlinePreviewPath == "notes.md")
+        #expect(unbound.previewSessionID == nil)
+    }
 }
 
 @MainActor
@@ -559,14 +802,29 @@ private func capturedOpen(
 }
 
 @MainActor
-private func makePreviewState() -> AppState {
+private func makePreviewState(apiClient: MockAPIClient = MockAPIClient()) -> AppState {
     let defaults = UserDefaults(suiteName: "opencode.tests.preview.\(UUID().uuidString)")!
     return AppState(
-        apiClient: MockAPIClient(),
+        apiClient: apiClient,
         sseClient: MockSSEClient(),
         sshTunnelManager: SSHTunnelManager(defaults: defaults),
         userDefaults: defaults,
         hostCredentialAccess: .noExternal
+    )
+}
+
+private func previewSession(id: String, directory: String) -> Session {
+    Session(
+        id: id,
+        slug: id,
+        projectID: "p1",
+        directory: directory,
+        parentID: nil,
+        title: id,
+        version: "1",
+        time: .init(created: 0, updated: 1, archived: nil),
+        share: nil,
+        summary: nil
     )
 }
 
