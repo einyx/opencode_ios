@@ -79,6 +79,11 @@ enum L10n {
         case settingsLayoutFooter
         case settingsVoiceFirst
         case settingsVoiceFirstFooter
+        case settingsComposerActionSide
+        case settingsComposerLeftHand
+        case settingsComposerRightHand
+        case settingsShowImageButton
+        case settingsVoiceFirstNeedsToken
         case settingsSpeechRecognition
         case settingsRecordingStrategy
         case settingsOpenAIRealtime
@@ -583,6 +588,11 @@ enum L10n {
         Key.settingsLayoutFocus.rawValue: "Focus",
         Key.settingsLayoutFooter.rawValue: "Focus shows one content area on large screens and keeps the input area when opening files in chat.",
         Key.settingsVoiceFirst.rawValue: "Voice-First",
+        Key.settingsComposerActionSide.rawValue: "Composer controls",
+        Key.settingsComposerLeftHand.rawValue: "Left-hand side mode",
+        Key.settingsComposerRightHand.rawValue: "Right-hand side mode",
+        Key.settingsShowImageButton.rawValue: "Show image button",
+        Key.settingsVoiceFirstNeedsToken.rawValue: "Without an AI Builder Space token, drafts use the normal keyboard.",
         Key.settingsVoiceFirstFooter.rawValue: "When on, tapping a draft won't show the keyboard. Use Paste, or tap the keyboard button to edit.",
         Key.settingsSpeechRecognition.rawValue: "Speech Recognition",
         Key.settingsRecordingStrategy.rawValue: "Recording Strategy",
@@ -1087,6 +1097,11 @@ enum L10n {
         Key.settingsLayoutFocus.rawValue: "专注",
         Key.settingsLayoutFooter.rawValue: "专注模式在大屏显示单一内容，聊天中打开文件仍保留输入区。",
         Key.settingsVoiceFirst.rawValue: "语音优先",
+        Key.settingsComposerActionSide.rawValue: "输入区操作按钮",
+        Key.settingsComposerLeftHand.rawValue: "左手模式",
+        Key.settingsComposerRightHand.rawValue: "右手模式",
+        Key.settingsShowImageButton.rawValue: "显示图像按钮",
+        Key.settingsVoiceFirstNeedsToken.rawValue: "未配置 AI Builder Space token 时，输入框使用普通键盘。",
         Key.settingsVoiceFirstFooter.rawValue: "开启后轻点草稿不弹键盘，仍可粘贴文本，点键盘按钮进入编辑。",
         Key.settingsSpeechRecognition.rawValue: "语音识别",
         Key.settingsRecordingStrategy.rawValue: "录音策略",

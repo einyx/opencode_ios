@@ -142,11 +142,20 @@ struct SettingsTabView: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    Picker(L10n.t(.settingsComposerActionSide), selection: $state.composerActionSide) {
+                        Text(L10n.t(.settingsComposerLeftHand)).tag(ComposerActionSide.left)
+                        Text(L10n.t(.settingsComposerRightHand)).tag(ComposerActionSide.right)
+                    }
+                    .accessibilityIdentifier("settings-composer-action-side")
+
+                    Toggle(L10n.t(.settingsShowImageButton), isOn: $state.showImageAttachmentButton)
+                        .accessibilityIdentifier("settings-show-image-button")
+
                     Toggle(isOn: $state.voiceFirstInput) {
                         Text(L10n.t(.settingsVoiceFirst))
                     }
                     .accessibilityIdentifier("settings-voice-first")
-                    Text(L10n.t(.settingsVoiceFirstFooter))
+                    Text(L10n.t(state.isChatSpeechConfigured ? .settingsVoiceFirstFooter : .settingsVoiceFirstNeedsToken))
                         .font(.caption)
                         .foregroundStyle(.secondary)
 

@@ -303,6 +303,15 @@ enum ComposerOwnedWrite {
     }
 }
 
+enum ComposerActionSide: String, CaseIterable {
+    case left
+    case right
+
+    static func resolved(from value: String?) -> Self {
+        Self(rawValue: value ?? "") ?? .right
+    }
+}
+
 enum ComposerFocusPolicy {
     static func isTextEditable(voiceFirst: Bool, isEditing: Bool) -> Bool {
         _ = (voiceFirst, isEditing)
