@@ -165,9 +165,6 @@ struct CarLiveView: View {
                     .accessibilityIdentifier("car-live-error")
             }
             VStack(spacing: DesignSpacing.sm) {
-                #if os(iOS)
-                CarLiveVolumeControl()
-                #endif
                 if showsStandaloneConnect {
                     standaloneConnect
                 }
