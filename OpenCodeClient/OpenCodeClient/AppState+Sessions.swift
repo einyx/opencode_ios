@@ -425,6 +425,11 @@ extension AppState {
 
         let selectionIsDeletedTarget = currentSessionID == sessionID
         let mayNavigateToReplacement = selectionAtStart == sessionID && selectionIsDeletedTarget
+        // Drop the chat-bound preview before selection moves. The session-change
+        // callback clears previewSessionID while leaving a regular column in place.
+        if selectionIsDeletedTarget, previewSessionID == sessionID {
+            closeFilePreview()
+        }
         noteConfirmedMissingSession(sessionID, hostProfileID: sourceHost.hostProfileID, clearSelection: selectionIsDeletedTarget)
         guard mayNavigateToReplacement else { return }
 

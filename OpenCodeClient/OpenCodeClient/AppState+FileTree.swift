@@ -13,6 +13,27 @@ enum FileSearchListState: Equatable {
     case results([String])
 }
 
+enum PreviewWorkspacePin {
+    /// A provided value wins, including `""` (server default).
+    /// `nil` snapshots `sessionDirectory`, or `""` when that is also missing.
+    static func freeze(explicit: String?, sessionDirectory: String?) -> String {
+        if let explicit {
+            return explicit
+        }
+        if let sessionDirectory, !sessionDirectory.isEmpty {
+            return sessionDirectory
+        }
+        return ""
+    }
+
+    /// Preview loads must not follow the live session.
+    /// `nil` means the caller did not provide a workspace; `""` is the pinned server default.
+    /// Both stay off the live session. `loadFileContent`'s own `nil` argument still follows it.
+    static func previewDirectory(stored: String?) -> String {
+        stored ?? ""
+    }
+}
+
 struct FileContentLoadKey: Equatable, Sendable {
     var host: HostRequestSnapshot
     var workspaceDirectory: String?
@@ -256,6 +277,7 @@ extension AppState {
     }
 
     func loadFileContent(path: String, workspaceDirectory: String? = nil) async throws -> FileContent {
+        // `nil` follows the live session. `""` is a pinned server default and must not.
         let directory = workspaceDirectory ?? currentSession?.directory
         let resolved = PathNormalizer.resolveWorkspaceRelativePath(path, workspaceDirectory: directory)
         if resolved.hasPrefix("/") {
