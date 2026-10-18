@@ -177,6 +177,7 @@ final class CarLiveUITests: XCTestCase {
         XCTAssertGreaterThan(transcript.frame.height, 120)
         assertVolumeContainer(app, above: mute)
         XCTAssertGreaterThan(mute.frame.minY, transcript.frame.minY + 80)
+        keepScreenshot(app, name: "icon-controls-connected")
 
         mute.tap()
         let muted = app.buttons["car-live-mute"]
@@ -206,18 +207,50 @@ final class CarLiveUITests: XCTestCase {
         XCTAssertFalse(app.buttons["car-live-mute"].isEnabled)
         XCTAssertFalse(app.buttons["car-live-mute"].isSelected)
         assertVolumeContainer(app, above: app.buttons["car-live-mute"])
+        keepScreenshot(app, name: "icon-controls-idle")
     }
 
     private func assertVolumeContainer(_ app: XCUIApplication, above mute: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
-        let matches = app.otherElements.matching(identifier: "car-live-volume-row")
-        let volume = matches.firstMatch
-        XCTAssertTrue(volume.waitForExistence(timeout: 4), file: file, line: line)
-        XCTAssertEqual(matches.count, 1, file: file, line: line)
-        XCTAssertGreaterThan(volume.frame.height, 16, file: file, line: line)
-        XCTAssertLessThanOrEqual(volume.frame.height, 56, file: file, line: line)
-        XCTAssertGreaterThan(volume.frame.width, 40, file: file, line: line)
-        XCTAssertLessThan(volume.frame.width, 500, file: file, line: line)
-        XCTAssertLessThanOrEqual(volume.frame.maxY, mute.frame.minY + 1, file: file, line: line)
+        let matches = app.descendants(matching: .any).matching(identifier: "car-live-volume-row")
+        XCTAssertEqual(matches.count, 0, file: file, line: line)
+        XCTAssertFalse(matches.firstMatch.exists, file: file, line: line)
+        XCTAssertTrue(mute.exists, file: file, line: line)
+
+        let connect = app.buttons["car-live-connect"]
+        let reconnect = app.buttons["car-live-reconnect"]
+        let topControl: XCUIElement
+        if connect.exists {
+            topControl = connect
+            XCTAssertTrue(connect.isEnabled, file: file, line: line)
+            XCTAssertTrue(connect.isHittable, file: file, line: line)
+            XCTAssertGreaterThanOrEqual(connect.frame.height, 64, file: file, line: line)
+            let seam = mute.frame.minY - connect.frame.maxY
+            XCTAssertGreaterThanOrEqual(seam, -1, file: file, line: line)
+            XCTAssertLessThanOrEqual(seam, 16, "connect left a hole of \(seam) above mute", file: file, line: line)
+        } else if reconnect.exists {
+            topControl = reconnect
+            XCTAssertTrue(reconnect.isEnabled, file: file, line: line)
+            XCTAssertTrue(reconnect.isHittable, file: file, line: line)
+            XCTAssertGreaterThanOrEqual(reconnect.frame.height, 64, file: file, line: line)
+            let seam = mute.frame.minY - reconnect.frame.maxY
+            XCTAssertGreaterThanOrEqual(seam, -1, file: file, line: line)
+            XCTAssertLessThanOrEqual(seam, 16, "reconnect left a hole of \(seam) above mute", file: file, line: line)
+        } else {
+            topControl = mute
+            XCTAssertTrue(mute.isEnabled, file: file, line: line)
+            XCTAssertTrue(mute.isHittable, file: file, line: line)
+            let interrupt = app.buttons["car-live-interrupt"]
+            let end = app.buttons["car-live-close"]
+            XCTAssertTrue(interrupt.exists && interrupt.isEnabled && interrupt.isHittable, file: file, line: line)
+            XCTAssertTrue(end.exists && end.isEnabled && end.isHittable, file: file, line: line)
+        }
+
+        let details = app.buttons["car-live-details"]
+        if details.exists, (details.value as? String) == "collapsed" {
+            let gap = topControl.frame.minY - details.frame.maxY
+            XCTAssertGreaterThan(gap, 0, file: file, line: line)
+            XCTAssertLessThan(gap, 36, "collapsed tray left a volume-sized hole of \(gap)", file: file, line: line)
+        }
     }
 
     private func assertSpokenLabelIsNotSymbol(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
