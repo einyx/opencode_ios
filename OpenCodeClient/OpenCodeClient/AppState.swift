@@ -1212,7 +1212,7 @@ final class AppState {
     var carLive: CarLiveController?
     var carLiveEpoch: UInt64 = 0
     var carLiveLease: CarLiveLease?
-    var carLivePoll: Task<Void, Never>?
+    var carLiveReplies = CarLiveReplyBridge()
     var carLiveConnectTask: Task<Void, Never>?
     var carLiveConnectRun: CarLiveConnectRun?
     var backgroundVoiceScene: BackgroundVoiceSceneKind = .active
@@ -1224,7 +1224,6 @@ final class AppState {
     var applyingBackgroundCleanup = false
     var carLiveBeforeLease: (@MainActor () async -> Void)?
     var carLiveBindingsByContext: [String: CarLiveBinding] = [:]
-    var carLiveAnnouncedMessageIDs: Set<String> = []
     var carPhase: CarModePhase = .idle
     var carLastTranscript = ""
     var carLastResponse: CarResponseEnvelope?

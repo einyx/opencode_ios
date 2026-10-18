@@ -235,6 +235,8 @@ nonisolated struct Message: Codable, Identifiable {
     let tokens: TokenInfo?
     let cost: Double?
     let structured: WireJSON?
+    /// Assistant `info.agent` when the server sent a non-empty string. Legacy payloads omit it. User-message `agent` and model names are not stored here.
+    let agent: String?
 
     init(
         id: String,
@@ -249,7 +251,8 @@ nonisolated struct Message: Codable, Identifiable {
         finish: String?,
         tokens: TokenInfo?,
         cost: Double?,
-        structured: WireJSON? = nil
+        structured: WireJSON? = nil,
+        agent: String? = nil
     ) {
         self.id = id
         self.sessionID = sessionID
@@ -264,6 +267,7 @@ nonisolated struct Message: Codable, Identifiable {
         self.tokens = tokens
         self.cost = cost
         self.structured = structured
+        self.agent = Self.assistantAgent(role: role, raw: agent)
     }
 
     init(
@@ -296,6 +300,54 @@ nonisolated struct Message: Codable, Identifiable {
             cost: cost,
             structured: try WireJSON(encoding: envelope)
         )
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, sessionID, role, parentID, providerID, modelID, model, error, time, finish, tokens, cost, structured, agent
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let role = try c.decode(String.self, forKey: .role)
+        id = try c.decode(String.self, forKey: .id)
+        sessionID = try c.decode(String.self, forKey: .sessionID)
+        self.role = role
+        parentID = try c.decodeIfPresent(String.self, forKey: .parentID)
+        providerID = try c.decodeIfPresent(String.self, forKey: .providerID)
+        modelID = try c.decodeIfPresent(String.self, forKey: .modelID)
+        model = try c.decodeIfPresent(ModelInfo.self, forKey: .model)
+        error = try c.decodeIfPresent(MessageError.self, forKey: .error)
+        time = try c.decode(TimeInfo.self, forKey: .time)
+        finish = try c.decodeIfPresent(String.self, forKey: .finish)
+        tokens = try c.decodeIfPresent(TokenInfo.self, forKey: .tokens)
+        cost = try c.decodeIfPresent(Double.self, forKey: .cost)
+        structured = try c.decodeIfPresent(WireJSON.self, forKey: .structured)
+        let rawAgent = (try? c.decodeIfPresent(String.self, forKey: .agent)) ?? nil
+        agent = Self.assistantAgent(role: role, raw: rawAgent)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(sessionID, forKey: .sessionID)
+        try c.encode(role, forKey: .role)
+        try c.encodeIfPresent(parentID, forKey: .parentID)
+        try c.encodeIfPresent(providerID, forKey: .providerID)
+        try c.encodeIfPresent(modelID, forKey: .modelID)
+        try c.encodeIfPresent(model, forKey: .model)
+        try c.encodeIfPresent(error, forKey: .error)
+        try c.encode(time, forKey: .time)
+        try c.encodeIfPresent(finish, forKey: .finish)
+        try c.encodeIfPresent(tokens, forKey: .tokens)
+        try c.encodeIfPresent(cost, forKey: .cost)
+        try c.encodeIfPresent(structured, forKey: .structured)
+        try c.encodeIfPresent(agent, forKey: .agent)
+    }
+
+    private static func assistantAgent(role: String, raw: String?) -> String? {
+        guard role == "assistant" else { return nil }
+        let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     var carResponseEnvelope: CarResponseEnvelope? {

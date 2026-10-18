@@ -655,16 +655,23 @@ actor APIClient {
     }
 
     func messagePageForLive(sessionID: String, limit: Int, transportToken: UInt64) async throws -> CarLiveMessagePage {
+        try await messagePageForLive(sessionID: sessionID, limit: limit, before: nil, directory: nil, transportToken: transportToken)
+    }
+
+    func messagePageForLive(
+        sessionID: String,
+        limit: Int,
+        before: String?,
+        directory: String?,
+        transportToken: UInt64
+    ) async throws -> CarLiveMessagePage {
         let capped = min(max(limit, 1), CarLiveHistory.bound)
         let (data, http) = try await makeRequest(
             path: "/session/\(sessionID)/message",
-            queryItems: [URLQueryItem(name: "limit", value: String(capped))],
+            queryItems: Self.liveMessageQuery(limit: capped, before: before, directory: directory),
             liveToken: transportToken
         )
-        let decoded = try Self.decodeMessageTranscript(data)
-        Self.logMessageDecodeDiagnostics(decoded.diagnostics)
-        Self.logger.debug("live history status=\(http.statusCode, privacy: .public) rows=\(decoded.messages.count, privacy: .public)")
-        return CarLiveMessagePage(messages: decoded.messages, hasOlder: Self.historyHasOlder(http), requestedLimit: capped)
+        return try Self.liveMessagePage(data: data, response: http, requestedLimit: capped)
     }
 
     func sessionChildrenForLive(sessionID: String, transportToken: UInt64) async throws -> [Session] {
@@ -721,7 +728,16 @@ actor APIClient {
     }
 
     func sessionStatusForLive(transportToken: UInt64) async throws -> [String: SessionStatus] {
-        let (data, _) = try await makeRequest(path: "/session/status", liveToken: transportToken)
+        try await sessionStatusForLive(directory: nil, transportToken: transportToken)
+    }
+
+    func sessionStatusForLive(directory: String?, transportToken: UInt64) async throws -> [String: SessionStatus] {
+        let query = Self.liveDirectoryQuery(directory)
+        let (data, _) = try await makeRequest(
+            path: "/session/status",
+            queryItems: query,
+            liveToken: transportToken
+        )
         return try JSONDecoder().decode([String: SessionStatus].self, from: data)
     }
 
@@ -784,11 +800,101 @@ actor APIClient {
     }
 
     private nonisolated static func historyHasOlder(_ response: HTTPURLResponse) -> Bool {
-        if let cursor = response.value(forHTTPHeaderField: "X-Next-Cursor")?.trimmingCharacters(in: .whitespacesAndNewlines), !cursor.isEmpty {
-            return true
+        if response.value(forHTTPHeaderField: "X-Next-Cursor") != nil { return true }
+        return linkDeclaresNext(response.value(forHTTPHeaderField: "Link"))
+    }
+
+    private nonisolated static func liveMessageQuery(limit: Int, before: String?, directory: String?) -> [URLQueryItem] {
+        var items = [URLQueryItem(name: "limit", value: String(limit))]
+        if let before {
+            items.append(URLQueryItem(name: "before", value: before))
         }
-        let link = response.value(forHTTPHeaderField: "Link") ?? ""
-        return link.contains("rel=\"next\"") || link.contains("rel=next")
+        if let directory {
+            items.append(URLQueryItem(name: "directory", value: directory))
+        }
+        return items
+    }
+
+    private nonisolated static func liveDirectoryQuery(_ directory: String?) -> [URLQueryItem]? {
+        guard let directory else { return nil }
+        return [URLQueryItem(name: "directory", value: directory)]
+    }
+
+    private nonisolated static func liveMessagePage(data: Data, response: HTTPURLResponse, requestedLimit: Int) throws -> CarLiveMessagePage {
+        let decoded = try decodeMessageTranscript(data)
+        logMessageDecodeDiagnostics(decoded.diagnostics)
+        logger.debug("live history status=\(response.statusCode, privacy: .public) rows=\(decoded.messages.count, privacy: .public)")
+        return CarLiveMessagePage(
+            messages: decoded.messages,
+            hasOlder: historyHasOlder(response),
+            requestedLimit: requestedLimit,
+            nextCursor: historyNextCursor(response),
+            hasDecodeGaps: !decoded.diagnostics.isEmpty
+        )
+    }
+
+    nonisolated static func historyNextCursor(_ response: HTTPURLResponse) -> String? {
+        if let cursor = response.value(forHTTPHeaderField: "X-Next-Cursor") {
+            return cursor
+        }
+        return linkBeforeCursor(response.value(forHTTPHeaderField: "Link"))
+    }
+
+    nonisolated static func linkBeforeCursor(_ header: String?) -> String? {
+        guard let header else { return nil }
+        var search = header[...]
+        while let open = search.firstIndex(of: "<") {
+            let afterOpen = search.index(after: open)
+            guard let close = search[afterOpen...].firstIndex(of: ">") else { return nil }
+            let target = String(search[afterOpen..<close])
+            let afterClose = search.index(after: close)
+            let nextOpen = search[afterClose...].firstIndex(of: "<") ?? search.endIndex
+            if relationIsNext(String(search[afterClose..<nextOpen])), let before = opaqueBefore(in: target) {
+                return before
+            }
+            search = search[nextOpen...]
+        }
+        return nil
+    }
+
+    private nonisolated static func linkDeclaresNext(_ header: String?) -> Bool {
+        guard let header else { return false }
+        var search = header[...]
+        while let open = search.firstIndex(of: "<") {
+            guard let close = search[search.index(after: open)...].firstIndex(of: ">") else { return false }
+            let afterClose = search.index(after: close)
+            let nextOpen = search[afterClose...].firstIndex(of: "<") ?? search.endIndex
+            if relationIsNext(String(search[afterClose..<nextOpen])) { return true }
+            search = search[nextOpen...]
+        }
+        return false
+    }
+
+    private nonisolated static func relationIsNext(_ params: String) -> Bool {
+        for part in params.split(separator: ";") {
+            let piece = part.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let eq = piece.firstIndex(of: "=") else { continue }
+            guard piece[..<eq].trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare("rel") == .orderedSame else { continue }
+            var value = piece[piece.index(after: eq)...].trimmingCharacters(in: .whitespacesAndNewlines)
+            if value.count >= 2, value.hasPrefix("\""), value.hasSuffix("\"") {
+                value = String(value.dropFirst().dropLast())
+            }
+            return value.split(whereSeparator: { $0 == " " || $0 == "\t" }).contains { $0.caseInsensitiveCompare("next") == .orderedSame }
+        }
+        return false
+    }
+
+    private nonisolated static func opaqueBefore(in target: String) -> String? {
+        guard let queryStart = target.firstIndex(of: "?") else { return nil }
+        var query = target[target.index(after: queryStart)...]
+        if let hash = query.firstIndex(of: "#") { query = query[..<hash] }
+        for pair in query.split(separator: "&", omittingEmptySubsequences: false) {
+            let parts = pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+            guard parts.first == "before" else { continue }
+            let raw = parts.count > 1 ? parts[1] : ""
+            return raw.removingPercentEncoding ?? raw
+        }
+        return nil
     }
 }
 
@@ -1153,12 +1259,14 @@ protocol APIClientProtocol: Actor {
     func experimentalRootSessionPage(cursor: Int?, transportToken: UInt64) async throws -> CarLiveSessionPage
     func sessionForLive(sessionID: String, directory: String?, transportToken: UInt64) async throws -> Session
     func messagePageForLive(sessionID: String, limit: Int, transportToken: UInt64) async throws -> CarLiveMessagePage
+    func messagePageForLive(sessionID: String, limit: Int, before: String?, directory: String?, transportToken: UInt64) async throws -> CarLiveMessagePage
     func sessionChildrenForLive(sessionID: String, transportToken: UInt64) async throws -> [Session]
     func createSessionForLive(directory: String?, transportToken: UInt64) async throws -> Session
     func promptAsyncForLive(sessionID: String, messageID: String, text: String, agent: String, model: Message.ModelInfo, directory: String?, transportToken: UInt64) async throws
     func promptAsyncInherited(sessionID: String, messageID: String, text: String, agent: String?, variant: String?, directory: String?, transportToken: UInt64) async throws
     func abortForLive(sessionID: String, transportToken: UInt64) async throws
     func sessionStatusForLive(transportToken: UInt64) async throws -> [String: SessionStatus]
+    func sessionStatusForLive(directory: String?, transportToken: UInt64) async throws -> [String: SessionStatus]
     func providerRegistryForLive(transportToken: UInt64) async throws -> ProviderRegistryResponse
     func pendingPermissionsForLive(transportToken: UInt64) async throws -> [APIClient.PermissionRequest]
     func pendingQuestionsForLive(transportToken: UInt64) async throws -> [QuestionRequest]
@@ -1189,6 +1297,12 @@ extension APIClientProtocol {
     func messagePageForLive(sessionID: String, limit: Int, transportToken: UInt64) async throws -> CarLiveMessagePage {
         throw CarLiveAPIUnsupported.history
     }
+    func messagePageForLive(sessionID: String, limit: Int, before: String?, directory: String?, transportToken: UInt64) async throws -> CarLiveMessagePage {
+        if before != nil || directory != nil {
+            throw CarLiveAPIUnsupported.history
+        }
+        return try await messagePageForLive(sessionID: sessionID, limit: limit, transportToken: transportToken)
+    }
     func sessionChildrenForLive(sessionID: String, transportToken: UInt64) async throws -> [Session] {
         throw CarLiveAPIUnsupported.children
     }
@@ -1206,6 +1320,12 @@ extension APIClientProtocol {
     }
     func sessionStatusForLive(transportToken: UInt64) async throws -> [String: SessionStatus] {
         throw CarLiveAPIUnsupported.status
+    }
+    func sessionStatusForLive(directory: String?, transportToken: UInt64) async throws -> [String: SessionStatus] {
+        if directory != nil {
+            throw CarLiveAPIUnsupported.status
+        }
+        return try await sessionStatusForLive(transportToken: transportToken)
     }
     func providerRegistryForLive(transportToken: UInt64) async throws -> ProviderRegistryResponse {
         throw CarLiveAPIUnsupported.providerRegistry

@@ -23,6 +23,7 @@ final class CarLiveController {
     var toolExecutor: (@MainActor (CarLiveFunctionCall) async -> CarLiveToolResult)?
     var onExternalAudioHold: ((UInt64) -> Void)?
     var onLiveEnded: ((UInt64) -> Void)?
+    var onCommentaryAppended: ((String) -> Void)?
     var blocksNewCapture = false
 
     private let transport: any CarLiveTransporting
@@ -157,6 +158,7 @@ final class CarLiveController {
 
     var captureGenerationForPolicy: UInt64 { captureGeneration }
     var runTokenForPolicy: UInt64 { runToken }
+    var sessionOwnerForPolicy: String { sessionOwner }
     var isClosingForPolicy: Bool { closing }
 
     func acceptsExternalHold(generation: UInt64) -> Bool {
@@ -231,6 +233,34 @@ final class CarLiveController {
         await append(.commentary(text))
     }
 
+    @discardableResult
+    func appendCommentary(_ text: String, eventID: String, expectedOwner: String) async -> Bool {
+        let token = runToken
+        let owner = sessionOwner
+        guard let opened = link, commentaryCanSubmit(eventID: eventID, expectedOwner: expectedOwner, token: token, owner: owner) else {
+            return false
+        }
+        do {
+            try await opened.send(.commentary(text), eventID: eventID)
+        } catch {
+            if commentaryCanSubmit(eventID: eventID, expectedOwner: expectedOwner, token: token, owner: owner) {
+                errorMessage = CarLiveCopy.disconnected
+            }
+            return false
+        }
+        guard commentaryCanSubmit(eventID: eventID, expectedOwner: expectedOwner, token: token, owner: owner) else {
+            return false
+        }
+        return true
+    }
+
+    private func commentaryCanSubmit(eventID: String, expectedOwner: String, token: UInt64, owner: String) -> Bool {
+        guard runToken == token, sessionOwner == owner, sessionOwner == expectedOwner, !expectedOwner.isEmpty else { return false }
+        guard CarLiveWire.commentaryClientEventID(eventID) == eventID else { return false }
+        guard link != nil, !closing, phase == .listening || phase == .speaking else { return false }
+        return true
+    }
+
     func appendThinking(_ text: String) async {
         await append(.thinking(text))
     }
@@ -302,6 +332,8 @@ final class CarLiveController {
             if !portal.settled { usageUnconfirmed = true }
         case .usageUnconfirmed:
             usageUnconfirmed = true
+        case .commentaryAppended(let clientEventID):
+            forwardCommentaryAppended(clientEventID, receivedOn: token)
         case .failed(let code):
             if code == "invalid_audio" || code == "usage_unconfirmed" { return }
             if closing || closeSeen {
@@ -316,6 +348,13 @@ final class CarLiveController {
         case .hosted(.ignored), .ignored:
             break
         }
+    }
+
+    private func forwardCommentaryAppended(_ clientEventID: String, receivedOn token: UInt64) {
+        guard token == runToken, !closing, link != nil else { return }
+        guard phase == .connecting || phase == .listening || phase == .speaking else { return }
+        guard CarLiveWire.commentaryClientEventID(clientEventID) == clientEventID else { return }
+        onCommentaryAppended?(clientEventID)
     }
 
     private func beginAudio(token: UInt64) async {
