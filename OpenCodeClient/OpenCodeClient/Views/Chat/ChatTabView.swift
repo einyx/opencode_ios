@@ -233,6 +233,7 @@ struct ChatTabView: View {
     @State var speechAudioLevelTask: Task<Void, Never>?
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var imageAttachments: [ComposerImageAttachment] = []
+    @State var speechConfigurationCleanupTask: Task<Void, Never>?
     @State private var composerRevision: UInt64 = 0
     @State private var attachmentError: String?
     @State private var isLoadingAttachment = false
@@ -246,10 +247,23 @@ struct ChatTabView: View {
     @Environment(\.effectiveLayout) private var effectiveLayout
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.layoutDirection) private var textLayoutDirection
 
     private var useGridCards: Bool { effectiveLayout == .regular }
 
-    private var voiceFirstEnabled: Bool { state.voiceFirstInput }
+    private var voiceFirstEnabled: Bool { state.voiceFirstInput && state.isChatSpeechConfigured }
+
+    private var showsVoiceRail: Bool {
+        state.isChatSpeechConfigured || isSpeechCaptureActive || isShowingTranscribingUI || hasPreservedSpeechAudioForUI
+    }
+
+    private var composerActionSlotWidth: CGFloat {
+        max(ComposerHitTarget.minimum, max(DesignControls.composerActionButtonSize, DesignControls.composerPrimaryActionButtonSize))
+    }
+
+    private var composerControlDirection: LayoutDirection {
+        state.composerActionSide == .left ? .rightToLeft : .leftToRight
+    }
 
     private var isSpeechCaptureActive: Bool {
         isRecording || isStartingRecording || isTranscribing || isRetryingSpeech
@@ -802,54 +816,113 @@ struct ChatTabView: View {
         }
     }
 
+    private var voiceRailTransportButton: some View {
+        Button {
+            if hasPreservedSpeechAudioForUI {
+                guard !Self.hasUITestF3RetryFixture else { return }
+                Task { await retryPreservedSpeechAudio() }
+            } else {
+                Task { await toggleRecording() }
+            }
+        } label: {
+            ZStack {
+                if isStartingRecording || isRetryingSpeech {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: voiceRailTransportIcon)
+                        .font(DesignControls.composerActionIconFont.weight(.semibold))
+                        .foregroundStyle(isRecording ? Color.red : DesignColors.Brand.primary)
+                }
+            }
+            .frame(width: DesignControls.composerActionButtonSize, height: DesignControls.composerActionButtonSize)
+            .background {
+                Circle().fill((isRecording ? Color.red : DesignColors.Brand.primary).opacity(0.14))
+            }
+            .frame(width: composerActionSlotWidth, height: max(ComposerHitTarget.minimum, DesignControls.composerActionButtonSize))
+            .contentShape(Rectangle())
+            .contentShape(.hoverEffect, Rectangle())
+            .hoverEffect(.lift)
+        }
+        .disabled(isSending || isShowingTranscribingUI || isStartingRecording || isRetryingSpeech || speechConfigurationCleanupTask != nil || (!state.isChatSpeechConfigured && !isRecording))
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(hasPreservedSpeechAudioForUI ? "speech-retry-segment" : "speech-transport")
+        .accessibilityLabel(hasPreservedSpeechAudioForUI ? L10n.t(.chatSpeechRetrySegment) : voiceRailTitle)
+    }
+
     private var voiceRail: some View {
         HStack(spacing: DesignSpacing.sm) {
-            Button {
-                if hasPreservedSpeechAudioForUI {
-                    guard !Self.hasUITestF3RetryFixture else { return }
-                    Task { await retryPreservedSpeechAudio() }
-                } else {
-                    Task { await toggleRecording() }
-                }
-            } label: {
-                ZStack {
-                    if isStartingRecording || isRetryingSpeech {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Image(systemName: voiceRailTransportIcon)
-                            .font(DesignControls.composerActionIconFont.weight(.semibold))
-                            .foregroundStyle(isRecording ? Color.red : DesignColors.Brand.primary)
-                    }
-                }
-                .frame(width: DesignControls.composerActionButtonSize, height: DesignControls.composerActionButtonSize)
-                .background {
-                    Circle().fill((isRecording ? Color.red : DesignColors.Brand.primary).opacity(0.14))
-                }
-                .contentShape(.hoverEffect, Circle())
-                .hoverEffect(.lift)
-            }
-            .disabled(isSending || isShowingTranscribingUI || isStartingRecording || isRetryingSpeech)
-            .buttonStyle(.plain)
-            .accessibilityIdentifier(hasPreservedSpeechAudioForUI ? "speech-retry-segment" : "speech-transport")
-            .accessibilityLabel(hasPreservedSpeechAudioForUI ? L10n.t(.chatSpeechRetrySegment) : voiceRailTitle)
-
             voiceRailWaveform
+                .environment(\.layoutDirection, textLayoutDirection)
 
-            if voiceFirstEnabled {
-                voiceRailTrailingAction
-                    .fixedSize(horizontal: true, vertical: false)
-                    .layoutPriority(1)
-                voiceFirstAccessoryRow
-                    .fixedSize(horizontal: true, vertical: false)
-                    .layoutPriority(1)
-            } else {
-                voiceRailTrailingAction
+            Group {
+                if voiceFirstEnabled {
+                    voiceRailTrailingAction
+                        .fixedSize(horizontal: true, vertical: false)
+                        .layoutPriority(1)
+                    voiceFirstAccessoryRow
+                        .fixedSize(horizontal: true, vertical: false)
+                        .layoutPriority(1)
+                } else {
+                    voiceRailTrailingAction
+                }
             }
+            .environment(\.layoutDirection, textLayoutDirection)
+
+            voiceRailTransportButton
+                .environment(\.layoutDirection, textLayoutDirection)
         }
-        .padding(.horizontal, DesignSpacing.xs)
+        .environment(\.layoutDirection, composerControlDirection)
         .padding(.top, DesignSpacing.xs)
         .padding(.bottom, 6)
+    }
+
+    private var composerActions: some View {
+        VStack(spacing: DesignSpacing.sm) {
+            if state.showImageAttachmentButton {
+                PhotosPicker(selection: $selectedPhotoItems, maxSelectionCount: 4, matching: .images) {
+                    ZStack {
+                        if isLoadingAttachment {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Image(systemName: "photo")
+                                .font(DesignControls.composerActionIconFont)
+                        }
+                    }
+                    .frame(width: DesignControls.composerPrimaryActionButtonSize, height: DesignControls.composerPrimaryActionButtonSize)
+                    .foregroundStyle(DesignColors.Brand.primary)
+                    .background(DesignColors.Brand.primary.opacity(0.10))
+                    .clipShape(RoundedRectangle(cornerRadius: DesignCorners.medium))
+                    .frame(width: composerActionSlotWidth, height: max(ComposerHitTarget.minimum, DesignControls.composerPrimaryActionButtonSize))
+                    .contentShape(Rectangle())
+                }
+                .disabled(isLoadingAttachment || isSending)
+                .accessibilityIdentifier("chat-attach-image")
+            }
+
+            Button(action: sendCurrentInput) {
+                ZStack {
+                    if isSending {
+                        ProgressView().controlSize(.small).tint(.white)
+                    } else {
+                        Image(systemName: "arrow.up")
+                            .font(DesignControls.composerActionIconFont.bold())
+                            .foregroundStyle(.white)
+                    }
+                }
+                .frame(width: DesignControls.composerPrimaryActionButtonSize, height: DesignControls.composerPrimaryActionButtonSize)
+                .background {
+                    RoundedRectangle(cornerRadius: DesignCorners.medium)
+                        .fill(canSendNow ? DesignColors.Brand.primary : DesignColors.Brand.primary.opacity(0.35))
+                }
+                .frame(width: composerActionSlotWidth, height: max(ComposerHitTarget.minimum, DesignControls.composerPrimaryActionButtonSize))
+                .contentShape(Rectangle())
+                .contentShape(.hoverEffect, Rectangle())
+                .hoverEffect(.lift)
+            }
+            .accessibilityIdentifier("chat-send")
+            .disabled(!canSendNow)
+        }
+        .frame(width: composerActionSlotWidth)
     }
 
     var body: some View {
@@ -1078,35 +1151,15 @@ struct ChatTabView: View {
                         quietComposerStatus
                     }
 
-                    voiceRail
+                    if showsVoiceRail {
+                        voiceRail
+                    }
 
                     if !imageAttachments.isEmpty || isLoadingAttachment || attachmentError != nil {
                         attachmentStrip
                     }
 
                     HStack(alignment: .bottom, spacing: DesignSpacing.sm) {
-                        PhotosPicker(
-                            selection: $selectedPhotoItems,
-                            maxSelectionCount: 4,
-                            matching: .images
-                        ) {
-                            ZStack {
-                                if isLoadingAttachment {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                } else {
-                                    Image(systemName: "photo")
-                                        .font(DesignControls.composerActionIconFont)
-                                }
-                            }
-                            .frame(width: DesignControls.composerPrimaryActionButtonSize, height: DesignControls.composerPrimaryActionButtonSize)
-                            .foregroundStyle(DesignColors.Brand.primary)
-                            .background(DesignColors.Brand.primary.opacity(0.10))
-                            .clipShape(RoundedRectangle(cornerRadius: DesignCorners.medium))
-                        }
-                        .disabled(isLoadingAttachment || isSending)
-                        .accessibilityIdentifier("chat-attach-image")
-
                         ZStack(alignment: .topLeading) {
                             ChatComposerTextView(
                                 text: composerInputBinding,
@@ -1168,33 +1221,12 @@ struct ChatTabView: View {
                             }
                             #endif
                         }
+                        .environment(\.layoutDirection, textLayoutDirection)
 
-                        Button {
-                            sendCurrentInput()
-                        } label: {
-                            ZStack {
-                                if isSending {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                        .tint(.white)
-                                } else {
-                                    Image(systemName: "arrow.up")
-                                        .font(DesignControls.composerActionIconFont.bold())
-                                        .foregroundStyle(.white)
-                                }
-                            }
-                            .frame(width: DesignControls.composerPrimaryActionButtonSize, height: DesignControls.composerPrimaryActionButtonSize)
-                            .background {
-                                RoundedRectangle(cornerRadius: DesignCorners.medium)
-                                    .fill(canSendNow ? DesignColors.Brand.primary : DesignColors.Brand.primary.opacity(0.35))
-                            }
-                            .contentShape(.hoverEffect, RoundedRectangle(cornerRadius: DesignCorners.medium))
-                            .hoverEffect(.lift)
-                        }
-                        .accessibilityIdentifier("chat-send")
-                        .disabled(!canSendNow)
-                        .padding(.bottom, 1)
+                        composerActions
+                            .environment(\.layoutDirection, textLayoutDirection)
                     }
+                    .environment(\.layoutDirection, composerControlDirection)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 4)
@@ -1249,6 +1281,14 @@ struct ChatTabView: View {
             .onChange(of: state.currentHostProfileID) { _, _ in
                 persistAllDeferredToOrigins()
                 composerFocusResetEpoch &+= 1
+            }
+            .onChange(of: state.isChatSpeechConfigured) { _, configured in
+                guard !configured, isSpeechCaptureActive, speechConfigurationCleanupTask == nil else { return }
+                let cleanup = prepareSpeechAbort()
+                speechConfigurationCleanupTask = Task {
+                    await cleanup()
+                    speechConfigurationCleanupTask = nil
+                }
             }
             .onChange(of: state.currentSessionID) { oldID, newID in
                 isComposerEditing = false

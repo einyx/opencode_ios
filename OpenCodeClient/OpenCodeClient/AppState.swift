@@ -204,6 +204,8 @@ final class AppState {
     static let carModeEnabledKey = "carModeEnabled"
     static let layoutPreferenceKey = "layoutPreference"
     static let voiceFirstInputKey = "voiceFirstInput"
+    static let composerActionSideKey = "composerActionSide"
+    static let showImageAttachmentButtonKey = "showImageAttachmentButton"
     static let languagePreferenceKey = L10n.languagePreferenceUserDefaultsKey
     static let carSessionsByContextKey = "carSessionsByContext.v1"
     static let carLiveBindingsByContextKey = "carLiveBindingsByContext.v1"
@@ -283,6 +285,8 @@ final class AppState {
         isCarModeEnabled = defaults.bool(forKey: Self.carModeEnabledKey)
         layoutPreference = LayoutPreference.resolved(from: defaults.string(forKey: Self.layoutPreferenceKey))
         voiceFirstInput = defaults.bool(forKey: Self.voiceFirstInputKey)
+        composerActionSide = ComposerActionSide.resolved(from: defaults.string(forKey: Self.composerActionSideKey))
+        showImageAttachmentButton = defaults.object(forKey: Self.showImageAttachmentButtonKey) as? Bool ?? true
         healthExportPermission = ClientCapabilityPermission(
             rawValue: defaults.string(forKey: Self.healthExportPermissionKey) ?? ""
         ) ?? .ask
@@ -455,6 +459,15 @@ final class AppState {
     }
     var voiceFirstInput = false {
         didSet { defaults.set(voiceFirstInput, forKey: Self.voiceFirstInputKey) }
+    }
+    var composerActionSide: ComposerActionSide = .right {
+        didSet { defaults.set(composerActionSide.rawValue, forKey: Self.composerActionSideKey) }
+    }
+    var showImageAttachmentButton = true {
+        didSet { defaults.set(showImageAttachmentButton, forKey: Self.showImageAttachmentButtonKey) }
+    }
+    var isChatSpeechConfigured: Bool {
+        !aiBuilderToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
     var isConnected: Bool = false {
         didSet {

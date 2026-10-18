@@ -336,6 +336,22 @@ enum UITestFixtures {
         guard hasUITestSessionTreeFixture else { return state }
         seedSessionTreePasteboardIfRequested()
 
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["UITEST_COMPOSER_SPEECH_CONFIGURED"] == "1" {
+            state._aiBuilderToken = "fixture-token"
+            state._aiBuilderBaseURL = "https://voice.example.invalid"
+        }
+        if let side = ProcessInfo.processInfo.environment["UITEST_COMPOSER_SIDE"] {
+            state.composerActionSide = ComposerActionSide.resolved(from: side)
+        }
+        if ProcessInfo.processInfo.environment["UITEST_COMPOSER_HIDE_IMAGE"] == "1" {
+            state.showImageAttachmentButton = false
+        }
+        if ProcessInfo.processInfo.environment["UITEST_COMPOSER_VOICE_FIRST"] == "1" {
+            state.voiceFirstInput = true
+        }
+        #endif
+
         state.isConnected = true
         state.sessions = [
             Session(
@@ -389,6 +405,11 @@ enum UITestFixtures {
         ]
         state.currentSessionID = "root-session"
         state.expandedSessionIDs = ["root-session", "archived-session"]
+        #if DEBUG
+        if let draft = ProcessInfo.processInfo.environment["UITEST_COMPOSER_DRAFT"] {
+            state.setDraftText(draft, for: "root-session")
+        }
+        #endif
         return state
     }
 

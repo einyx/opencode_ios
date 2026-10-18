@@ -257,6 +257,7 @@ final class FocusVoiceInputUITests: XCTestCase {
         let app = XCUIApplication()
         launchedApp = app
         app.launchArguments = ["UITEST_SESSION_TREE_FIXTURE"]
+        app.launchEnvironment["UITEST_COMPOSER_SPEECH_CONFIGURED"] = "1"
         if pasteSeed {
             app.launchEnvironment["UITEST_PASTE_SENTINEL"] = pasteSentinel
         }

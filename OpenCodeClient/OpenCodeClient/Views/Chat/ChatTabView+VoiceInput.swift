@@ -363,6 +363,7 @@ extension ChatTabView {
     }
 
     func toggleRecording() async {
+        guard speechConfigurationCleanupTask == nil else { return }
         if isRecording {
             let finalizationID = UUID()
             speechFinalizationID = finalizationID
@@ -532,15 +533,6 @@ extension ChatTabView {
                 speechError = L10n.t(.chatSpeechTokenMissing)
                 return
             }
-            if state.isTestingAIBuilderConnection {
-                speechError = L10n.t(.chatSpeechTesting)
-                return
-            }
-            guard state.aiBuilderConnectionOK else {
-                speechError = L10n.t(.chatSpeechNotPassed)
-                return
-            }
-
             let strategy = state.aiBuilderRecordingStrategy
             let originSessionID = state.currentSessionID
             let originHost = state.captureHostRequestSnapshot()
@@ -673,8 +665,23 @@ extension ChatTabView {
     }
 
     func abortSpeechRecognition() async {
+        let cleanup = prepareSpeechAbort()
+        await cleanup()
+    }
+
+    /// Revoke callback ownership synchronously, before a cleanup task can yield.
+    func prepareSpeechAbort() -> @MainActor () async -> Void {
         let originSessionID = speechOriginSessionID
         let owner = ChatSpeechOwner(sessionID: originSessionID)
+        // Capture and detach before releasing the microphone: an invalidated
+        // finalization may finish during that await and clear speechSession.
+        let session = speechSession
+        let prefix = recordingInputPrefix
+        let strategy = activeSpeechStrategy
+        let stoppingMicrophone = microphone
+        let sender = speechAudioSender
+        speechAudioSender = nil
+        speechSession = nil
         let cleanupPlan = ChatSpeechRouting.cleanupPlan(
             isRecording: isRecording,
             isStartingRecording: isStartingRecording,
@@ -687,41 +694,41 @@ extension ChatTabView {
         stopSpeechHeartbeat()
         stopSpeechEventConsumer()
         stopSpeechAudioLevelConsumer()
-        let audioURL = await ChatSpeechCaptureCleanup.releaseOwnedMicrophone(microphone, plan: cleanupPlan)
-        await finishSpeechAudioSender()
 
-        let session = speechSession
-        let prefix = recordingInputPrefix
-        let strategy = activeSpeechStrategy
-        speechSession = nil
-        speechOriginSessionID = nil
-        isRecording = false
-        isTranscribing = false
-        isStartingRecording = false
-        isRetryingSpeech = false
+        return {
+            let audioURL = await ChatSpeechCaptureCleanup.releaseOwnedMicrophone(stoppingMicrophone, plan: cleanupPlan)
+            await sender?.finishAndDrain()
 
-        if !strategy.usesRealtimeTransport {
+            speechOriginSessionID = nil
+            isRecording = false
+            isTranscribing = false
+            isStartingRecording = false
+            isRetryingSpeech = false
+
+            if !strategy.usesRealtimeTransport {
+                if let audioURL {
+                    storePendingSpeechAudio(.file(audioURL, strategy: strategy, prefix: prefix), owner: owner)
+                }
+                return
+            }
             if let audioURL {
-                storePendingSpeechAudio(.file(audioURL, strategy: strategy, prefix: prefix), owner: owner)
+                try? FileManager.default.removeItem(at: audioURL)
             }
-            return
-        }
-        if let audioURL {
-            try? FileManager.default.removeItem(at: audioURL)
-        }
-        guard let session else { return }
-        do {
-            if let preserved = try await session.abortPreservingAudio() {
-                storePendingSpeechAudio(.preserved(preserved, prefix: prefix), owner: owner)
-                Self.logger.notice("[SpeechProfile] realtime speech aborted with preserved bytes=\(preserved.byteCount, privacy: .public)")
+            guard let session else { return }
+            do {
+                if let preserved = try await session.abortPreservingAudio() {
+                    storePendingSpeechAudio(.preserved(preserved, prefix: prefix), owner: owner)
+                    Self.logger.notice("[SpeechProfile] realtime speech aborted with preserved bytes=\(preserved.byteCount, privacy: .public)")
+                }
+            } catch {
+                Self.logger.error("[SpeechProfile] realtime speech abort failed error=\(error.localizedDescription, privacy: .public)")
+                speechError = error.localizedDescription
             }
-        } catch {
-            Self.logger.error("[SpeechProfile] realtime speech abort failed error=\(error.localizedDescription, privacy: .public)")
-            speechError = error.localizedDescription
         }
     }
 
     func retryPreservedSpeechAudio() async {
+        guard speechConfigurationCleanupTask == nil, state.isChatSpeechConfigured else { return }
         let retrySessionID = state.currentSessionID
         let retryHost = state.captureHostRequestSnapshot()
         speechOriginHost = retryHost
