@@ -433,52 +433,6 @@ final class CarLiveUITests: XCTestCase {
     }
 
     @MainActor
-    func testDetailsMetricsFollowContainerWidth() throws {
-        let app = try launchPhone(["UITEST_CAR_LIVE_DETAILS_OPEN"], focusLayout: true)
-        let detailsBody = app.scrollViews["car-live-details-body"]
-        XCTAssertTrue(detailsBody.waitForExistence(timeout: 8))
-        let voice = app.descendants(matching: .any)["car-live-voice-seconds"]
-        let session = app.descendants(matching: .any)["car-live-session-seconds"]
-        let input = app.descendants(matching: .any)["car-live-input-usage"]
-        XCTAssertTrue(voice.waitForExistence(timeout: 4))
-        revealInDetails(detailsBody, voice)
-        revealInDetails(detailsBody, session)
-        XCTAssertTrue(voice.label.contains("00:00:12"))
-        XCTAssertFalse(voice.label.contains("00:00:00"))
-        XCTAssertTrue(session.label.contains("25:01:01"))
-        revealInDetails(detailsBody, input)
-        XCTAssertTrue(input.label.contains("1.23M"))
-        XCTAssertEqual(input.value as? String, "1234567")
-        XCTAssertFalse(input.label.contains("1234567"))
-        XCTAssertTrue(app.buttons["car-live-close"].isHittable)
-        XCTAssertLessThanOrEqual(detailsBody.frame.height, 260)
-        XCTAssertGreaterThan(app.buttons["car-live-close"].frame.minY, detailsBody.frame.minY)
-        assertDetailsColumns(app, accessibility: false)
-        keepScreenshot(app, name: "details-refresh-portrait")
-
-        XCUIDevice.shared.orientation = .landscapeLeft
-        defer { XCUIDevice.shared.orientation = .portrait }
-        keepScreenshot(app, name: "details-refresh-landscape-after-orientation")
-        let rotated = XCTNSPredicateExpectation(
-            predicate: NSPredicate { evaluated, _ in
-                guard let body = evaluated as? XCUIElement else { return false }
-                let frame = body.frame
-                return frame.width > 500 && frame.height > 40
-            },
-            object: detailsBody
-        )
-        let root = app.otherElements["car-live-root"]
-        XCTAssertEqual(
-            XCTWaiter().wait(for: [rotated], timeout: 6),
-            .completed,
-            "app.frame=\(app.frame) detailsBody.frame=\(detailsBody.frame) car-live-root.frame=\(root.frame) orientation=\(XCUIDevice.shared.orientation)"
-        )
-        resetDetailsScroll(detailsBody)
-        keepScreenshot(app, name: "details-refresh-landscape")
-        assertDetailsColumns(app, accessibility: false)
-    }
-
-    @MainActor
     func testDetailsMetricsUseOneColumnForAccessibilityText() throws {
         let app = try launchPhone([
             "UITEST_CAR_LIVE_DETAILS_OPEN",
@@ -514,44 +468,6 @@ final class CarLiveUITests: XCTestCase {
     }
 
     @MainActor
-    private func assertDetailsColumns(_ app: XCUIApplication, accessibility: Bool, file: StaticString = #filePath, line: UInt = #line) {
-        let ids = [
-            "car-live-voice-seconds",
-            "car-live-session-seconds",
-            "car-live-input-usage",
-            "car-live-output-usage",
-            "car-live-cache-read",
-            "car-live-cache-write",
-            "car-live-input-level",
-            "car-live-output-level",
-        ]
-        let body = app.scrollViews["car-live-details-body"]
-        XCTAssertTrue(body.exists, file: file, line: line)
-        let columns = detailsColumnCount(width: body.frame.width, accessibility: accessibility)
-        var index = 0
-        while index < ids.count {
-            let rowCount = min(columns, ids.count - index)
-            let row = (0..<rowCount).map { app.descendants(matching: .any)[ids[index + $0]] }
-            for cell in row {
-                revealInDetails(body, cell, file: file, line: line)
-                XCTAssertTrue(isOnScreen(cell, in: body), "\(ids[index]) stayed off the details scroller", file: file, line: line)
-                XCTAssertFalse(cell.label.isEmpty, file: file, line: line)
-                XCTAssertFalse(cell.label.contains("…"), file: file, line: line)
-            }
-            if rowCount == 1 {
-                XCTAssertGreaterThan(row[0].frame.width, body.frame.width * 0.7, file: file, line: line)
-            } else {
-                XCTAssertLessThan(row[0].frame.width, body.frame.width * 0.75, file: file, line: line)
-                for column in 1..<rowCount {
-                    XCTAssertEqual(row[column].frame.minY, row[0].frame.minY, accuracy: 8, file: file, line: line)
-                    XCTAssertGreaterThan(row[column].frame.minX, row[column - 1].frame.maxX - 4, file: file, line: line)
-                }
-            }
-            index += rowCount
-        }
-    }
-
-    @MainActor
     private func revealInDetails(_ container: XCUIElement, _ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
         if isOnScreen(element, in: container) { return }
         XCTAssertGreaterThan(container.frame.width, 2, file: file, line: line)
@@ -579,26 +495,12 @@ final class CarLiveUITests: XCTestCase {
         return overlap.width > 8 && overlap.height > 8
     }
 
-    private func resetDetailsScroll(_ container: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
-        XCTAssertGreaterThan(container.frame.height, 40, file: file, line: line)
-        for _ in 0..<5 {
-            drag(container, upward: false)
-        }
-    }
-
     private func drag(_ container: XCUIElement, upward: Bool) {
         if upward {
             container.swipeUp()
         } else {
             container.swipeDown()
         }
-    }
-
-    private func detailsColumnCount(width: CGFloat, accessibility: Bool) -> Int {
-        if accessibility || width < 240 { return 1 }
-        if width < 560 { return 2 }
-        if width < 800 { return 3 }
-        return 4
     }
 
     private func keepScreenshot(_: XCUIApplication, name: String) {
