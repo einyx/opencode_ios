@@ -9,12 +9,16 @@ final class CarLiveController {
     private(set) var activities: [CarLiveActivity] = []
     private var captionBook = CarLiveCaptionBook()
     private(set) var inputLevel: Double = 0
+    private(set) var inputFrameCount = 0
+    private(set) var sentAudioFrameCount = 0
+    private(set) var outputFrameCount = 0
     private(set) var outputLevel: Double = 0
     private(set) var elapsedSeconds: Int = 0
     private(set) var voiceSeconds: Double = 0
     private(set) var backendUsage = CarLiveBackendUsage()
     private(set) var portalEstimatedUSD: Double?
     private(set) var usageUnconfirmed = false
+    private(set) var audioCleanupPending = false
     var voiceDurationKnown: Bool { voice.hasSnapshot }
     var voiceDurationUnconfirmed: Bool { voice.unconfirmed }
     var portalUsageSettled: Bool { portal.settled }
@@ -33,9 +37,13 @@ final class CarLiveController {
     private var audioPump: Task<Void, Never>?
     private var clock: Task<Void, Never>?
     private let closeGrace: TimeInterval
+    private let audioSendTimeout: TimeInterval?
     private var runToken: UInt64 = 0
     private var captureGeneration: UInt64 = 0
     private var captureToken: UInt64 = 0
+    private var earlyCapture: CarLiveCaptureHandle?
+    private var captureCleanup: Task<Void, Never>?
+    private var cleanupRecoveryToken: UInt64?
     private var closing = false
     private var externalHoldApplied = false
     private var draining = false
@@ -68,11 +76,13 @@ final class CarLiveController {
         bargeSustain: TimeInterval = 0.18,
         bargeRelease: TimeInterval = 0.45,
         clock: CarLiveClock = CarLiveClock(),
-        lifecycle: CarLiveLifecycleLog = .shared
+        lifecycle: CarLiveLifecycleLog = .shared,
+        audioSendTimeout: TimeInterval? = nil
     ) {
         self.transport = transport
         self.audio = audio ?? CarLiveAudioEngines.makeDefault()
         self.closeGrace = closeGrace
+        self.audioSendTimeout = audioSendTimeout
         self.bargeSustain = bargeSustain
         self.bargeRelease = bargeRelease
         self.timeSource = clock
@@ -81,12 +91,22 @@ final class CarLiveController {
     }
 
     func start(configuration: CarLiveConfiguration) async {
-        if link != nil {
+        guard !audioCleanupPending else {
+            phase = .failed
+            errorMessage = CarLiveCopy.microphoneUnavailable
+            return
+        }
+        if link != nil || captureGeneration != 0 {
             await stop()
         } else if phase != .idle {
             phase = .idle
             errorMessage = nil
             closing = false
+        }
+        guard !audioCleanupPending else {
+            phase = .failed
+            errorMessage = CarLiveCopy.microphoneUnavailable
+            return
         }
         runToken &+= 1
         let token = runToken
@@ -94,6 +114,9 @@ final class CarLiveController {
         captureToken = 0
         releasePlaybackHold()
         diagnostics.reset()
+        inputFrameCount = 0
+        sentAudioFrameCount = 0
+        outputFrameCount = 0
         calls.bind(token)
         flight = CarLiveFlightBook()
         voice = CarLiveVoiceNote()
@@ -124,6 +147,28 @@ final class CarLiveController {
         }
         guard token == runToken, !blocksNewCapture else { return }
         replaceVisibleConversation(configuration.history)
+        if audio.startsBeforeConnection {
+            do {
+                let handle = try await audio.startCapture()
+                guard token == runToken, !closing, !blocksNewCapture else {
+                    handle.finish()
+                    await audio.stopCapture(generation: handle.generation)
+                    return
+                }
+                earlyCapture = handle
+                captureGeneration = handle.generation
+                captureToken = token
+                audio.setHoldHandler { [weak self] _, _ in
+                    Task { @MainActor in await self?.failStart(CarLiveCopy.microphoneUnavailable, token: token) }
+                }
+                audio.setFailureHandler { [weak self] _ in
+                    Task { @MainActor in await self?.failStart(CarLiveCopy.microphoneUnavailable, token: token) }
+                }
+            } catch {
+                await failStart(CarLiveCopy.microphoneUnavailable, token: token)
+                return
+            }
+        }
         let opened: any CarLiveLink
         do {
             opened = try await transport.open(configuration)
@@ -288,6 +333,7 @@ final class CarLiveController {
             await beginAudio(token: token)
         case .outputAudio(let pcm):
             guard !closing, !pcm.isEmpty else { return }
+            outputFrameCount += 1
             if suppressPlayback {
                 noteDiagnostic("playback_drop")
                 return
@@ -365,7 +411,13 @@ final class CarLiveController {
             }
         }
         do {
-            let handle = try await audio.startCapture()
+            let handle: CarLiveCaptureHandle
+            if let prepared = earlyCapture {
+                earlyCapture = nil
+                handle = prepared
+            } else {
+                handle = try await audio.startCapture()
+            }
             guard token == runToken, !closing, !blocksNewCapture else {
                 handle.finish()
                 await audio.stopCapture(generation: handle.generation)
@@ -397,15 +449,37 @@ final class CarLiveController {
                 }
             }
             let opened = link
+            let audioSendTimeout = self.audioSendTimeout
             audioPump = Task { [weak self] in
                 for await frame in handle.frames {
                     let payload = await MainActor.run { () -> Data? in
                         guard let self, self.runToken == token, !self.closing else { return nil }
+                        self.inputFrameCount += 1
                         return self.isMuted ? CarLivePCM.silence(byteCount: frame.count) : frame
                     }
                     guard let payload, payload.count >= 2, let opened else { return }
                     do {
-                        try await opened.send(.audio(payload))
+                        if let audioSendTimeout {
+                            let outcome = CarLiveSendOutcome()
+                            let deadline = ContinuousClock.now.advanced(by: .seconds(audioSendTimeout))
+                            let finished = await CarLiveDeadlineHandle.run(until: deadline) {
+                                do {
+                                    try await opened.send(.audio(payload))
+                                    outcome.mark(true)
+                                } catch { outcome.mark(false) }
+                            }
+                            guard finished, outcome.succeeded else {
+                                if !finished {
+                                    opened.noteSendTimeout()
+                                    self?.noteLifecycle(CarLiveLifecycleKind.audioSendDeadline, errorCode: "send_timeout", deadline: deadline)
+                                }
+                                await self?.noteAudioSendFailure(token: token)
+                                return
+                            }
+                        } else {
+                            try await opened.send(.audio(payload))
+                        }
+                        if let self, self.runToken == token { self.sentAudioFrameCount += 1 }
                     } catch {
                         await self?.noteAudioSendFailure(token: token)
                         return
@@ -419,6 +493,9 @@ final class CarLiveController {
                     try? await Task.sleep(for: .seconds(1))
                     guard let self, self.runToken == token, let clockStart = self.clockStart else { return }
                     self.elapsedSeconds = max(0, Int(Date().timeIntervalSince(clockStart)))
+                    if self.audioSendTimeout != nil, self.elapsedSeconds.isMultiple(of: 5) {
+                        self.noteLifecycle(CarLiveLifecycleKind.audioHeartbeat, errorCode: "none", deadline: .now)
+                    }
                 }
             }
             resumeWaiter(true)
@@ -484,13 +561,41 @@ final class CarLiveController {
         await beginStop(requestedAt: .now, sendClose: false)
     }
 
-    private func stopOwnedCapture(token: UInt64) async {
+    private func stopOwnedCapture(token: UInt64, deadline: ContinuousClock.Instant? = nil) async {
         guard token == captureToken, captureGeneration != 0 else { return }
         let generation = captureGeneration
-        await audio.stopCapture(generation: generation)
-        guard captureGeneration == generation, captureToken == token else { return }
-        captureGeneration = 0
-        captureToken = 0
+        earlyCapture?.finish()
+        earlyCapture = nil
+        let cutoff = deadline ?? ContinuousClock.now.advanced(by: .seconds(closeGrace))
+        let cleanup: Task<Void, Never>
+        if let existing = captureCleanup {
+            cleanup = existing
+        } else {
+            audioCleanupPending = true
+            let audio = self.audio
+            cleanup = Task { @MainActor [weak self] in
+                await audio.stopCapture(generation: generation)
+                guard let self, self.captureGeneration == generation, self.captureToken == token else { return }
+                self.captureGeneration = 0
+                self.captureToken = 0
+                self.audioCleanupPending = false
+                self.captureCleanup = nil
+                if self.cleanupRecoveryToken == token {
+                    self.cleanupRecoveryToken = nil
+                    self.phase = .idle
+                    self.errorMessage = nil
+                }
+            }
+            captureCleanup = cleanup
+        }
+        // Always attempt hardware cleanup, even if the shutdown budget has
+        // already expired. The UI does not join an uncooperative audio driver.
+        let finished = await CarLiveDeadlineHandle.run(until: cutoff) { await cleanup.value }
+        if !finished, captureGeneration == generation, captureToken == token {
+            usageUnconfirmed = true
+            errorMessage = CarLiveCopy.microphoneUnavailable
+            noteLifecycle(CarLiveLifecycleKind.audioStopDeadline, errorCode: "budget_exceeded", deadline: cutoff)
+        }
     }
 
     private func finishFlight(token: UInt64, sent: Bool) async {
@@ -539,10 +644,11 @@ final class CarLiveController {
         guard token == runToken else { return }
         let ownedLink = link
         let ownedReader = reader
+        let deadline = ContinuousClock.now.advanced(by: .seconds(closeGrace))
         resumeWaiter(false)
-        await stopOwnedCapture(token: token)
+        await stopOwnedCapture(token: token, deadline: deadline)
         ownedReader?.cancel()
-        await abandonClose(ownedLink, deadline: ContinuousClock.now.advanced(by: .seconds(closeGrace)))
+        await abandonClose(ownedLink, deadline: deadline)
         guard token == runToken else { return }
         link = nil
         phase = .failed
@@ -555,18 +661,19 @@ final class CarLiveController {
         let ownedLink = link
         let ownedReader = reader
         let ownedPump = audioPump
+        let deadline = ContinuousClock.now.advanced(by: .seconds(closeGrace))
         usageUnconfirmed = true
         ownedPump?.cancel()
         clock?.cancel()
-        await stopOwnedCapture(token: token)
+        await stopOwnedCapture(token: token, deadline: deadline)
         ownedReader?.cancel()
-        await abandonClose(ownedLink, deadline: ContinuousClock.now.advanced(by: .seconds(closeGrace)))
+        await abandonClose(ownedLink, deadline: deadline)
         guard token == runToken else { return }
         link = nil
         phase = .failed
         errorMessage = message
         inputLevel = 0
-        if captureToken == token {
+        if captureToken == token, !audioCleanupPending {
             captureGeneration = 0
             captureToken = 0
         }
@@ -727,11 +834,11 @@ final class CarLiveController {
                 usageUnconfirmed = true
             }
             noteLifecycle(CarLiveLifecycleKind.budgetExceeded, errorCode: "budget_exceeded", deadline: deadline)
-            await stopOwnedCapture(token: token)
+            await stopOwnedCapture(token: token, deadline: deadline)
             await releaseOwned(token: token, link: ownedLink, reader: ownedReader, deadline: .now)
             return
         }
-        await stopOwnedCapture(token: token)
+        await stopOwnedCapture(token: token, deadline: deadline)
         if Task.isCancelled || CarLiveCloseBudget.exceeded(now: .now, deadline: deadline) {
             await finishEarly(token: token, link: ownedLink, reader: ownedReader, deadline: deadline)
             return
@@ -812,13 +919,14 @@ final class CarLiveController {
         closeSeen = false
         inputLevel = 0
         outputLevel = 0
-        if captureToken == token {
+        if captureToken == token, !audioCleanupPending {
             captureGeneration = 0
             captureToken = 0
         }
         releasePlaybackHold()
         noteDiagnostic("stop")
-        phase = .idle
+        cleanupRecoveryToken = audioCleanupPending ? token : nil
+        phase = audioCleanupPending ? .failed : .idle
         let ended = token
         runToken &+= 1
         calls.bind(runToken)
@@ -852,7 +960,10 @@ final class CarLiveController {
             closeEnded: event == CarLiveLifecycleKind.closeEnd,
             deadlineRemainingMS: CarLiveCloseBudget.remainingMS(now: .now, deadline: deadline),
             stopping: stopping,
-            closeSeen: closeSeen
+            closeSeen: closeSeen,
+            inputFrames: inputFrameCount,
+            sentFrames: sentAudioFrameCount,
+            outputFrames: outputFrameCount
         ))
     }
 }

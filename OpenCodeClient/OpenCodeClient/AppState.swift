@@ -320,6 +320,9 @@ final class AppState {
 
     var sessionScope = SessionScopedState()
     var hostRequestGeneration: UInt64 = 0
+    #if os(iOS)
+    var watchPhoneBridge: WatchPhoneBridge?
+    #endif
     var draftInputsByHost: [String: [String: String]] = [:]
     var selectedModelIDsByHost: [String: [String: String]] = [:]
     var hostProfileBlobUnreadable = false
@@ -809,6 +812,9 @@ final class AppState {
             _selectedProjectWorktree = newValue
             defaults.set(newValue, forKey: Self.selectedProjectWorktreeKey)
             if carContextKey != previous {
+                #if os(iOS)
+                watchPhoneBridge?.invalidate()
+                #endif
                 invalidateCarTurnForRealProjectChange()
             }
         }
@@ -822,6 +828,9 @@ final class AppState {
             _customProjectPath = newValue
             defaults.set(newValue, forKey: Self.customProjectPathKey)
             if carContextKey != previous {
+                #if os(iOS)
+                watchPhoneBridge?.invalidate()
+                #endif
                 invalidateCarTurnForRealProjectChange()
             }
         }

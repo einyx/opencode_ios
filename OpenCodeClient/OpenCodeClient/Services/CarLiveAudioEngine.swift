@@ -1,5 +1,5 @@
 import Foundation
-#if os(iOS)
+#if os(iOS) || os(watchOS)
 import AVFoundation
 #endif
 
@@ -15,6 +15,7 @@ nonisolated struct CarLiveCaptureHandle: Sendable {
 }
 
 nonisolated protocol CarLiveAudioEngine: Sendable {
+    var startsBeforeConnection: Bool { get }
     func requestRecordPermission() async -> Bool
     func startCapture() async throws -> CarLiveCaptureHandle
     func stopCapture(generation: UInt64) async
@@ -29,6 +30,7 @@ nonisolated protocol CarLiveAudioEngine: Sendable {
 }
 
 extension CarLiveAudioEngine {
+    var startsBeforeConnection: Bool { false }
     func setPlaybackHeld(_ held: Bool) {}
     func setFailureHandler(_ handler: (@Sendable (String) -> Void)?) {}
     func setHoldHandler(_ handler: (@Sendable (BackgroundVoiceHoldKind, UInt64) -> Void)?) {}
@@ -173,7 +175,7 @@ nonisolated final class CarLiveFrameStream: @unchecked Sendable {
 
 nonisolated enum CarLiveAudioEngines {
     static func makeDefault() -> any CarLiveAudioEngine {
-        #if os(iOS)
+        #if os(iOS) || os(watchOS)
         return CarLiveIOSAudioEngine()
         #else
         return CarLiveUnavailableAudioEngine()
@@ -197,8 +199,15 @@ nonisolated final class CarLiveUnavailableAudioEngine: CarLiveAudioEngine, @unch
     func setPlaybackIdleHandler(_ handler: (@Sendable () -> Void)?) {}
 }
 
-#if os(iOS)
+#if os(iOS) || os(watchOS)
 nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Sendable {
+    var startsBeforeConnection: Bool {
+        #if os(watchOS)
+        true
+        #else
+        false
+        #endif
+    }
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
     private let queue = DispatchQueue(label: "com.grapeot.OpenCodeClient.carlive.audio")
@@ -230,7 +239,12 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
     }
 
     func startCapture() async throws -> CarLiveCaptureHandle {
-        try await withCheckedThrowingContinuation { continuation in
+        #if os(watchOS)
+        let session = AVAudioSession.sharedInstance()
+        try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetoothHFP])
+        guard try await session.activate(options: []) else { throw CarLiveAudioError.failed }
+        #endif
+        return try await withCheckedThrowingContinuation { continuation in
             queue.async {
             do {
                 let handle = try self.startOnQueue()
@@ -244,6 +258,7 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
     }
 
     func stopCapture(generation: UInt64) async {
+        noteAudioStage(CarLiveLifecycleKind.audioStopQueued)
         await withCheckedContinuation { continuation in
             queue.async {
                 let current = self.locked { self.gate.generation }
@@ -317,9 +332,11 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
         installObserversOnQueue()
         acceptSessionEvents = true
         let session = AVAudioSession.sharedInstance()
+        #if os(iOS)
         try session.setCategory(.playAndRecord, mode: .voiceChat, options: Self.categoryOptions())
         try session.setPreferredSampleRate(48_000)
         try session.setPreferredIOBufferDuration(0.02)
+        #endif
         var ports = routePorts(session)
         if ports.isEmpty {
             try session.setActive(true)
@@ -371,6 +388,7 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
     }
 
     private func stopOnQueue() {
+        noteAudioStage(CarLiveLifecycleKind.audioStopBegin)
         acceptSessionEvents = false
         let opened = locked { () -> CarLiveFrameStream? in
             intendedRunning = false
@@ -388,17 +406,28 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
             engine.inputNode.removeTap(onBus: 0)
             tapInstalled = false
         }
+        noteAudioStage(CarLiveLifecycleKind.audioTapRemoved)
         player.stop()
         if engine.isRunning { engine.stop() }
+        noteAudioStage(CarLiveLifecycleKind.audioEngineStopped)
         if engine.attachedNodes.contains(player) { engine.detach(player) }
         inputConverter = nil
         playbackConverter = nil
         playbackFormat = nil
         removeObserversOnQueue()
         try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+        noteAudioStage(CarLiveLifecycleKind.audioStopEnd)
+    }
+
+    private func noteAudioStage(_ event: String) {
+        CarLiveLifecycleLog.shared.note(CarLiveLifecycleRecord(phase: "audio", event: event))
     }
 
     private func clearPlaybackOnQueue(capture: UInt64, playback token: UInt64) {
+        // Engine properties may acquire AVAudioEngine's render locks. Never
+        // query them while holding the state lock used by the input tap.
+        let engineRunning = engine.isRunning
+        let playerAttached = engine.attachedNodes.contains(player)
         let decision = locked { () -> CarLivePlaybackRestart in
             let restart = CarLivePlaybackRestart(
                 queuedCapture: capture,
@@ -406,8 +435,8 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
                 queuedPlayback: token,
                 currentPlayback: gate.playbackGeneration,
                 intendedRunning: intendedRunning,
-                engineRunning: engine.isRunning,
-                playerAttached: engine.attachedNodes.contains(player),
+                engineRunning: engineRunning,
+                playerAttached: playerAttached,
                 hasAudio: false
             )
             if restart.ownsQueuedClear {
@@ -455,6 +484,8 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
                 return piece
             }
             guard let slice, let buffer = floatBuffer(from: slice, format: playbackFormat, converter: playbackConverter) else { return }
+            let engineRunning = engine.isRunning
+            let playerAttached = engine.attachedNodes.contains(player)
             let decision = locked {
                 CarLivePlaybackRestart(
                     queuedCapture: owned.0,
@@ -462,8 +493,8 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
                     queuedPlayback: playbackToken,
                     currentPlayback: gate.playbackGeneration,
                     intendedRunning: intendedRunning && !playbackHeld,
-                    engineRunning: engine.isRunning,
-                    playerAttached: engine.attachedNodes.contains(player),
+                    engineRunning: engineRunning,
+                    playerAttached: playerAttached,
                     hasAudio: true
                 )
             }
@@ -527,7 +558,7 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
             let generation = self?.currentGeneration() ?? 0
             self?.queue.async { self?.handleLegacyInterruptionOnQueue(began: began, eventGeneration: generation) }
         })
-        if #available(iOS 27, *) {
+        if #available(iOS 27, watchOS 27, *) {
             observers.append(center.addObserver(forName: AVAudioSession.didBecomeInactiveNotification, object: session, queue: nil) { [weak self] note in
                 let parsed = Self.inactiveParts(note)
                 let generation = self?.currentGeneration() ?? 0
@@ -549,7 +580,7 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
         return route.inputs.map(\.portType.rawValue) + route.outputs.map(\.portType.rawValue)
     }
 
-    @available(iOS 27, *)
+    @available(iOS 27, watchOS 27, *)
     private static func inactiveParts(_ note: Notification) -> (source: Int, reason: Int?) {
         guard let context = note.userInfo?[AVAudioSession.deactivationContextKey] as? AVAudioSession.DeactivationContext else {
             return (-1, nil)
@@ -598,6 +629,7 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
             return (eventGeneration, current)
         }
         guard let applied else { return }
+        noteAudioStage(CarLiveLifecycleKind.audioHold)
         applied.1?.finish()
         if tapInstalled {
             engine.inputNode.removeTap(onBus: 0)
@@ -702,7 +734,9 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
         for name in CarLiveCaptureSessionPlan.optionNames {
             switch name {
             case "defaultToSpeaker":
+                #if os(iOS)
                 options.insert(.defaultToSpeaker)
+                #endif
             case "allowBluetoothHFP":
                 options.insert(.allowBluetoothHFP)
             default:

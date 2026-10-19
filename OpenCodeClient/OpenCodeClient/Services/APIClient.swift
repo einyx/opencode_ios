@@ -51,6 +51,20 @@ actor APIClient {
         liveLease = CarLiveTransportGate.invalidate(liveLease)
     }
 
+    /// A separate gate and cancellable session, using the same phone-only route.
+    func makeWatchClient() -> APIClient {
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 12
+        config.timeoutIntervalForResource = 15
+        config.waitsForConnectivity = false
+        return APIClient(baseURL: baseURL, username: username, password: password,
+                         session: URLSession(configuration: config))
+    }
+
+    nonisolated func cancelWatchRequests() {
+        session.invalidateAndCancel()
+    }
+
     /// Adds http:// when no scheme is present and strips trailing slashes so
     /// appended paths (e.g. "/global/health") never produce double slashes.
     nonisolated static func normalizeBaseURL(_ raw: String) -> String {

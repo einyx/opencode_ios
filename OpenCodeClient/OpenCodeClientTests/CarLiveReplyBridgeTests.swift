@@ -3,6 +3,36 @@ import Testing
 @testable import OpenCodeClient
 
 struct CarLiveReplyBridgeTests {
+    @Test @MainActor func watchUnconfirmedDeliveryCanBeDiscardedWithoutReplay() async throws {
+        let h = ReplyHarness()
+        h.bridge.requiresGatewayAcknowledgement = true
+        var laterTurn = false
+        h.pages = { _, _, _ in
+            var rows = [liveRow(id: "a1", sessionID: "s", role: "assistant", text: "第一条回复")]
+            if laterTurn {
+                rows.append(liveRow(id: "u2", sessionID: "s", role: "user", text: "继续"))
+                rows.append(liveRow(id: "a2", sessionID: "s", role: "assistant", text: "第二条回复"))
+            }
+            return livePage(rows)
+        }
+        let token = await h.reserve(sessionID: "s", isNew: true)
+        await h.bridge.accept(token)
+        await h.bridge.flush()
+        let event = try #require(h.sent.first?.eventID)
+        await h.bridge.noteExplicitIdle(sessionID: "s")
+        await h.bridge.flush()
+        #expect(h.sent.count == 1)
+        h.bridge.noteUndelivered(event)
+        laterTurn = true
+        await h.bridge.noteExplicitIdle(sessionID: "s")
+        await h.bridge.flush()
+        #expect(h.sent.count == 2)
+        #expect(h.sent.last?.text.contains("第二条回复") == true)
+        await h.bridge.noteExplicitIdle(sessionID: "s")
+        await h.bridge.flush()
+        #expect(h.sent.count == 2)
+    }
+
     @Test @MainActor func parentIdleSendsCompletedTextWithoutChildrenOrParentGate() async {
         let h = ReplyHarness()
         h.pages = { _, _, _ in
