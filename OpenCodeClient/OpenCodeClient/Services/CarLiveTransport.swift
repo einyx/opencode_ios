@@ -16,6 +16,11 @@ nonisolated protocol CarLiveSocket: Sendable {
     func receive() async throws -> String
     func ping() async throws
     func close() async
+    func noteSendTimeout()
+}
+
+nonisolated extension CarLiveSocket {
+    func noteSendTimeout() {}
 }
 
 nonisolated protocol CarLiveSocketFactory: Sendable {
@@ -28,9 +33,12 @@ nonisolated protocol CarLiveLink: Sendable {
     func send(_ event: CarLiveClientEvent, eventID: String) async throws
     func ping() async throws
     func close() async
+    func noteSendTimeout()
 }
 
 nonisolated extension CarLiveLink {
+    func noteSendTimeout() {}
+
     func send(_ event: CarLiveClientEvent, eventID: String) async throws {
         throw CarLiveTransportError.rejected
     }
@@ -40,7 +48,21 @@ nonisolated protocol CarLiveTransporting: Sendable {
     func open(_ configuration: CarLiveConfiguration) async throws -> any CarLiveLink
 }
 
-nonisolated final class CarLiveRedirectRefuse: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+nonisolated final class CarLiveRedirectRefuse: NSObject, URLSessionWebSocketDelegate, @unchecked Sendable {
+    func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didOpenWithProtocol protocol: String?) {
+        CarLiveSocketDiagnostics.note(webSocketTask, event: CarLiveLifecycleKind.socketOpened)
+    }
+
+    func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
+        // Close reasons may contain server/user text. Keep only the numeric code.
+        CarLiveSocketDiagnostics.note(webSocketTask, event: CarLiveLifecycleKind.socketClosed)
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        guard let socket = task as? URLSessionWebSocketTask else { return }
+        CarLiveSocketDiagnostics.note(socket, event: CarLiveLifecycleKind.socketCompleted, error: error)
+    }
+
     func urlSession(
         _ session: URLSession,
         task: URLSessionTask,
@@ -49,6 +71,27 @@ nonisolated final class CarLiveRedirectRefuse: NSObject, URLSessionTaskDelegate,
         completionHandler: @escaping (URLRequest?) -> Void
     ) {
         completionHandler(nil)
+    }
+}
+
+nonisolated enum CarLiveSocketDiagnostics {
+    static func note(_ task: URLSessionWebSocketTask, event: String, error: Error? = nil) {
+        #if os(watchOS)
+        let ns = error as NSError?
+        var record = CarLiveLifecycleRecord(
+            runHash: CarLiveLifecycleLog.runHash(UInt64(task.taskIdentifier)),
+            phase: "network", event: event,
+            socketState: task.state.rawValue,
+            socketCloseCode: task.closeCode.rawValue,
+            networkErrorCode: ns?.code ?? 0,
+            networkBytesSent: task.countOfBytesSent,
+            networkBytesReceived: task.countOfBytesReceived
+        )
+        if let domain = ns?.domain {
+            record.networkErrorDomain = [NSURLErrorDomain, NSPOSIXErrorDomain, NSCocoaErrorDomain].contains(domain) ? domain : "other"
+        }
+        CarLiveLifecycleLog.shared.note(record)
+        #endif
     }
 }
 
@@ -72,11 +115,22 @@ nonisolated final class URLSessionCarLiveSocket: CarLiveSocket, @unchecked Senda
     }
 
     func send(_ text: String) async throws {
-        try await task.send(.string(text))
+        do {
+            try await task.send(.string(text))
+        } catch {
+            CarLiveSocketDiagnostics.note(task, event: CarLiveLifecycleKind.socketSendFailed, error: error)
+            throw error
+        }
     }
 
     func receive() async throws -> String {
-        let message = try await task.receive()
+        let message: URLSessionWebSocketTask.Message
+        do {
+            message = try await task.receive()
+        } catch {
+            CarLiveSocketDiagnostics.note(task, event: CarLiveLifecycleKind.socketReceiveFailed, error: error)
+            throw error
+        }
         switch message {
         case .string(let text):
             return text
@@ -101,6 +155,10 @@ nonisolated final class URLSessionCarLiveSocket: CarLiveSocket, @unchecked Senda
 
     func close() async {
         task.cancel(with: .normalClosure, reason: nil)
+    }
+
+    func noteSendTimeout() {
+        CarLiveSocketDiagnostics.note(task, event: CarLiveLifecycleKind.socketSendDeadline, error: task.error)
     }
 }
 
@@ -188,10 +246,12 @@ nonisolated final class CarLiveSocketLink: CarLiveLink, @unchecked Sendable {
     let events: AsyncStream<CarLiveServerEvent>
     private let continuation: AsyncStream<CarLiveServerEvent>.Continuation
     private let sender: CarLiveSendSerializer
+    private let socket: any CarLiveSocket
     private let reader: Task<Void, Never>
     private let state = CarLiveLinkState()
 
     init(socket: any CarLiveSocket) {
+        self.socket = socket
         let sender = CarLiveSendSerializer(socket: socket)
         self.sender = sender
         var captured: AsyncStream<CarLiveServerEvent>.Continuation!
@@ -237,6 +297,10 @@ nonisolated final class CarLiveSocketLink: CarLiveLink, @unchecked Sendable {
 
     func ping() async throws {
         try await sender.ping()
+    }
+
+    func noteSendTimeout() {
+        socket.noteSendTimeout()
     }
 
     func close() async {

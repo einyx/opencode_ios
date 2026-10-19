@@ -3,7 +3,7 @@ import Observation
 import WatchConnectivity
 import WatchKit
 
-private enum WatchBridgeError: Error { case unreachable, timeout, protocolError, remote(String) }
+private enum WatchBridgeError: Error { case unreachable, timeout, protocolError, remote(String), busy(String) }
 
 @MainActor
 private final class WatchRequestWaiter {
@@ -21,7 +21,7 @@ private final class WatchRequestWaiter {
 @MainActor
 @Observable
 final class WatchAmbientModel: NSObject, WCSessionDelegate {
-    let live = CarLiveController()
+    let live = CarLiveController(audioSendTimeout: 5)
     var connecting = false
     var error: String?
     var bridgeStatus = ""
@@ -31,6 +31,7 @@ final class WatchAmbientModel: NSObject, WCSessionDelegate {
     private var pendingCommentaryAcks: Set<String> = []
     private var fixture = false
     private var didActivate = false
+    private var lastWCErrorCode = 0
     var phase: CarLivePhase { fixture ? .listening : live.phase }
 
     var status: String {
@@ -101,7 +102,16 @@ final class WatchAmbientModel: NSObject, WCSessionDelegate {
         do {
             var begin = WatchBridgeWire.envelope("begin", run: owner)
             begin["readOnly"] = readOnly
-            let setup = try await request(begin)
+            let setup: [String: Any]
+            do {
+                setup = try await request(begin)
+            } catch WatchBridgeError.busy(let previous) {
+                guard run == owner, !Task.isCancelled else { throw CancellationError() }
+                // The user explicitly started a new local voice session. Replace
+                // only the exact leftover lease reported by the paired phone.
+                begin["replacing"] = previous
+                setup = try await request(begin)
+            }
             guard run == owner else { await end(owner); return }
             guard setup["run"] as? String == owner,
                   let raw = setup["portal"] as? String, let portal = URL(string: raw), portal.scheme == "https",
@@ -115,14 +125,20 @@ final class WatchAmbientModel: NSObject, WCSessionDelegate {
             connecting = false
             guard live.phase == .listening || live.phase == .speaking else {
                 await end(owner)
-                run = ""
+                if run == owner { run = "" }
                 return
             }
             WKInterfaceDevice.current().play(.start)
             startPoll(owner)
         } catch {
             if run == owner {
-                self.error = "手机不可达，请先在 iPhone 打开 OpenCode"
+                if case WatchBridgeError.unreachable = error {
+                    self.error = "手机不可达，请先在 iPhone 打开 OpenCode"
+                } else {
+                    // A reply such as busy or a phone-side health failure is
+                    // evidence that the companion was reached, not unreachable.
+                    self.error = CarLiveCopy.notReady
+                }
                 connecting = false
                 run = ""
             }
@@ -161,6 +177,7 @@ final class WatchAmbientModel: NSObject, WCSessionDelegate {
             throw WatchBridgeError.unreachable
         }
         let waiter = WatchRequestWaiter()
+        lastWCErrorCode = 0
         // Beginning may include a cold SSH reconnect and the phone's 12s health
         // request; ordinary result/chunk messages remain short-lived.
         let timeoutSeconds = payload["op"] as? String == "begin" ? 30 : 8
@@ -172,56 +189,89 @@ final class WatchAmbientModel: NSObject, WCSessionDelegate {
             }
             WCSession.default.sendMessage(payload, replyHandler: { response in
                 Task { @MainActor in
-                    if let code = response["error"] as? String { waiter.finish(.failure(WatchBridgeError.remote(code))) }
+                    if let code = response["error"] as? String {
+                        if code == "busy", let previous = response["activeRun"] as? String, WatchBridgeWire.validID(previous) {
+                            waiter.finish(.failure(WatchBridgeError.busy(previous)))
+                        } else { waiter.finish(.failure(WatchBridgeError.remote(code))) }
+                    }
                     else { waiter.finish(.success(response)) }
                 }
-            }, errorHandler: { _ in
-                Task { @MainActor in waiter.finish(.failure(WatchBridgeError.unreachable)) }
+            }, errorHandler: { [weak self] failure in
+                let code = (failure as NSError).code
+                Task { @MainActor in
+                    self?.lastWCErrorCode = code
+                    waiter.finish(.failure(WatchBridgeError.unreachable))
+                }
             })
         }
     }
 
     private func execute(_ call: CarLiveFunctionCall) async -> CarLiveToolResult {
         let owner = run
-        guard !owner.isEmpty, call.ownerToken == owner else { return unknown() }
+        noteTool("dispatch")
+        guard !owner.isEmpty, call.ownerToken == owner else { return unknown("owner") }
         do {
             var message = WatchBridgeWire.envelope("tool", run: owner, call: call.callID)
             message["name"] = call.name
             message["arguments"] = call.arguments
             bridgeStatus = "正在通过手机执行"
             var header = try await request(message)
+            noteTool("header", status: header["status"] as? String)
             let deadline = ContinuousClock.now.advanced(by: .seconds(20))
             while header["status"] as? String == "pending" {
-                guard run == owner, !Task.isCancelled, ContinuousClock.now < deadline else { return unknown() }
+                guard run == owner, !Task.isCancelled, ContinuousClock.now < deadline else { return unknown("poll_deadline") }
                 try await Task.sleep(for: .milliseconds(300))
                 header = try await request(WatchBridgeWire.envelope("result", run: owner, call: call.callID))
+                noteTool("result", status: header["status"] as? String)
             }
             guard run == owner, header["status"] as? String == "ready",
                   let count = header["bytes"] as? Int, (0...WatchBridgeWire.maxOutputBytes).contains(count),
                   let chunks = header["chunks"] as? Int, chunks == (count + WatchBridgeWire.chunkBytes - 1) / WatchBridgeWire.chunkBytes,
-                  let digest = header["sha256"] as? String else { return unknown() }
+                  let digest = header["sha256"] as? String else { return unknown("header_invalid") }
             var output = Data()
             for seq in 0..<chunks {
                 var pull = WatchBridgeWire.envelope("pull", run: owner, call: call.callID)
                 pull["seq"] = seq
                 let chunk = try await request(pull)
+                noteTool("chunk", sequence: seq)
                 guard run == owner, chunk["run"] as? String == owner, chunk["call"] as? String == call.callID,
                       chunk["seq"] as? Int == seq, let data = chunk["data"] as? Data,
-                      data.count == min(WatchBridgeWire.chunkBytes, count - output.count) else { return unknown() }
+                      data.count == min(WatchBridgeWire.chunkBytes, count - output.count) else { return unknown("chunk_invalid") }
                 output.append(data)
             }
             guard run == owner, output.count == count, WatchBridgeWire.digest(output) == digest,
-                  let text = String(data: output, encoding: .utf8) else { return unknown() }
+                  let text = String(data: output, encoding: .utf8) else { return unknown("digest_invalid") }
             var ack = WatchBridgeWire.envelope("ack", run: owner, call: call.callID)
             ack["sha256"] = digest
             _ = try? await request(ack)
+            noteTool("returned")
             WKInterfaceDevice.current().play(.success)
             return CarLiveToolResult(output: text)
-        } catch { return unknown() }
+        } catch WatchBridgeError.remote(let code) {
+            let known = ["stale_context", "unreachable", "bad_arguments", "busy", "limit", "protocol", "missing_call", "missing_chunk", "call_conflict", "read_only_probe"]
+            return unknown(known.contains(code) ? code : "remote_other")
+        } catch WatchBridgeError.timeout { return unknown("message_timeout") }
+        catch WatchBridgeError.unreachable { return unknown("unreachable") }
+        catch { return unknown("cancelled_or_other") }
     }
 
-    private func unknown() -> CarLiveToolResult {
-        CarLiveToolResult(output: CarLiveWire.errorOutput(code: "unknown", message: "结果未知，请到手机查看，不自动重试"))
+    private func unknown(_ reason: String = "unknown") -> CarLiveToolResult {
+        noteTool("failed", reason: reason)
+        return CarLiveToolResult(output: CarLiveWire.errorOutput(code: "unknown", message: "结果未知，请到手机查看，不自动重试"))
+    }
+
+    private func noteTool(_ stage: String, status: String? = nil, reason: String = "none", sequence: Int = -1) {
+        #if DEBUG
+        let statuses = ["pending", "ready", "unknown"]
+        let record: [String: Any] = ["stage": stage, "reason": reason,
+            "status": status.map { statuses.contains($0) ? $0 : "other" } ?? "none",
+            "sequence": sequence, "time": Date().timeIntervalSince1970, "wcErrorCode": lastWCErrorCode]
+        let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("watch-tool-state.json")
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if let data = try? JSONSerialization.data(withJSONObject: record, options: [.sortedKeys]) {
+            try? data.write(to: url, options: .atomic)
+        }
+        #endif
     }
 
     private func startPoll(_ owner: String) {
@@ -245,10 +295,14 @@ final class WatchAmbientModel: NSObject, WCSessionDelegate {
                         if sent { self.submittedEvents.insert(event) }
                     }
                 } catch WatchBridgeError.remote("stale_context") {
+                    guard self.run == owner, !Task.isCancelled else { return }
                     self.error = "连接已变更，请重新开始语音"
                     await self.stop()
                     return
-                } catch { self.bridgeStatus = "手机不可达" }
+                } catch {
+                    guard self.run == owner, !Task.isCancelled else { return }
+                    self.bridgeStatus = "手机不可达"
+                }
                 try? await Task.sleep(for: .seconds(2))
             }
         }
@@ -290,6 +344,13 @@ final class WatchAmbientModel: NSObject, WCSessionDelegate {
             } else {
                 let owner = UUID().uuidString
                 run = owner
+                connecting = true
+                defer {
+                    if run == owner {
+                        run = ""
+                        connecting = false
+                    }
+                }
                 var begin = WatchBridgeWire.envelope("begin", run: owner)
                 begin["readOnly"] = true
                 let setup = try await request(begin)
@@ -303,7 +364,6 @@ final class WatchAmbientModel: NSObject, WCSessionDelegate {
                 result["toolOK"] = object?["ok"] as? Bool ?? false
                 result["toolError"] = object?["error"] as? String ?? "none"
                 await end(owner)
-                run = ""
             }
             result["status"] = "completed"
         } catch WatchBridgeError.remote(let code) {
@@ -316,6 +376,7 @@ final class WatchAmbientModel: NSObject, WCSessionDelegate {
             result["status"] = "failed"
             result["error"] = "timeout"
         } catch { result["status"] = "failed" }
+        result["wcErrorCode"] = lastWCErrorCode
         writeProbe(result)
     }
 

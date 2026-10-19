@@ -11,14 +11,35 @@ nonisolated enum CarLiveLifecycleKind {
     static let failClosed = "fail_closed"
     static let appClose = "app_close"
     static let budgetExceeded = "budget_exceeded"
+    static let audioStopDeadline = "audio_stop_deadline"
+    static let audioSendDeadline = "audio_send_deadline"
+    static let audioStopQueued = "audio_stop_queued"
+    static let audioStopBegin = "audio_stop_begin"
+    static let audioTapRemoved = "audio_tap_removed"
+    static let audioEngineStopped = "audio_engine_stopped"
+    static let audioStopEnd = "audio_stop_end"
+    static let audioHold = "audio_hold"
+    static let audioHeartbeat = "audio_heartbeat"
+    static let watchActive = "watch_active"
+    static let watchInactive = "watch_inactive"
+    static let watchBackground = "watch_background"
+    static let socketOpened = "socket_opened"
+    static let socketClosed = "socket_closed"
+    static let socketCompleted = "socket_completed"
+    static let socketSendFailed = "socket_send_failed"
+    static let socketReceiveFailed = "socket_receive_failed"
+    static let socketSendDeadline = "socket_send_deadline"
     static let other = "other"
 
     static let events: Set<String> = [
         closeBegin, closeEnd, closeJoin, sendDeadline, playbackClear, playbackSkipPlay,
-        serverClose, failClosed, appClose, budgetExceeded, other
+        serverClose, failClosed, appClose, budgetExceeded, audioStopDeadline, audioSendDeadline,
+        audioStopQueued, audioStopBegin, audioTapRemoved, audioEngineStopped, audioStopEnd, audioHold,
+        audioHeartbeat, watchActive, watchInactive, watchBackground,
+        socketOpened, socketClosed, socketCompleted, socketSendFailed, socketReceiveFailed, socketSendDeadline, other
     ]
     static let phases: Set<String> = [
-        "idle", "connecting", "listening", "speaking", "closing", "failed", "audio", "app", other
+        "idle", "connecting", "listening", "speaking", "closing", "failed", "audio", "app", "network", other
     ]
     static let errors: Set<String> = [
         "none", "send_timeout", "cancelled", "playback_skip", "budget_exceeded", "usage_unconfirmed", other
@@ -44,6 +65,15 @@ nonisolated struct CarLiveLifecycleRecord: Equatable, Sendable {
     var sendDeadlines: Int = 0
     var playbackSkips: Int = 0
     var stopJoins: Int = 0
+    var inputFrames: Int = 0
+    var sentFrames: Int = 0
+    var outputFrames: Int = 0
+    var socketState: Int = 0
+    var socketCloseCode: Int = 0
+    var networkErrorCode: Int = 0
+    var networkBytesSent: Int64 = 0
+    var networkBytesReceived: Int64 = 0
+    var networkErrorDomain: String = "none"
 }
 
 nonisolated final class CarLiveLifecycleLog: @unchecked Sendable {
@@ -52,7 +82,8 @@ nonisolated final class CarLiveLifecycleLog: @unchecked Sendable {
         "timeMS", "runHash", "phase", "event", "errorCode", "taskCancelled",
         "closeBegan", "closeEnded", "deadlineRemainingMS", "engineRunning",
         "intendedRunning", "playerAttached", "stopping", "closeSeen",
-        "sendDeadlines", "playbackSkips", "stopJoins"
+        "sendDeadlines", "playbackSkips", "stopJoins", "inputFrames", "sentFrames", "outputFrames",
+        "socketState", "socketCloseCode", "networkErrorCode", "networkBytesSent", "networkBytesReceived", "networkErrorDomain"
     ]
     static let maxBytesDefault = 128 * 1024
 
@@ -102,7 +133,16 @@ nonisolated final class CarLiveLifecycleLog: @unchecked Sendable {
             "closeSeen": safe.closeSeen,
             "sendDeadlines": safe.sendDeadlines,
             "playbackSkips": safe.playbackSkips,
-            "stopJoins": safe.stopJoins
+            "stopJoins": safe.stopJoins,
+            "inputFrames": safe.inputFrames,
+            "sentFrames": safe.sentFrames,
+            "outputFrames": safe.outputFrames,
+            "socketState": safe.socketState,
+            "socketCloseCode": safe.socketCloseCode,
+            "networkErrorCode": safe.networkErrorCode,
+            "networkBytesSent": safe.networkBytesSent,
+            "networkBytesReceived": safe.networkBytesReceived,
+            "networkErrorDomain": safe.networkErrorDomain
         ]
     }
 
@@ -111,6 +151,8 @@ nonisolated final class CarLiveLifecycleLog: @unchecked Sendable {
         copy.phase = CarLiveLifecycleKind.phases.contains(record.phase) ? record.phase : CarLiveLifecycleKind.other
         copy.event = CarLiveLifecycleKind.events.contains(record.event) ? record.event : CarLiveLifecycleKind.other
         copy.errorCode = CarLiveLifecycleKind.errors.contains(record.errorCode) ? record.errorCode : CarLiveLifecycleKind.other
+        let domains: Set<String> = ["none", "other", NSURLErrorDomain, NSPOSIXErrorDomain, NSCocoaErrorDomain]
+        copy.networkErrorDomain = domains.contains(record.networkErrorDomain) ? record.networkErrorDomain : "other"
         return copy
     }
 

@@ -4,6 +4,40 @@ import Testing
 
 @MainActor
 struct WatchBridgeTests {
+    #if os(iOS)
+    @Test func reconnectReplacesOnlyTheObservedOldLeaseAndRejectsLateCleanup() async {
+        let defaults = UserDefaults(suiteName: "watch-reconnect-\(UUID().uuidString)")!
+        let state = AppState(userDefaults: defaults)
+        state.aiBuilderBaseURL = "https://example.invalid"
+        state.aiBuilderToken = "test-builder-token"
+        let bridge = WatchPhoneBridge(makeClient: { _ in
+            let configuration = URLSessionConfiguration.ephemeral
+            configuration.protocolClasses = [WatchHealthHTTP.self]
+            return APIClient(baseURL: "https://watch-health.invalid", session: URLSession(configuration: configuration))
+        })
+        bridge.state = state
+        let old = UUID().uuidString
+        let next = UUID().uuidString
+        let late = UUID().uuidString
+        #expect(await bridge.handle(WatchBridgeWire.envelope("begin", run: old))["run"] as? String == old)
+        let busy = await bridge.handle(WatchBridgeWire.envelope("begin", run: next))
+        #expect(busy["error"] as? String == "busy")
+        #expect(busy["activeRun"] as? String == old)
+
+        var replacement = WatchBridgeWire.envelope("begin", run: next)
+        replacement["replacing"] = old
+        #expect(await bridge.handle(replacement)["run"] as? String == next)
+        #expect(bridge.lease?.ownerToken == next)
+        var staleReplacement = WatchBridgeWire.envelope("begin", run: late)
+        staleReplacement["replacing"] = old
+        #expect(await bridge.handle(staleReplacement)["error"] as? String == "busy")
+        #expect(await bridge.handle(WatchBridgeWire.envelope("end", run: old))["error"] as? String == "stale_context")
+        #expect(bridge.lease?.ownerToken == next)
+        #expect(await bridge.handle(WatchBridgeWire.envelope("end", run: next))["ok"] as? Bool == true)
+        #expect(bridge.lease == nil)
+    }
+    #endif
+
     @Test func duplicateAndUnknownCallsNeverBecomeNewWrites() {
         let ledger = WatchCallLedger()
         #expect(ledger.claim(id: "call-a", name: "start_job", arguments: "{}") == "accepted")
@@ -51,3 +85,17 @@ struct WatchBridgeTests {
         watch.cancelWatchRequests()
     }
 }
+
+#if os(iOS)
+private final class WatchHealthHTTP: URLProtocol, @unchecked Sendable {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data("{\"healthy\":true,\"version\":\"test\"}".utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+#endif

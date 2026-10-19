@@ -2,11 +2,17 @@ import SwiftUI
 
 @main
 struct WatchAmbientApp: App {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var model = WatchAmbientModel()
     var body: some Scene {
         WindowGroup {
             WatchAmbientView(model: model)
                 .task { model.activate() }
+                .onChange(of: scenePhase) { _, phase in
+                    let event = phase == .active ? CarLiveLifecycleKind.watchActive :
+                        (phase == .background ? CarLiveLifecycleKind.watchBackground : CarLiveLifecycleKind.watchInactive)
+                    CarLiveLifecycleLog.shared.note(CarLiveLifecycleRecord(phase: "app", event: event))
+                }
         }
     }
 }

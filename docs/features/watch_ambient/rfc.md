@@ -1,4 +1,12 @@
-# Watch Ambient 实现边界
+# Watch Ambient 实现边界（Experimental）
+
+## 实现更新与已知限制
+
+Watch Ambient 按 Experimental 集成。真机语音收播、工具回传与一次手机后台初连已跑通；但手机前台近场或后台下，回答中或第二轮仍可断开。音频帧发送未完成后触发表端 5 秒截止，显式重连可恢复，后续仍可能再断。底层原因未确认，尚不能归因于 WatchConnectivity、服务端主动关闭或 AVAudioEngine 死锁。持续后台、锁屏与 SSH 唤醒恢复仍待验证。
+
+采集关闭共享 15 秒单调时钟预算。硬件清理保留所有权至实际完成，禁止与新采集重叠，延后清理可恢复 idle。Watch 音频发送设 5 秒截止，不自动重连、不重放写工具。手机旧租约只按刚观测到的精确 owner 替换，显式启动时重试一次；旧 end/poll 不清除较新的 run，非 WC 启动失败不再误报手机不可达。调试探针失败后清理 busy/run，Watch 复用 iOS 图标。
+
+原生诊断记录 socket 状态、数值错误码与关闭码、收发字节数、场景与帧数，不落盘音频、正文、URL、凭据或错误描述。Xcode 可以列出手表上的诊断文件，但当前开发传输通道在导出时断开，尚未读回最新原生连接证据；该问题不能作为语音故障的归因依据。
 
 Watch 自己连接现有 Live 网关收发实时语音，所有 OpenCode 工具调用交给配对的 iPhone 执行，结束手表上的语音不会停止后台正在运行的 OpenCode 工作。
 
@@ -45,6 +53,8 @@ Watch 准备开始语音时，生成 UUID 作为当次 run 的 owner，向手机
 Watch run 的允许条件只看：run 未结束、host ID 与 generation 仍匹配、workspace context 仍匹配。不读手机 Live 的 `carLiveEpoch`，不读 `isConnected`。手机自己开始或结束 Ambient 会拨动那个 epoch；若 Watch 跟着失效，就又绑回了手机 Live 的生命周期。
 
 手机初始化的重连与健康检查最多等待 20 秒；超时作废该 run 并返回不可达，不断开已存在的共享 SSH。手表初始化回复等待 30 秒，普通消息等待 8 秒。首次打开时最多等待 5 秒激活 WatchConnectivity，然后尝试交互消息，不以瞬时 `isReachable` 值阻止系统唤醒手机。
+
+显式开始新语音时，若手机回复 busy 并带合法 `activeRun`，Watch 只重试一次 begin，携带 `replacing=activeRun`。手机仅在替换值仍等于当前 owner 时结束旧租约；迟到的替换或 end 不影响新租约。此重试仅用于建立语音 run，不重发任何工具调用。
 
 主机切换时，先同步取消这个 sibling client 的网络并作废它的 token，然后再拆 SSH 隧道，不要等共享 client 的 `configure` 去连带清理。Watch run 看到 generation 或 host ID 不再匹配就失效。Watch 主动结束时，同样结束这次 run 并对独立 reply bridge 调用 `invalidate()`。旧 run 上迟到的工具调用返回 `stale`，不再向主机读写。
 

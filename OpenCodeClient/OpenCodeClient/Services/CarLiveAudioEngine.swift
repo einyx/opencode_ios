@@ -258,6 +258,7 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
     }
 
     func stopCapture(generation: UInt64) async {
+        noteAudioStage(CarLiveLifecycleKind.audioStopQueued)
         await withCheckedContinuation { continuation in
             queue.async {
                 let current = self.locked { self.gate.generation }
@@ -387,6 +388,7 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
     }
 
     private func stopOnQueue() {
+        noteAudioStage(CarLiveLifecycleKind.audioStopBegin)
         acceptSessionEvents = false
         let opened = locked { () -> CarLiveFrameStream? in
             intendedRunning = false
@@ -404,17 +406,28 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
             engine.inputNode.removeTap(onBus: 0)
             tapInstalled = false
         }
+        noteAudioStage(CarLiveLifecycleKind.audioTapRemoved)
         player.stop()
         if engine.isRunning { engine.stop() }
+        noteAudioStage(CarLiveLifecycleKind.audioEngineStopped)
         if engine.attachedNodes.contains(player) { engine.detach(player) }
         inputConverter = nil
         playbackConverter = nil
         playbackFormat = nil
         removeObserversOnQueue()
         try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+        noteAudioStage(CarLiveLifecycleKind.audioStopEnd)
+    }
+
+    private func noteAudioStage(_ event: String) {
+        CarLiveLifecycleLog.shared.note(CarLiveLifecycleRecord(phase: "audio", event: event))
     }
 
     private func clearPlaybackOnQueue(capture: UInt64, playback token: UInt64) {
+        // Engine properties may acquire AVAudioEngine's render locks. Never
+        // query them while holding the state lock used by the input tap.
+        let engineRunning = engine.isRunning
+        let playerAttached = engine.attachedNodes.contains(player)
         let decision = locked { () -> CarLivePlaybackRestart in
             let restart = CarLivePlaybackRestart(
                 queuedCapture: capture,
@@ -422,8 +435,8 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
                 queuedPlayback: token,
                 currentPlayback: gate.playbackGeneration,
                 intendedRunning: intendedRunning,
-                engineRunning: engine.isRunning,
-                playerAttached: engine.attachedNodes.contains(player),
+                engineRunning: engineRunning,
+                playerAttached: playerAttached,
                 hasAudio: false
             )
             if restart.ownsQueuedClear {
@@ -471,6 +484,8 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
                 return piece
             }
             guard let slice, let buffer = floatBuffer(from: slice, format: playbackFormat, converter: playbackConverter) else { return }
+            let engineRunning = engine.isRunning
+            let playerAttached = engine.attachedNodes.contains(player)
             let decision = locked {
                 CarLivePlaybackRestart(
                     queuedCapture: owned.0,
@@ -478,8 +493,8 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
                     queuedPlayback: playbackToken,
                     currentPlayback: gate.playbackGeneration,
                     intendedRunning: intendedRunning && !playbackHeld,
-                    engineRunning: engine.isRunning,
-                    playerAttached: engine.attachedNodes.contains(player),
+                    engineRunning: engineRunning,
+                    playerAttached: playerAttached,
                     hasAudio: true
                 )
             }
@@ -614,6 +629,7 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
             return (eventGeneration, current)
         }
         guard let applied else { return }
+        noteAudioStage(CarLiveLifecycleKind.audioHold)
         applied.1?.finish()
         if tapInstalled {
             engine.inputNode.removeTap(onBus: 0)

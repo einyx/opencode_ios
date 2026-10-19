@@ -7,6 +7,7 @@ private final class CarLiveHoldLink: CarLiveLink, @unchecked Sendable {
     private let continuation: AsyncStream<CarLiveServerEvent>.Continuation
     private let lock = NSLock()
     var failAudio = false
+    var audioHang: CarLiveHang?
     private(set) var closed = false
     private(set) var sent: [CarLiveClientEvent] = []
 
@@ -21,6 +22,7 @@ private final class CarLiveHoldLink: CarLiveLink, @unchecked Sendable {
     }
 
     func send(_ event: CarLiveClientEvent) async throws {
+        if case .audio = event, let audioHang { await audioHang.wait() }
         if failAudio, case .audio = event {
             throw CarLiveTransportError.socket
         }
@@ -79,6 +81,7 @@ private final class CarLiveProbeAudio: CarLiveAudioEngine, @unchecked Sendable {
     var startsBeforeConnection = false
     var holdPermission = false
     var permissionGranted = true
+    var stopHang: CarLiveHang?
     private let lock = NSLock()
     private var permissionWaiters: [CheckedContinuation<Bool, Never>] = []
     var waitingPermissions: Int {
@@ -130,6 +133,7 @@ private final class CarLiveProbeAudio: CarLiveAudioEngine, @unchecked Sendable {
     }
 
     func stopCapture(generation: UInt64) async {
+        if let stopHang { await stopHang.wait() }
         let opened = lock.withLock { () -> CarLiveFrameStream? in
             stopCalls.append(generation)
             guard generation == current else { return nil }
@@ -223,6 +227,61 @@ private func liveConfig() -> CarLiveConfiguration {
 }
 
 struct CarLiveControllerTests {
+    @Test @MainActor func hangingHardwareStopLeavesClosingAndBlocksCaptureUntilCleanupCompletes() async {
+        let transport = CarLiveGateTransport()
+        let audio = CarLiveProbeAudio()
+        let hang = CarLiveHang()
+        audio.stopHang = hang
+        let controller = CarLiveController(transport: transport, audio: audio, closeGrace: 0.04)
+        let starting = Task { await controller.start(configuration: liveConfig()) }
+        #expect(await waitUntil { transport.openCount == 1 })
+        let link = CarLiveHoldLink()
+        transport.release(link)
+        link.emit(.started(sessionID: "audio-stop-hang"))
+        await starting.value
+        var stopped = false
+        let stopping = Task { await controller.stop(); stopped = true }
+        #expect(await waitUntil { stopped })
+        #expect(controller.phase == .failed)
+        #expect(controller.audioCleanupPending)
+        #expect(controller.captureGenerationForPolicy != 0)
+        await controller.start(configuration: liveConfig())
+        #expect(transport.openCount == 1)
+        audio.stopHang = nil
+        await hang.release()
+        await stopping.value
+        #expect(await waitUntil { !controller.audioCleanupPending })
+        #expect(controller.captureGenerationForPolicy == 0)
+        let restarted = Task { await controller.start(configuration: liveConfig()) }
+        #expect(await waitUntil { transport.openCount == 2 })
+        let next = CarLiveHoldLink()
+        transport.release(next)
+        next.emit(.started(sessionID: "audio-recovered"))
+        await restarted.value
+        #expect(controller.phase == .listening)
+        await controller.stop()
+    }
+
+    @Test @MainActor func watchAudioSendThatNeverReturnsFailsInsteadOfSilentlyFreezing() async {
+        let transport = CarLiveGateTransport()
+        let audio = CarLiveProbeAudio()
+        let hang = CarLiveHang()
+        let link = CarLiveHoldLink()
+        link.audioHang = hang
+        let controller = CarLiveController(transport: transport, audio: audio, closeGrace: 0.04, audioSendTimeout: 0.03)
+        let starting = Task { await controller.start(configuration: liveConfig()) }
+        #expect(await waitUntil { transport.openCount == 1 })
+        transport.release(link)
+        link.emit(.started(sessionID: "audio-send-hang"))
+        await starting.value
+        audio.pushFrame()
+        #expect(await waitUntil { controller.phase == .failed })
+        #expect(controller.errorMessage != nil)
+        await hang.release()
+        #expect(await waitUntil { audio.current == 0 })
+        await controller.stop()
+    }
+
     @Test @MainActor func watchCaptureStartsBeforeSocketAndIsReusedAfterStarted() async {
         let transport = CarLiveGateTransport()
         let audio = CarLiveProbeAudio()

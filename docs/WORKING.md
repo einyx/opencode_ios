@@ -4,13 +4,15 @@
 
 ## 当前状态
 
-### Watch Ambient（PR #223，未合并）
+### Watch Ambient（Experimental，PR #223）
 
 - [x] Antigravity 起草 PRD/RFC，完成异步设计与实现审查；新增 watchOS 11 App、独立手机桥接 client、工具去重和结果分片、gateway 确认后回执。
 - [x] 修复审查项：commentary 按入队顺序提供、8 秒未确认后丢弃且不记成功；确认重试遍历快照；手机初始化重连 20 秒截止；保留手机自身后台音频 hold 分支。
-- [x] 本地全量 1008 项测试 / 106 suites 通过，测试脚本 exit 0、xcresult Passed。Watch、iPhone 签名构建通过；visionOS Simulator 构建通过。构建和安装不代表语音验收。
-- [x] 已原位安装手机与手表 App，读回手表 UI。只读桥接 probe 已运行；最近结果是 WatchConnectivity 已激活、手机不可达，尚未成功查询工具。
-- [ ] 最新手机安装后，系统因设备锁定拒绝启动。待解锁手机、唤醒手表后继续桥接与有界语音验收；尚无真实采集/播放成功证据，不自动重放写操作。
+- [x] 真机语音收播、工具回传与一次手机后台初连已成功；显式重连也能恢复。手机前台近场或后台下，回答中或第二轮仍可断开，后续重连不能消除复发。按用户要求作为 Experimental 集成。
+- [x] 关闭共享 15 秒单调时钟预算；硬件清理保留所有权至完成，阻止新采集重叠。Watch 发送截止 5 秒，不自动重连、不重放工具；精确 owner 替换旧租约，旧 end/poll 不清新 run。修复 probe 遗留 busy/run，复用 iOS 图标。
+- [x] 最终 socket 诊断增量后，全量 1011 项测试 / 106 suites 通过（exit 0、xcresult Passed）；另有 11 项后台返回与 11 项传输测试定向通过，iPhone+Watch 签名构建及 visionOS Simulator 构建通过。关闭与重连独立审阅无 P0/P1。
+- [ ] 多轮语音稳定性未解决：已知直接触发点是音频帧发送未完成后客户端 5 秒退出，底层原因未确认。手机日志仍有工具结果与桥接正常回包，不能据此归因于 WatchConnectivity。持续后台、锁屏和 SSH 唤醒恢复未验收。
+- [ ] 新增 socket/场景/帧数聚合诊断不含音频、正文、URL、凭据或错误描述。最新原生日志在手表上可列出，但开发文件传输通道断开，尚未读回；手表已常亮解锁并邻近手机，不再把导出失败归因于摆放或锁屏。构建、测试与安装不代表持续语音验收。
 
 本轮开发证据保存在 ignored `.occlient/watch-ambient/`，保留原有权限 metadata 迁移与其他未提交工作。
 

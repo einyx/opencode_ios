@@ -204,7 +204,8 @@ struct CarLiveBackgroundReturnTests {
         let poisoned = CarLiveLifecycleRecord(
             phase: secret,
             event: secret,
-            errorCode: secret
+            errorCode: secret,
+            networkErrorDomain: secret
         )
         let object = CarLiveLifecycleLog.jsonObject(for: poisoned)
         #expect(Set(object.keys) == CarLiveLifecycleLog.allowedKeys)
@@ -217,6 +218,7 @@ struct CarLiveBackgroundReturnTests {
         #expect(object["event"] as? String == "other")
         #expect(object["phase"] as? String == "other")
         #expect(object["errorCode"] as? String == "other")
+        #expect(object["networkErrorDomain"] as? String == "other")
         #expect(CarLiveLifecycleKind.relativePath == "Library/Application Support/CarLiveLifecycle/events.jsonl")
         log.note(poisoned)
         for _ in 0..<40 {

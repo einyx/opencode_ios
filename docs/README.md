@@ -1,6 +1,6 @@
 # OpenCode iOS Client — Docs 索引
 
-> 最后更新：2026-10-18（Watch Ambient 已实现并完成本地回归，真机桥接及语音仍待验收，PR #223 未合并）。查阅与检索任何文档请先参考本索引。
+> 最后更新：2026-10-18（Watch Ambient 标记为 Experimental；真机语音和工具回传已跑通，多轮对话仍会断开，根因未确认）。查阅与检索任何文档请先参考本索引。
 
 ## 顶层主文档（living）
 
@@ -26,7 +26,7 @@
 | `localization/` | en/zh-Hans 双语本地化 | `research.md` | Settings 已有 en/zh；research 文档偏旧 |
 | `focus_voice_input/` | 大屏专注布局与语音优先、系统粘贴 | `design.md` | 实现及模拟器验收；设备本地设置 |
 | `agent_catalog_validation/` | Agent 目录校验与删除失败可见 | `notes.md` | shipped；选中 agent 对照当前 server `/agent`，delete 非 2xx 带状态码与 body |
-| `watch_ambient/` | Watch 直连 Live，工具经手机执行 | `prd.md` / `rfc.md` | 已实现；真机端到端待验收，PR #223 未合并 |
+| `watch_ambient/` | Watch 直连 Live，工具经手机执行 | `prd.md` / `rfc.md` | **Experimental**；回答中或第二轮仍可断开，后台持续使用未验收（PR #223） |
 
 ## archive/ — 一次性工作记录与冻结决策（只进不改）
 

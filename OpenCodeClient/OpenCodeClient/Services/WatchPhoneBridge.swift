@@ -42,6 +42,15 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
     private var readOnly = false
     private var directory: String?
     private var agent = "build"
+    private let makeClient: (APIClient) async -> APIClient
+    #if DEBUG
+    private var debugEvents: [[String: Any]] = []
+    #endif
+
+    init(makeClient: @escaping (APIClient) async -> APIClient = { await $0.makeWatchClient() }) {
+        self.makeClient = makeClient
+        super.init()
+    }
 
     var isActive: Bool { lease != nil && Date().timeIntervalSince(lastContact) < WatchBridgeWire.maxRunSeconds }
 
@@ -52,6 +61,11 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
         session.delegate = self
         session.activate()
         probeState("activating")
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("WATCH_PHONE_BRIDGE_PROBE") {
+            Task { await self.runBridgeProbe() }
+        }
+        #endif
     }
 
     func invalidate() {
@@ -111,12 +125,86 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
         Task { @MainActor [weak self] in
             guard let self else { replyHandler(WatchBridgeWire.error("unreachable")); return }
             let taskID = UIApplication.shared.beginBackgroundTask(withName: "Watch tool bridge")
+            let started = Date()
+            self.probeEvent("received", message: message)
             let result = await self.handle(message)
+            self.probeEvent("reply", message: message, response: result, elapsed: Date().timeIntervalSince(started))
             self.probeState(result["error"] as? String ?? "replied")
             replyHandler(result)
             if taskID != .invalid { UIApplication.shared.endBackgroundTask(taskID) }
         }
     }
+
+    private func probeEvent(_ stage: String, message: [String: Any] = [:], response: [String: Any] = [:], elapsed: TimeInterval = 0) {
+        #if DEBUG
+        let operations = ["begin", "end", "tool", "result", "pull", "ack", "commentary", "commentaryAck"]
+        let statuses = ["pending", "ready", "unknown"]
+        let codes = ["unreachable", "stale_context", "busy", "limit", "bad_arguments", "protocol", "missing_chunk", "missing_call", "call_conflict", "read_only_probe", "failed", "needs_input", "lookup_failed"]
+        let op = message["op"] as? String ?? "none"
+        let name = message["name"] as? String ?? "none"
+        let status = response["status"] as? String ?? "none"
+        let code = response["error"] as? String ?? "none"
+        debugEvents.append(["stage": stage, "time": Date().timeIntervalSince1970,
+            "op": operations.contains(op) ? op : "none",
+            "tool": CarLiveToolName.native.contains(name) ? name : "none",
+            "status": statuses.contains(status) ? status : "none",
+            "error": code == "none" || codes.contains(code) ? code : "other",
+            "elapsedMS": Int(elapsed * 1000), "bytes": response["bytes"] as? Int ?? 0,
+            "dataBytes": (response["data"] as? Data)?.count ?? 0,
+            "allowed": lease.map { allowed($0) } ?? false])
+        debugEvents = Array(debugEvents.suffix(64))
+        let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        if let data = try? JSONSerialization.data(withJSONObject: debugEvents, options: [.sortedKeys]) {
+            try? data.write(to: directory.appendingPathComponent("watch-bridge-events.json"), options: .atomic)
+        }
+        #endif
+    }
+
+    #if DEBUG
+    private func runBridgeProbe() async {
+        // Same phone handler/ledger as WC, but no microphone or gateway session.
+        try? await Task.sleep(for: .seconds(1))
+        let owner = UUID().uuidString
+        let call = UUID().uuidString
+        var begin = WatchBridgeWire.envelope("begin", run: owner)
+        begin["readOnly"] = true
+        let setup = await handle(begin)
+        var metadata: [String: Any] = ["probe": ProcessInfo.processInfo.environment["WATCH_PROBE_ID"] ?? "phone", "time": Date().timeIntervalSince1970]
+        if let error = setup["error"] as? String {
+            metadata["error"] = ["busy", "unreachable", "stale_context", "already_started"].contains(error) ? error : "other"
+        } else {
+            var message = WatchBridgeWire.envelope("tool", run: owner, call: call)
+            message["name"] = CarLiveToolName.queryJobs
+            message["arguments"] = "{\"queryScope\":\"recent\",\"archivedOnly\":false,\"skip\":0,\"count\":1}"
+            var header = await handle(message)
+            for _ in 0..<70 {
+                if header["status"] as? String != "pending" { break }
+                try? await Task.sleep(for: .milliseconds(300))
+                header = await handle(WatchBridgeWire.envelope("result", run: owner, call: call))
+            }
+            let status = header["status"] as? String ?? "other"
+            metadata["status"] = ["pending", "ready", "unknown"].contains(status) ? status : "other"
+            if status == "ready", let chunks = header["chunks"] as? Int, (0...8).contains(chunks) {
+                var output = Data()
+                for sequence in 0..<chunks {
+                    var pull = WatchBridgeWire.envelope("pull", run: owner, call: call)
+                    pull["seq"] = sequence
+                    if let data = await handle(pull)["data"] as? Data { output.append(data) }
+                }
+                metadata["bytes"] = output.count
+                metadata["verified"] = output.count == header["bytes"] as? Int && WatchBridgeWire.digest(output) == header["sha256"] as? String
+                let object = (try? JSONSerialization.jsonObject(with: output)) as? [String: Any]
+                metadata["toolOK"] = object?["ok"] as? Bool ?? false
+            }
+            _ = await handle(WatchBridgeWire.envelope("end", run: owner))
+        }
+        let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("watch-phone-probe.json")
+        if let data = try? JSONSerialization.data(withJSONObject: metadata, options: [.sortedKeys]) {
+            try? data.write(to: url, options: .atomic)
+        }
+    }
+    #endif
 
     private func probeState(_ stage: String) {
         #if DEBUG
@@ -196,7 +284,14 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
         }
         // A repeated begin must never replace an already running voice owner.
         if lease?.ownerToken == id { return WatchBridgeWire.error("already_started") }
-        guard !isActive, beginning == nil else { return WatchBridgeWire.error("busy") }
+        guard beginning == nil else { return WatchBridgeWire.error("busy") }
+        if isActive, let previous = lease?.ownerToken {
+            guard message["replacing"] as? String == previous else {
+                var response = WatchBridgeWire.error("busy")
+                response["activeRun"] = previous
+                return response
+            }
+        }
         invalidate()
         beginning = id
         let host = state.captureHostRequestSnapshot()
@@ -209,7 +304,7 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
         }
         // Credentials are copied only inside the phone, never into the WC host payload.
         await state.finishHostTransportConfiguration()
-        let sibling = await source.makeWatchClient()
+        let sibling = await makeClient(source)
         guard beginning == id, state.isCurrentHostRequest(host), state.carContextKey == context else {
             sibling.cancelWatchRequests()
             return WatchBridgeWire.error("stale_context")
@@ -277,6 +372,7 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
             guard !Task.isCancelled, let self, self.lease == owned,
                   self.ledger.records[id]?.finished == false else { return }
             self.ledger.markUnknown(id: id)
+            self.probeEvent("tool_deadline")
             self.calls[id]?.cancel()
         }
         calls[id] = Task { [weak self] in
@@ -289,6 +385,10 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
                 }
             }
             let result = await self.execute(name: name, arguments: arguments, owned: owned)
+            #if DEBUG
+            let resultMetadata = (try? JSONSerialization.jsonObject(with: Data(result.utf8))) as? [String: Any] ?? [:]
+            self.probeEvent("tool_finished", response: resultMetadata)
+            #endif
             guard self.allowed(owned), !Task.isCancelled else { return }
             self.ledger.finish(id: id, output: result)
         }
