@@ -1,6 +1,6 @@
 # OpenCode iOS Client — Docs 索引
 
-> 最后更新：2026-09-27（background task 回执卡片实现；agent 目录校验与删除失败可见）。查阅与检索任何文档请先参考本索引。
+> 最后更新：2026-10-18（索引加入 Watch Ambient 设计稿。此前：background task 回执卡片实现；agent 目录校验与删除失败可见）。查阅与检索任何文档请先参考本索引。
 
 ## 顶层主文档（living）
 
@@ -26,6 +26,7 @@
 | `localization/` | en/zh-Hans 双语本地化 | `research.md` | Settings 已有 en/zh；research 文档偏旧 |
 | `focus_voice_input/` | 大屏专注布局与语音优先、系统粘贴 | `design.md` | 实现及模拟器验收；设备本地设置 |
 | `agent_catalog_validation/` | Agent 目录校验与删除失败可见 | `notes.md` | shipped；选中 agent 对照当前 server `/agent`，delete 非 2xx 带状态码与 body |
+| `watch_ambient/` | Watch 直连 Live，工具经手机执行 | `prd.md` / `rfc.md` | 设计稿，未实现 |
 
 ## archive/ — 一次性工作记录与冻结决策（只进不改）
 
