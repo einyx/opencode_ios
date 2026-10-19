@@ -331,6 +331,9 @@ struct ContentView: View {
             }
         }
         .task {
+            #if os(iOS)
+            state.activateWatchBridge()
+            #endif
             state.cleanupClientCapabilityCallbacks()
             if UITestFixtures.hasUITestDeepLinkFixture,
                let rawURL = ProcessInfo.processInfo.environment["UITEST_INITIAL_DEEP_LINK"],

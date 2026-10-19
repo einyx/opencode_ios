@@ -76,6 +76,7 @@ private final class CarLiveGateTransport: CarLiveTransporting, @unchecked Sendab
 }
 
 private final class CarLiveProbeAudio: CarLiveAudioEngine, @unchecked Sendable {
+    var startsBeforeConnection = false
     var holdPermission = false
     var permissionGranted = true
     private let lock = NSLock()
@@ -222,6 +223,39 @@ private func liveConfig() -> CarLiveConfiguration {
 }
 
 struct CarLiveControllerTests {
+    @Test @MainActor func watchCaptureStartsBeforeSocketAndIsReusedAfterStarted() async {
+        let transport = CarLiveGateTransport()
+        let audio = CarLiveProbeAudio()
+        audio.startsBeforeConnection = true
+        let controller = CarLiveController(transport: transport, audio: audio, closeGrace: 0.01)
+        let starting = Task { await controller.start(configuration: liveConfig()) }
+        #expect(await waitUntil { transport.openCount == 1 })
+        #expect(audio.current == 1)
+        #expect(controller.phase == .connecting)
+        let link = CarLiveHoldLink()
+        transport.release(link)
+        link.emit(.started(sessionID: "watch"))
+        await starting.value
+        #expect(audio.current == 1)
+        audio.pushFrame()
+        #expect(await waitUntil { controller.inputFrameCount > 0 })
+        await controller.stop()
+        #expect(audio.current == 0)
+    }
+
+    @Test @MainActor func earlyCaptureIsStoppedWhenSocketFails() async {
+        let transport = CarLiveGateTransport()
+        let audio = CarLiveProbeAudio()
+        audio.startsBeforeConnection = true
+        let controller = CarLiveController(transport: transport, audio: audio, closeGrace: 0.01)
+        let starting = Task { await controller.start(configuration: liveConfig()) }
+        #expect(await waitUntil { transport.openCount == 1 })
+        transport.cancelAll()
+        await starting.value
+        #expect(controller.phase == .failed)
+        #expect(audio.current == 0)
+    }
+
     @Test @MainActor func lateToolAfterResetDoesNotWriteNewActivities() async {
         let transport = CarLiveFreshTransport()
         defer { transport.finishAll() }

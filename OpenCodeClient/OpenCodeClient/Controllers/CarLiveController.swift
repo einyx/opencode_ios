@@ -9,6 +9,8 @@ final class CarLiveController {
     private(set) var activities: [CarLiveActivity] = []
     private var captionBook = CarLiveCaptionBook()
     private(set) var inputLevel: Double = 0
+    private(set) var inputFrameCount = 0
+    private(set) var outputFrameCount = 0
     private(set) var outputLevel: Double = 0
     private(set) var elapsedSeconds: Int = 0
     private(set) var voiceSeconds: Double = 0
@@ -36,6 +38,7 @@ final class CarLiveController {
     private var runToken: UInt64 = 0
     private var captureGeneration: UInt64 = 0
     private var captureToken: UInt64 = 0
+    private var earlyCapture: CarLiveCaptureHandle?
     private var closing = false
     private var externalHoldApplied = false
     private var draining = false
@@ -81,7 +84,7 @@ final class CarLiveController {
     }
 
     func start(configuration: CarLiveConfiguration) async {
-        if link != nil {
+        if link != nil || captureGeneration != 0 {
             await stop()
         } else if phase != .idle {
             phase = .idle
@@ -94,6 +97,8 @@ final class CarLiveController {
         captureToken = 0
         releasePlaybackHold()
         diagnostics.reset()
+        inputFrameCount = 0
+        outputFrameCount = 0
         calls.bind(token)
         flight = CarLiveFlightBook()
         voice = CarLiveVoiceNote()
@@ -124,6 +129,28 @@ final class CarLiveController {
         }
         guard token == runToken, !blocksNewCapture else { return }
         replaceVisibleConversation(configuration.history)
+        if audio.startsBeforeConnection {
+            do {
+                let handle = try await audio.startCapture()
+                guard token == runToken, !closing, !blocksNewCapture else {
+                    handle.finish()
+                    await audio.stopCapture(generation: handle.generation)
+                    return
+                }
+                earlyCapture = handle
+                captureGeneration = handle.generation
+                captureToken = token
+                audio.setHoldHandler { [weak self] _, _ in
+                    Task { @MainActor in await self?.failStart(CarLiveCopy.microphoneUnavailable, token: token) }
+                }
+                audio.setFailureHandler { [weak self] _ in
+                    Task { @MainActor in await self?.failStart(CarLiveCopy.microphoneUnavailable, token: token) }
+                }
+            } catch {
+                await failStart(CarLiveCopy.microphoneUnavailable, token: token)
+                return
+            }
+        }
         let opened: any CarLiveLink
         do {
             opened = try await transport.open(configuration)
@@ -288,6 +315,7 @@ final class CarLiveController {
             await beginAudio(token: token)
         case .outputAudio(let pcm):
             guard !closing, !pcm.isEmpty else { return }
+            outputFrameCount += 1
             if suppressPlayback {
                 noteDiagnostic("playback_drop")
                 return
@@ -365,7 +393,13 @@ final class CarLiveController {
             }
         }
         do {
-            let handle = try await audio.startCapture()
+            let handle: CarLiveCaptureHandle
+            if let prepared = earlyCapture {
+                earlyCapture = nil
+                handle = prepared
+            } else {
+                handle = try await audio.startCapture()
+            }
             guard token == runToken, !closing, !blocksNewCapture else {
                 handle.finish()
                 await audio.stopCapture(generation: handle.generation)
@@ -401,6 +435,7 @@ final class CarLiveController {
                 for await frame in handle.frames {
                     let payload = await MainActor.run { () -> Data? in
                         guard let self, self.runToken == token, !self.closing else { return nil }
+                        self.inputFrameCount += 1
                         return self.isMuted ? CarLivePCM.silence(byteCount: frame.count) : frame
                     }
                     guard let payload, payload.count >= 2, let opened else { return }
@@ -487,6 +522,8 @@ final class CarLiveController {
     private func stopOwnedCapture(token: UInt64) async {
         guard token == captureToken, captureGeneration != 0 else { return }
         let generation = captureGeneration
+        earlyCapture?.finish()
+        earlyCapture = nil
         await audio.stopCapture(generation: generation)
         guard captureGeneration == generation, captureToken == token else { return }
         captureGeneration = 0

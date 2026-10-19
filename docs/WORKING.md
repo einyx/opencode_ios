@@ -4,6 +4,16 @@
 
 ## 当前状态
 
+### Watch Ambient（PR #223，未合并）
+
+- [x] Antigravity 起草 PRD/RFC，完成异步设计与实现审查；新增 watchOS 11 App、独立手机桥接 client、工具去重和结果分片、gateway 确认后回执。
+- [x] 修复审查项：commentary 按入队顺序提供、8 秒未确认后丢弃且不记成功；确认重试遍历快照；手机初始化重连 20 秒截止；保留手机自身后台音频 hold 分支。
+- [x] 本地全量 1008 项测试 / 106 suites 通过，测试脚本 exit 0、xcresult Passed。Watch、iPhone 签名构建通过；visionOS Simulator 构建通过。构建和安装不代表语音验收。
+- [x] 已原位安装手机与手表 App，读回手表 UI。只读桥接 probe 已运行；最近结果是 WatchConnectivity 已激活、手机不可达，尚未成功查询工具。
+- [ ] 最新手机安装后，系统因设备锁定拒绝启动。待解锁手机、唤醒手表后继续桥接与有界语音验收；尚无真实采集/播放成功证据，不自动重放写操作。
+
+本轮开发证据保存在 ignored `.occlient/watch-ambient/`，保留原有权限 metadata 迁移与其他未提交工作。
+
 ### 当前轮：Ambient 后台 / 耳机 / 息屏语音（PR #216 已发布，未合并）
 
 PR #215 的最终 48pt UI 增量 review 为 PASS，无 blocker；按用户授权已合并，merge commit `f3b6485`。本轮分支 `feat/ambient-background-voice` 从合并后的 master 创建。2026-10-17 已按用户授权原位部署后台版本，随后部署共享音频会话清理修复；后台实际收音与播放效果仍待用户复测，不能以安装成功代替真机行为验收。

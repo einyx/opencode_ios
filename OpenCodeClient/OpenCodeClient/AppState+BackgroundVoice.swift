@@ -17,6 +17,13 @@ extension AppState {
                 connectInFlight: carLiveConnectTask != nil || carLive?.phase == .connecting,
                 closing: carLive?.isClosingForPolicy == true || carLive?.phase == .closing
             )
+            #if os(iOS)
+            // Keep the phone's existing audio hold policy when it is capturing.
+            // Watch alone preserves the route without granting background time.
+            if watchPhoneBridge?.isActive == true,
+               carLive?.phase != .listening, carLive?.phase != .speaking,
+               carLive?.phase != .connecting, carLiveConnectTask == nil { return }
+            #endif
             switch BackgroundVoicePolicy.action(scene: .background, live: live, connected: isConnected) {
             case .ignore:
                 return
@@ -135,6 +142,9 @@ extension AppState {
     func releaseBackgroundNetworkAfterLiveEnd(expectedEpoch: UInt64) {
         guard expectedEpoch == backgroundVoiceEpoch else { return }
         guard backgroundVoiceScene == .background else { return }
+        #if os(iOS)
+        guard watchPhoneBridge?.isActive != true else { return }
+        #endif
         applyBackgroundDisconnect()
     }
 

@@ -75,6 +75,7 @@ enum CarLiveReplyCopy {
 
 @MainActor
 final class CarLiveReplyBridge {
+    var requiresGatewayAcknowledgement = false
     var allows: (CarLiveLease) -> Bool = { _ in false }
     var page: (String, String?, String?, UInt64) async throws -> CarLiveMessagePage = { _, _, _, _ in
         throw CancellationError()
@@ -219,6 +220,18 @@ final class CarLiveReplyBridge {
             sub.injected.formUnion(delivery.messageIDs)
             subscriptions[delivery.sessionID] = sub
         }
+    }
+
+    /// A Watch delivery exceeded its acknowledgement window. Release the
+    /// boundary without claiming injection or replaying the spoken result.
+    func noteUndelivered(_ eventID: String) {
+        guard var delivery = deliveries[eventID], delivery.state == .submitted,
+              var sub = subscriptions[delivery.sessionID],
+              sub.lease.ownerToken == delivery.owner, allows(sub.lease) else { return }
+        delivery.state = .failed
+        deliveries[eventID] = delivery
+        for id in delivery.messageIDs { sub.attempts[id] = 2 }
+        subscriptions[delivery.sessionID] = sub
     }
 
     func invalidate() {
@@ -529,7 +542,8 @@ final class CarLiveReplyBridge {
 
     private func confirmedDelivery(_ messageID: String) -> Bool {
         deliveries.values.contains { delivery in
-            delivery.messageIDs.contains(messageID) && (delivery.state == .submitted || delivery.state == .injected)
+            delivery.messageIDs.contains(messageID) &&
+                (delivery.state == .injected || (!requiresGatewayAcknowledgement && delivery.state == .submitted))
         }
     }
 
