@@ -7,25 +7,24 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		CC1000000000000000000001 = {isa = PBXBuildFile; fileRef = CC2000000000000000000001; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		CC1000000000000000000011 = {isa = PBXBuildFile; fileRef = CC2000000000000000000011; };
-		CC1000000000000000000012 = {isa = PBXBuildFile; fileRef = CC2000000000000000000012; };
-		CC1000000000000000000013 = {isa = PBXBuildFile; fileRef = CC2000000000000000000013; };
-		CC1000000000000000000014 = {isa = PBXBuildFile; fileRef = CC2000000000000000000014; };
-		CC1000000000000000000015 = {isa = PBXBuildFile; fileRef = CC2000000000000000000015; };
-		CC1000000000000000000016 = {isa = PBXBuildFile; fileRef = CC2000000000000000000016; };
-		CC1000000000000000000017 = {isa = PBXBuildFile; fileRef = CC2000000000000000000017; };
-		CC1000000000000000000018 = {isa = PBXBuildFile; fileRef = CC2000000000000000000018; };
-		CC1000000000000000000019 = {isa = PBXBuildFile; fileRef = CC2000000000000000000019; };
-		CC100000000000000000001A = {isa = PBXBuildFile; fileRef = CC200000000000000000001A; };
 		3B4F459A2F3FB16A00A4CD74 /* Citadel in Frameworks */ = {isa = PBXBuildFile; platformFilter = ios; productRef = 3B4F45992F3FB16A00A4CD74 /* Citadel */; };
 		AA000001AAAAAAAA00000001 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = AA000002AAAAAAAA00000002 /* MarkdownUI */; };
 		AA000004AAAAAAAA00000004 /* NetworkImage in Frameworks */ = {isa = PBXBuildFile; productRef = AA000005AAAAAAAA00000005 /* NetworkImage */; };
 		BB000001BBBBBBBB00000001 /* VoiceFlowKit in Frameworks */ = {isa = PBXBuildFile; productRef = BB000002BBBBBBBB00000002 /* VoiceFlowKit */; };
+		CC1000000000000000000001 /* OpenCodeWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = CC2000000000000000000001 /* OpenCodeWatch.app */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		CC1000000000000000000011 /* OpenCodeClient/Models/CarLiveProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC2000000000000000000011 /* OpenCodeClient/Models/CarLiveProtocol.swift */; };
+		CC1000000000000000000012 /* OpenCodeClient/Models/CarLiveModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC2000000000000000000012 /* OpenCodeClient/Models/CarLiveModels.swift */; };
+		CC1000000000000000000013 /* OpenCodeClient/Models/WatchBridgeWire.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC2000000000000000000013 /* OpenCodeClient/Models/WatchBridgeWire.swift */; };
+		CC1000000000000000000014 /* OpenCodeClient/Controllers/CarLiveController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC2000000000000000000014 /* OpenCodeClient/Controllers/CarLiveController.swift */; };
+		CC1000000000000000000015 /* OpenCodeClient/Services/CarLiveTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC2000000000000000000015 /* OpenCodeClient/Services/CarLiveTransport.swift */; };
+		CC1000000000000000000016 /* OpenCodeClient/Services/CarLiveAudioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC2000000000000000000016 /* OpenCodeClient/Services/CarLiveAudioEngine.swift */; };
+		CC1000000000000000000017 /* OpenCodeClient/Services/CarLiveDeadline.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC2000000000000000000017 /* OpenCodeClient/Services/CarLiveDeadline.swift */; };
+		CC1000000000000000000018 /* OpenCodeClient/Services/CarLiveLifecycleLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC2000000000000000000018 /* OpenCodeClient/Services/CarLiveLifecycleLog.swift */; };
+		CC1000000000000000000019 /* OpenCodeClient/Services/CarLiveDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC2000000000000000000019 /* OpenCodeClient/Services/CarLiveDiagnostics.swift */; };
+		CC100000000000000000001A /* OpenCodeClient/Services/BackgroundVoicePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC200000000000000000001A /* OpenCodeClient/Services/BackgroundVoicePolicy.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		CC3000000000000000000001 = {isa = PBXContainerItemProxy; containerPortal = 3B4F43FA2F3E642500A4CD74; proxyType = 1; remoteGlobalIDString = CC4000000000000000000001; remoteInfo = OpenCodeWatch; };
 		3B4F44102F3E642600A4CD74 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 3B4F43FA2F3E642500A4CD74 /* Project object */;
@@ -40,39 +39,47 @@
 			remoteGlobalIDString = 3B4F44012F3E642500A4CD74;
 			remoteInfo = OpenCodeClient;
 		};
+		CC3000000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 3B4F43FA2F3E642500A4CD74 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CC4000000000000000000001;
+			remoteInfo = OpenCodeWatch;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		CC5000000000000000000001 = {
+		CC5000000000000000000001 /* Embed Watch Content */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
 			dstSubfolderSpec = 16;
-			files = (CC1000000000000000000001, );
+			files = (
+				CC1000000000000000000001 /* OpenCodeWatch.app in Embed Watch Content */,
+			);
 			name = "Embed Watch Content";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		CC2000000000000000000001 = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OpenCodeWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		CC2000000000000000000011 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeClient/Models/CarLiveProtocol.swift; sourceTree = SOURCE_ROOT; };
-		CC2000000000000000000012 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeClient/Models/CarLiveModels.swift; sourceTree = SOURCE_ROOT; };
-		CC2000000000000000000013 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeClient/Models/WatchBridgeWire.swift; sourceTree = SOURCE_ROOT; };
-		CC2000000000000000000014 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeClient/Controllers/CarLiveController.swift; sourceTree = SOURCE_ROOT; };
-		CC2000000000000000000015 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeClient/Services/CarLiveTransport.swift; sourceTree = SOURCE_ROOT; };
-		CC2000000000000000000016 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeClient/Services/CarLiveAudioEngine.swift; sourceTree = SOURCE_ROOT; };
-		CC2000000000000000000017 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeClient/Services/CarLiveDeadline.swift; sourceTree = SOURCE_ROOT; };
-		CC2000000000000000000018 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeClient/Services/CarLiveLifecycleLog.swift; sourceTree = SOURCE_ROOT; };
-		CC2000000000000000000019 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeClient/Services/CarLiveDiagnostics.swift; sourceTree = SOURCE_ROOT; };
-		CC200000000000000000001A = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeClient/Services/BackgroundVoicePolicy.swift; sourceTree = SOURCE_ROOT; };
 		3B4F44022F3E642500A4CD74 /* OpenCodeClient.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OpenCodeClient.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B4F440F2F3E642600A4CD74 /* OpenCodeClientTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OpenCodeClientTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B4F44192F3E642600A4CD74 /* OpenCodeClientUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OpenCodeClientUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		CC2000000000000000000001 /* OpenCodeWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OpenCodeWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CC2000000000000000000011 /* OpenCodeClient/Models/CarLiveProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeClient/Models/CarLiveProtocol.swift; sourceTree = SOURCE_ROOT; };
+		CC2000000000000000000012 /* OpenCodeClient/Models/CarLiveModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeClient/Models/CarLiveModels.swift; sourceTree = SOURCE_ROOT; };
+		CC2000000000000000000013 /* OpenCodeClient/Models/WatchBridgeWire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeClient/Models/WatchBridgeWire.swift; sourceTree = SOURCE_ROOT; };
+		CC2000000000000000000014 /* OpenCodeClient/Controllers/CarLiveController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeClient/Controllers/CarLiveController.swift; sourceTree = SOURCE_ROOT; };
+		CC2000000000000000000015 /* OpenCodeClient/Services/CarLiveTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeClient/Services/CarLiveTransport.swift; sourceTree = SOURCE_ROOT; };
+		CC2000000000000000000016 /* OpenCodeClient/Services/CarLiveAudioEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeClient/Services/CarLiveAudioEngine.swift; sourceTree = SOURCE_ROOT; };
+		CC2000000000000000000017 /* OpenCodeClient/Services/CarLiveDeadline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeClient/Services/CarLiveDeadline.swift; sourceTree = SOURCE_ROOT; };
+		CC2000000000000000000018 /* OpenCodeClient/Services/CarLiveLifecycleLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeClient/Services/CarLiveLifecycleLog.swift; sourceTree = SOURCE_ROOT; };
+		CC2000000000000000000019 /* OpenCodeClient/Services/CarLiveDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeClient/Services/CarLiveDiagnostics.swift; sourceTree = SOURCE_ROOT; };
+		CC200000000000000000001A /* OpenCodeClient/Services/BackgroundVoicePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeClient/Services/BackgroundVoicePolicy.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		CC6000000000000000000001 = {isa = PBXFileSystemSynchronizedRootGroup; path = OpenCodeWatch; sourceTree = "<group>"; };
 		3B4F44042F3E642500A4CD74 /* OpenCodeClient */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = OpenCodeClient;
@@ -88,10 +95,14 @@
 			path = OpenCodeClientUITests;
 			sourceTree = "<group>";
 		};
+		CC6000000000000000000001 /* OpenCodeWatch */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = OpenCodeWatch;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		CC5000000000000000000002 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 		3B4F43FF2F3E642500A4CD74 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -111,6 +122,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		3B4F44162F3E642600A4CD74 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CC5000000000000000000002 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -143,28 +161,26 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		CC6000000000000000000002 = {
+		CC6000000000000000000002 /* Shared Live core */ = {
 			isa = PBXGroup;
+			children = (
+				CC2000000000000000000011 /* OpenCodeClient/Models/CarLiveProtocol.swift */,
+				CC2000000000000000000012 /* OpenCodeClient/Models/CarLiveModels.swift */,
+				CC2000000000000000000013 /* OpenCodeClient/Models/WatchBridgeWire.swift */,
+				CC2000000000000000000014 /* OpenCodeClient/Controllers/CarLiveController.swift */,
+				CC2000000000000000000015 /* OpenCodeClient/Services/CarLiveTransport.swift */,
+				CC2000000000000000000016 /* OpenCodeClient/Services/CarLiveAudioEngine.swift */,
+				CC2000000000000000000017 /* OpenCodeClient/Services/CarLiveDeadline.swift */,
+				CC2000000000000000000018 /* OpenCodeClient/Services/CarLiveLifecycleLog.swift */,
+				CC2000000000000000000019 /* OpenCodeClient/Services/CarLiveDiagnostics.swift */,
+				CC200000000000000000001A /* OpenCodeClient/Services/BackgroundVoicePolicy.swift */,
+			);
 			name = "Shared Live core";
-			children = (CC2000000000000000000011, CC2000000000000000000012, CC2000000000000000000013, CC2000000000000000000014, CC2000000000000000000015, CC2000000000000000000016, CC2000000000000000000017, CC2000000000000000000018, CC2000000000000000000019, CC200000000000000000001A, );
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		CC4000000000000000000001 = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = CC8000000000000000000001;
-			buildPhases = (CC5000000000000000000003, CC5000000000000000000002, CC5000000000000000000004, );
-			buildRules = ();
-			dependencies = ();
-			fileSystemSynchronizedGroups = (CC6000000000000000000001, );
-			name = OpenCodeWatch;
-			packageProductDependencies = ();
-			productName = OpenCodeWatch;
-			productReference = CC2000000000000000000001;
-			productType = "com.apple.product-type.application";
-		};
 		3B4F44012F3E642500A4CD74 /* OpenCodeClient */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 3B4F44232F3E642600A4CD74 /* Build configuration list for PBXNativeTarget "OpenCodeClient" */;
@@ -177,7 +193,7 @@
 			buildRules = (
 			);
 			dependencies = (
-				CC9000000000000000000001 /* Watch companion (iOS only) */,
+				CC9000000000000000000001 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				3B4F44042F3E642500A4CD74 /* OpenCodeClient */,
@@ -238,6 +254,28 @@
 			productReference = 3B4F44192F3E642600A4CD74 /* OpenCodeClientUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		CC4000000000000000000001 /* OpenCodeWatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CC8000000000000000000001 /* Build configuration list for PBXNativeTarget "OpenCodeWatch" */;
+			buildPhases = (
+				CC5000000000000000000003 /* Sources */,
+				CC5000000000000000000002 /* Frameworks */,
+				CC5000000000000000000004 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				CC6000000000000000000001 /* OpenCodeWatch */,
+			);
+			name = OpenCodeWatch;
+			packageProductDependencies = (
+			);
+			productName = OpenCodeWatch;
+			productReference = CC2000000000000000000001 /* OpenCodeWatch.app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -290,7 +328,6 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		CC5000000000000000000004 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 		3B4F44002F3E642500A4CD74 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -312,15 +349,16 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CC5000000000000000000004 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		CC5000000000000000000003 = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (CC1000000000000000000011, CC1000000000000000000012, CC1000000000000000000013, CC1000000000000000000014, CC1000000000000000000015, CC1000000000000000000016, CC1000000000000000000017, CC1000000000000000000018, CC1000000000000000000019, CC100000000000000000001A, );
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		3B4F43FE2F3E642500A4CD74 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -342,10 +380,26 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CC5000000000000000000003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CC1000000000000000000011 /* OpenCodeClient/Models/CarLiveProtocol.swift in Sources */,
+				CC1000000000000000000012 /* OpenCodeClient/Models/CarLiveModels.swift in Sources */,
+				CC1000000000000000000013 /* OpenCodeClient/Models/WatchBridgeWire.swift in Sources */,
+				CC1000000000000000000014 /* OpenCodeClient/Controllers/CarLiveController.swift in Sources */,
+				CC1000000000000000000015 /* OpenCodeClient/Services/CarLiveTransport.swift in Sources */,
+				CC1000000000000000000016 /* OpenCodeClient/Services/CarLiveAudioEngine.swift in Sources */,
+				CC1000000000000000000017 /* OpenCodeClient/Services/CarLiveDeadline.swift in Sources */,
+				CC1000000000000000000018 /* OpenCodeClient/Services/CarLiveLifecycleLog.swift in Sources */,
+				CC1000000000000000000019 /* OpenCodeClient/Services/CarLiveDiagnostics.swift in Sources */,
+				CC100000000000000000001A /* OpenCodeClient/Services/BackgroundVoicePolicy.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		CC9000000000000000000001 = {isa = PBXTargetDependency; platformFilter = ios; target = CC4000000000000000000001; targetProxy = CC3000000000000000000001; };
 		3B4F44112F3E642600A4CD74 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 3B4F44012F3E642500A4CD74 /* OpenCodeClient */;
@@ -356,63 +410,15 @@
 			target = 3B4F44012F3E642500A4CD74 /* OpenCodeClient */;
 			targetProxy = 3B4F441A2F3E642600A4CD74 /* PBXContainerItemProxy */;
 		};
+		CC9000000000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			platformFilter = ios;
+			target = CC4000000000000000000001 /* OpenCodeWatch */;
+			targetProxy = CC3000000000000000000001 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		CC7000000000000000000001 = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 29;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = OpenCode;
-				INFOPLIST_FILE = WatchInfo.plist;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "用于手表实时语音对话。你主动开始后，语音会持续到结束。";
-				INFOPLIST_KEY_WKApplication = YES;
-				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.grapeot.OpenCodeClient;
-				INFOPLIST_KEY_UIBackgroundModes = audio;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.grapeot.OpenCodeClient.watchkitapp;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = watchos;
-				SKIP_INSTALL = YES;
-				SUPPORTED_PLATFORMS = "watchos watchsimulator";
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 4;
-				WATCHOS_DEPLOYMENT_TARGET = 11.0;
-			};
-			name = Debug;
-		};
-		CC7000000000000000000002 = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 29;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = OpenCode;
-				INFOPLIST_FILE = WatchInfo.plist;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "用于手表实时语音对话。你主动开始后，语音会持续到结束。";
-				INFOPLIST_KEY_WKApplication = YES;
-				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.grapeot.OpenCodeClient;
-				INFOPLIST_KEY_UIBackgroundModes = audio;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.grapeot.OpenCodeClient.watchkitapp;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = watchos;
-				SKIP_INSTALL = YES;
-				SUPPORTED_PLATFORMS = "watchos watchsimulator";
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 4;
-				WATCHOS_DEPLOYMENT_TARGET = 11.0;
-			};
-			name = Release;
-		};
 		3B4F44212F3E642600A4CD74 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -539,18 +545,21 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 29;
-				DEVELOPMENT_TEAM = Y2T99LVU9E;
+				DEVELOPMENT_TEAM = 9DBH2A7KB8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "OpenCode Remote needs local network access to connect to your OpenCode server on the same network.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "OpenCode Remote uses the microphone to record voice input, which is transcribed to text and added to the message input field.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "连接同一局域网内的 OpenCode Server 需要访问本地网络";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "用于语音输入。你主动开始的实时语音对话，在切换应用或锁屏后会继续，直到你结束语音。";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Save images from OpenCode file previews and tool results to your photo library";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -559,7 +568,10 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.grapeot.OpenCodeClient;
+				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = com.prysm.opencode;
+				"PRODUCT_BUNDLE_IDENTIFIER[sdk=xros*]" = com.prysm.opencode;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator xros xrsimulator";
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -578,18 +590,21 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 29;
-				DEVELOPMENT_TEAM = Y2T99LVU9E;
+				DEVELOPMENT_TEAM = 9DBH2A7KB8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "OpenCode Remote needs local network access to connect to your OpenCode server on the same network.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "OpenCode Remote uses the microphone to record voice input, which is transcribed to text and added to the message input field.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "连接同一局域网内的 OpenCode Server 需要访问本地网络";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "用于语音输入。你主动开始的实时语音对话，在切换应用或锁屏后会继续，直到你结束语音。";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Save images from OpenCode file previews and tool results to your photo library";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -598,7 +613,10 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.grapeot.OpenCodeClient;
+				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = com.prysm.opencode;
+				"PRODUCT_BUNDLE_IDENTIFIER[sdk=xros*]" = com.prysm.opencode;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator xros xrsimulator";
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -696,10 +714,65 @@
 			};
 			name = Release;
 		};
+		CC7000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 29;
+				DEVELOPMENT_TEAM = 9DBH2A7KB8;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = WatchInfo.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = OpenCode;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "用于手表实时语音对话。你主动开始后，语音会持续到结束。";
+				INFOPLIST_KEY_UIBackgroundModes = audio;
+				INFOPLIST_KEY_WKApplication = YES;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.grapeot.OpenCodeClient;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.grapeot.OpenCodeClient.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "watchos watchsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+			};
+			name = Debug;
+		};
+		CC7000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 29;
+				DEVELOPMENT_TEAM = 9DBH2A7KB8;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = WatchInfo.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = OpenCode;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "用于手表实时语音对话。你主动开始后，语音会持续到结束。";
+				INFOPLIST_KEY_UIBackgroundModes = audio;
+				INFOPLIST_KEY_WKApplication = YES;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.grapeot.OpenCodeClient;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.grapeot.OpenCodeClient.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "watchos watchsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		CC8000000000000000000001 = {isa = XCConfigurationList; buildConfigurations = (CC7000000000000000000001, CC7000000000000000000002, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 		3B4F43FD2F3E642500A4CD74 /* Build configuration list for PBXProject "OpenCodeClient" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -732,6 +805,15 @@
 			buildConfigurations = (
 				3B4F442A2F3E642600A4CD74 /* Debug */,
 				3B4F442B2F3E642600A4CD74 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CC8000000000000000000001 /* Build configuration list for PBXNativeTarget "OpenCodeWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CC7000000000000000000001 /* Debug */,
+				CC7000000000000000000002 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
