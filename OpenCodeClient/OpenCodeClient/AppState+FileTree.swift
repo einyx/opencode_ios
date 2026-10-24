@@ -125,7 +125,7 @@ extension AppState {
     func loadFileStatus() async {
         let host = captureHostRequestSnapshot()
         do {
-            let entries = try await apiClient.fileStatus()
+            let entries = try await apiClient.fileStatus(directory: effectiveProjectDirectory)
             guard isCurrentHostRequest(host) else { return }
             var nextStatusMap: [String: String] = [:]
             for entry in entries {

@@ -132,8 +132,63 @@ struct V2MappingTests {
         #expect(messages[1].info.parentID == "msg_1")
     }
 
+    @Test func descendingServerPayloadBecomesAnAscendingTranscript() throws {
+        // V2 serves the transcript newest first (`order=desc` is the default).
+        // The app renders oldest first, so the mapper has to put it back in
+        // chronological order and derive the parents from that order.
+        let json = #"""
+        {"data":[
+        {"id":"msg_3","type":"assistant","content":[{"type":"text","text":"second answer"}],"time":{"created":30}},
+        {"id":"msg_2","type":"user","text":"second question","time":{"created":20}},
+        {"id":"msg_1","type":"assistant","content":[{"type":"text","text":"first answer"}],"time":{"created":10}},
+        {"id":"msg_0","type":"user","text":"first question","time":{"created":5}}
+        ]}
+        """#
+        let messages = try V2Mapper.messages(from: Data(json.utf8), sessionID: "ses_1")
+        #expect(messages.map(\.info.id) == ["msg_0", "msg_1", "msg_2", "msg_3"])
+        // Each assistant hangs off the user message that came before it.
+        #expect(messages[0].info.parentID == nil)
+        #expect(messages[1].info.parentID == "msg_0")
+        #expect(messages[2].info.parentID == nil)
+        #expect(messages[3].info.parentID == "msg_2")
+    }
+
+    @Test func messagesWithTheSameTimestampAreOrderedByID() throws {
+        let json = #"""
+        {"data":[
+        {"id":"msg_b","type":"user","text":"second","time":{"created":7}},
+        {"id":"msg_a","type":"user","text":"first","time":{"created":7}}
+        ]}
+        """#
+        let messages = try V2Mapper.messages(from: Data(json.utf8), sessionID: "ses_1")
+        #expect(messages.map(\.info.id) == ["msg_a", "msg_b"])
+    }
+
     @Test func emptyMessageEnvelopeIsEmptyNotAnError() throws {
         #expect(try V2Mapper.messages(from: Data(#"{"data":[]}"#.utf8), sessionID: "ses_1").isEmpty)
+    }
+
+    // MARK: - Message pagination
+
+    @Test func v2CursorIsRecognisedAndAForeignCursorIsNot() {
+        // A V2 cursor is base64url JSON carrying the ordering and the
+        // direction to walk. The V1 `before` cursor is not interchangeable.
+        let payload = #"{"id":"msg_1","order":"desc","direction":"next"}"#
+        let encoded = Data(payload.utf8)
+            .base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        #expect(APIClient.v2MessageCursor(encoded) == encoded)
+        #expect(APIClient.v2MessageCursor("eyJpZCI6Im1zZ18xIn0") == nil)
+        #expect(APIClient.v2MessageCursor("") == nil)
+    }
+
+    @Test func v2NextCursorComesFromTheResponseBody() {
+        let json = #"{"data":[],"cursor":{"previous":null,"next":"abc"}}"#
+        #expect(APIClient.v2MessageNextCursor(Data(json.utf8)) == "abc")
+        let empty = #"{"data":[],"cursor":{"previous":null,"next":null}}"#
+        #expect(APIClient.v2MessageNextCursor(Data(empty.utf8)) == nil)
     }
 
     // MARK: - Providers, models, agents

@@ -57,15 +57,28 @@ nonisolated enum V2Mapper {
         let payload = try unwrap(data)
         guard let rows = payload as? [Any] else { throw V2MappingError.malformed }
 
-        var messages: [MessageWithParts] = []
-        var previousUserMessageID: String?
-
+        // V2 serves the transcript newest first (`order=desc` is the default),
+        // while the app renders messages oldest first. Sort chronologically
+        // before deriving parents so the transcript reads in order.
+        var decoded: [(created: Int, id: String, wire: V2Message)] = []
         for row in rows {
             guard let dictionary = row as? [String: Any],
                   let encoded = try? JSONSerialization.data(withJSONObject: dictionary),
                   let wire = try? JSONDecoder().decode(V2Message.self, from: encoded) else {
                 continue
             }
+            decoded.append((created: wire.time.created, id: wire.id, wire: wire))
+        }
+        decoded.sort { lhs, rhs in
+            if lhs.created != rhs.created { return lhs.created < rhs.created }
+            return lhs.id < rhs.id
+        }
+
+        var messages: [MessageWithParts] = []
+        var previousUserMessageID: String?
+
+        for entry in decoded {
+            let wire = entry.wire
             // The parent of an assistant message is the nearest preceding
             // user message in the same list. V2 messages carry no parent.
             let parentID: String?

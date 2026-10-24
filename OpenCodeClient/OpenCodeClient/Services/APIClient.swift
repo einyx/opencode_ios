@@ -577,7 +577,12 @@ actor APIClient {
             return [URLQueryItem(name: "limit", value: String(limit))]
         }()
         if generation == .v2 {
-            let (data, _) = try await makeRequest(path: "/api/session/\(sessionID)/message", queryItems: queryItems)
+            // V2 serves the newest messages first and only accepts `order`
+            // on the first page, so ask for `desc` and let the mapper put the
+            // transcript back in chronological order.
+            var v2QueryItems = queryItems ?? []
+            v2QueryItems.append(URLQueryItem(name: "order", value: "desc"))
+            let (data, _) = try await makeRequest(path: "/api/session/\(sessionID)/message", queryItems: v2QueryItems)
             return try V2Mapper.messages(from: data, sessionID: sessionID)
         }
         let (data, _) = try await makeRequest(path: "/session/\(sessionID)/message", queryItems: queryItems)
@@ -1184,9 +1189,20 @@ actor APIClient {
     }
 
     func fileStatus() async throws -> [FileStatusEntry] {
+        try await fileStatus(directory: nil)
+    }
+
+    func fileStatus(directory: String?) async throws -> [FileStatusEntry] {
         let generation = try await resolvedGeneration()
         if generation == .v2 {
-            let (data, _) = try await makeRequest(path: "/api/vcs/status")
+            // The location matters: without it the server resolves the
+            // request against its own working directory, which can be a large
+            // repository, and the call then hangs.
+            var queryItems: [URLQueryItem] = []
+            if let directory, !directory.isEmpty {
+                queryItems.append(URLQueryItem(name: "location[directory]", value: directory))
+            }
+            let (data, _) = try await makeRequest(path: "/api/vcs/status", queryItems: queryItems.isEmpty ? nil : queryItems)
             return try V2Mapper.fileStatus(from: data)
         }
         let (data, _) = try await makeRequest(path: "/file/status")
@@ -1332,17 +1348,27 @@ actor APIClient {
             if let directory, !directory.isEmpty {
                 queryItems.append(URLQueryItem(name: "location[directory]", value: directory))
             }
-            let (data, http) = try await makeRequest(
+            if let before, let cursor = Self.v2MessageCursor(before) {
+                // The cursor already encodes the ordering and the server
+                // rejects `cursor` combined with `order`.
+                queryItems.append(URLQueryItem(name: "cursor", value: cursor))
+            } else {
+                // Newest first: the cursor that comes back walks backwards
+                // through the transcript.
+                queryItems.append(URLQueryItem(name: "order", value: "desc"))
+            }
+            let (data, _) = try await makeRequest(
                 path: "/api/session/\(sessionID)/message",
                 queryItems: queryItems,
                 liveToken: transportToken
             )
             let messages = try V2Mapper.messages(from: data, sessionID: sessionID)
+            let nextCursor = Self.v2MessageNextCursor(data)
             return CarLiveMessagePage(
                 messages: messages,
-                hasOlder: Self.historyHasOlder(http),
+                hasOlder: nextCursor != nil,
                 requestedLimit: capped,
-                nextCursor: Self.historyNextCursor(http),
+                nextCursor: nextCursor,
                 hasDecodeGaps: false
             )
         }
@@ -1669,6 +1695,37 @@ actor APIClient {
             return cursor
         }
         return linkBeforeCursor(response.value(forHTTPHeaderField: "Link"))
+    }
+
+    /// V2 hands out opaque pagination cursors: base64url JSON carrying the
+    /// message id, the ordering and the direction to walk. They cannot be
+    /// combined with `order` and they are not interchangeable with the V1
+    /// `before` cursor, so only reuse a value that really is a V2 cursor.
+    nonisolated static func v2MessageCursor(_ raw: String) -> String? {
+        guard !raw.isEmpty, let decoded = Self.decodeBase64URL(raw) else { return nil }
+        guard let object = try? JSONSerialization.jsonObject(with: decoded) as? [String: Any] else { return nil }
+        guard object["order"] != nil, object["direction"] != nil else { return nil }
+        return raw
+    }
+
+    /// The cursor that walks further back through a V2 transcript.
+    nonisolated static func v2MessageNextCursor(_ data: Data) -> String? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let cursor = object["cursor"] as? [String: Any],
+              let next = cursor["next"] as? String,
+              !next.isEmpty else {
+            return nil
+        }
+        return next
+    }
+
+    private nonisolated static func decodeBase64URL(_ raw: String) -> Data? {
+        var normalized = raw.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        let remainder = normalized.count % 4
+        if remainder > 0 {
+            normalized += String(repeating: "=", count: 4 - remainder)
+        }
+        return Data(base64Encoded: normalized)
     }
 
     nonisolated static func linkBeforeCursor(_ header: String?) -> String? {
@@ -2127,6 +2184,12 @@ protocol FileDirectorySearching: APIClientProtocol {
 extension APIClient: FileDirectorySearching {}
 
 extension APIClientProtocol {
+    /// The status of a specific directory. V2 needs it: without a location
+    /// the server resolves the request against its own working directory,
+    /// which can be a large repository, and the call then hangs.
+    func fileStatus(directory: String?) async throws -> [FileStatusEntry] {
+        try await fileStatus()
+    }
     /// Configure with a known generation. Clients that do not track one fall
     /// back to the plain configuration.
     func configure(baseURL: String, username: String?, password: String?, generation: ServerGeneration) {
