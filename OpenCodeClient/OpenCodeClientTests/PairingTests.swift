@@ -28,6 +28,16 @@ struct PairingTests {
         #expect(PairingLink.parse("https://example.invalid") == nil)
     }
 
+    @Test func incompleteCodeIsNotAPairingLink() {
+        // The server issues 22 character base64url codes. A shorter prefix is
+        // what the field holds while a link is still being typed, and
+        // redeeming it would spend the single-use code on a typo.
+        #expect(PairingLink.parse("http://192.168.190.237:4096/auth/connect/R1ZynR7") == nil)
+        #expect(PairingLink.parse(#"{"code":"R1ZynR7","urls":["http://192.168.190.237:4096"]}"#) == nil)
+        // A complete code is still accepted.
+        #expect(PairingLink.parse("http://192.168.190.237:4096/auth/connect/R1ZynR76yZ3G7uoPHlGOiA") != nil)
+    }
+
     @Test func pairingLinkWithUnsupportedSchemeIsRejected() {
         #expect(PairingLink.parse("opencode-ios://auth/connect/abc") == nil)
     }

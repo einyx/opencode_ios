@@ -4,11 +4,18 @@
 //
 //  Drives the shipped app against a live OpenCode V2 server.
 //
-//  The server is described by two environment variables:
-//  - `OPENCODE_LIVE_SERVER`: base URL, e.g. `http://127.0.0.1:4096`
-//  - `OPENCODE_LIVE_PASSWORD`: the server password
+//  The server is described either by environment variables or by a dedicated
+//  config file at /tmp/opencode-ios-live-server-config.json with
+//  `server_url`, `username` and `password` keys. The file has its own path on
+//  purpose: /tmp/opencode-ios-tier4-config.json belongs to the Tier 4
+//  fixtures, and writing it here would make those tests read a live server.
 //
-//  Without them the tests skip, so the suite stays harmless without a server.
+//  Run it on its own: it saves a real host profile in the app, so the app
+//  state has to be reset afterwards or the Tier 4 fixtures inherit it.
+//
+//    xcrun simctl uninstall <udid> com.grapeot.OpenCodeClient
+//
+//  Without a server the tests skip, so the suite stays harmless without one.
 //
 
 import XCTest
@@ -24,13 +31,41 @@ final class V2LiveServerUITests: XCTestCase {
         let password: String
 
         static func fromEnvironment() throws -> LiveServer {
-            guard let raw = ProcessInfo.processInfo.environment["OPENCODE_LIVE_SERVER"],
-                  let url = URL(string: raw),
-                  let password = ProcessInfo.processInfo.environment["OPENCODE_LIVE_PASSWORD"],
+            let config = fileConfig()
+            let rawURL = firstNonEmpty(
+                ProcessInfo.processInfo.environment["OPENCODE_LIVE_SERVER"],
+                config["live_server"],
+                config["server_url"]
+            )
+            let password = firstNonEmpty(
+                ProcessInfo.processInfo.environment["OPENCODE_LIVE_PASSWORD"],
+                config["live_password"],
+                config["password"]
+            )
+            guard let rawURL,
+                  let url = URL(string: rawURL),
+                  let password,
                   !password.isEmpty else {
-                throw XCTSkip("Set OPENCODE_LIVE_SERVER and OPENCODE_LIVE_PASSWORD to run the live server tests")
+                throw XCTSkip("Set OPENCODE_LIVE_SERVER and OPENCODE_LIVE_PASSWORD, or write /tmp/opencode-ios-live-server-config.json, to run the live server tests")
             }
             return LiveServer(baseURL: url, password: password)
+        }
+
+        private static func firstNonEmpty(_ values: String?...) -> String? {
+            for value in values {
+                if let value, !value.isEmpty { return value }
+            }
+            return nil
+        }
+
+        /// The live server config file.
+        private static func fileConfig() -> [String: String] {
+            let url = URL(fileURLWithPath: "/tmp/opencode-ios-live-server-config.json")
+            guard let data = try? Data(contentsOf: url),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                return [:]
+            }
+            return object.compactMapValues { $0 as? String }
         }
     }
 
@@ -62,29 +97,8 @@ final class V2LiveServerUITests: XCTestCase {
         return try result.get()
     }
 
-    /// Open Settings → Hosts → Add Host and return the editor.
-    @MainActor
-    private func openHostEditor(_ app: XCUIApplication) -> XCUIElement {
-        let tabBar = app.tabBars.firstMatch
-        XCTAssertTrue(tabBar.waitForExistence(timeout: 10), "Tab bar should exist")
-        tabBar.buttons.element(boundBy: tabBar.buttons.count - 1).tap()
-
-        // The Hosts list is one level below the Settings tab.
-        let hostsLink = app.buttons["settings-current-host"]
-        XCTAssertTrue(hostsLink.waitForExistence(timeout: 8), "Hosts entry should exist")
-        hostsLink.tap()
-
-        let addHost = app.buttons["hosts-add-host"]
-        XCTAssertTrue(addHost.waitForExistence(timeout: 8), "Add Host button should exist")
-        addHost.tap()
-
-        let nameField = app.textFields["host-name"]
-        XCTAssertTrue(nameField.waitForExistence(timeout: 8), "Host editor should open")
-        return nameField
-    }
-
     /// A host added with the password form connects to the V2 server and the
-    /// app lists the server's sessions.
+    /// app reports the connected phase.
     @MainActor
     func testManualHostConnectsToLiveV2Server() throws {
         let server = try LiveServer.fromEnvironment()
@@ -92,33 +106,22 @@ final class V2LiveServerUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        openHostEditor(app)
+        Tier4DriverSupport.configureSavedHost(
+            in: app,
+            serverURL: server.baseURL.absoluteString,
+            username: "opencode",
+            password: server.password
+        )
+        Tier4DriverSupport.tapTestConnection(in: app)
 
-        let nameField = app.textFields["host-name"]
-        nameField.tap()
-        nameField.typeText("Live V2")
-
-        let urlField = app.textFields["host-server-url"]
-        urlField.tap()
-        urlField.typeText(server.baseURL.absoluteString)
-
-        let userField = app.textFields["host-username"]
-        userField.tap()
-        userField.typeText("opencode")
-
-        let passwordField = app.secureTextFields["host-password"]
-        passwordField.tap()
-        passwordField.typeText(server.password)
-
-        app.buttons["host-save"].tap()
-
-        // The host detail shows the connection phase once the host is saved.
-        let phase = app.descendants(matching: .any)["host-connection-phase"]
-        XCTAssertTrue(phase.waitForExistence(timeout: 20), "Connection phase should be reported")
-        XCTAssertEqual(phase.label, "Connected", "The app should connect to the live V2 server")
+        XCTAssertTrue(
+            Tier4DriverSupport.waitForConnected(in: app, timeout: 30),
+            "server should report connected; phase=\(Tier4DriverSupport.phaseValue(in: app))"
+        )
     }
 
-    /// A pasted pairing link fills the credentials and hides the password form.
+    /// A pasted pairing link fills the credentials, hides the password form,
+    /// and the paired host connects.
     @MainActor
     func testPairingLinkFillsCredentialsAndHidesPasswordForm() throws {
         let server = try LiveServer.fromEnvironment()
@@ -127,24 +130,51 @@ final class V2LiveServerUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        openHostEditor(app)
+        Tier4DriverSupport.openSettings(in: app)
+        let currentHost = app.descendants(matching: .any)["settings-current-host"]
+        XCTAssertTrue(currentHost.waitForExistence(timeout: 15), "settings-current-host should exist")
+        currentHost.tap()
 
-        let linkField = app.textFields["host-pair-link-field"]
-        XCTAssertTrue(linkField.waitForExistence(timeout: 8), "Pairing field should exist")
-        linkField.tap()
-        linkField.typeText(link)
+        let addHost = app.descendants(matching: .any)["hosts-add-host"]
+        XCTAssertTrue(addHost.waitForExistence(timeout: 15), "hosts-add-host should exist")
+        addHost.tap()
+
+        let name = app.descendants(matching: .any)["host-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 10), "host-name should exist")
+        Tier4DriverSupport.replaceText(in: name, with: "Live V2 paired")
+
+        let linkField = app.descendants(matching: .any)["host-pair-link-field"]
+        XCTAssertTrue(linkField.waitForExistence(timeout: 10), "host-pair-link-field should exist")
+        Tier4DriverSupport.replaceText(in: linkField, with: link)
 
         let paired = app.descendants(matching: .any)["host-pair-paired"]
-        XCTAssertTrue(paired.waitForExistence(timeout: 20), "Pairing should succeed")
+        XCTAssertTrue(paired.waitForExistence(timeout: 20), "pairing should succeed")
 
         // The credentials came from the link, so they are not asked for.
-        XCTAssertFalse(app.secureTextFields["host-password"].exists, "Password field should be hidden after pairing")
-        XCTAssertFalse(app.textFields["host-username"].exists, "Username field should be hidden after pairing")
+        XCTAssertFalse(
+            app.descendants(matching: .any).matching(identifier: "host-password").count > 0,
+            "password field should be hidden after pairing"
+        )
+        XCTAssertFalse(
+            app.descendants(matching: .any).matching(identifier: "host-username").count > 0,
+            "username field should be hidden after pairing"
+        )
 
-        app.buttons["host-save"].tap()
+        let save = app.buttons.matching(identifier: "host-save")
+        XCTAssertEqual(save.count, 1, "host-save should be exactly one Button")
+        XCTAssertTrue(save.element(boundBy: 0).waitForExistence(timeout: 10), "host-save Button should exist")
+        save.element(boundBy: 0).tap()
+        XCTAssertTrue(save.element(boundBy: 0).waitForNonExistence(timeout: 10), "host editor should dismiss after saving")
 
-        let phase = app.descendants(matching: .any)["host-connection-phase"]
-        XCTAssertTrue(phase.waitForExistence(timeout: 20), "Connection phase should be reported")
-        XCTAssertEqual(phase.label, "Connected", "The paired host should connect")
+        let back = Tier4DriverSupport.navigationButton(in: app, labels: ["Settings", "设置", "Back", "返回"])
+        XCTAssertTrue(back.waitForExistence(timeout: 8), "Hosts should expose its Settings back button")
+        back.tap()
+        XCTAssertTrue(app.buttons["settings-current-host"].waitForExistence(timeout: 10), "should return to Settings")
+
+        Tier4DriverSupport.tapTestConnection(in: app)
+        XCTAssertTrue(
+            Tier4DriverSupport.waitForConnected(in: app, timeout: 30),
+            "paired host should report connected; phase=\(Tier4DriverSupport.phaseValue(in: app))"
+        )
     }
 }

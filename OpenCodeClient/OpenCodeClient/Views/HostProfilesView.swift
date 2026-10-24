@@ -548,6 +548,12 @@ struct HostProfileEditorView: View {
     /// The pairing code that was already redeemed.
     @State private var lastRedeemedCode: String?
     @State private var isPairing = false
+    /// The pending auto-redeem, cancelled when the link changes again.
+    ///
+    /// The link is redeemed when the typing settles: a link that is still
+    /// being typed is not a link yet, and every attempt would spend the
+    /// single-use code.
+    @State private var pendingPairingRedeem: Task<Void, Never>?
     #if os(iOS)
     @State private var isScanningQR = false
     #endif
@@ -688,9 +694,16 @@ struct HostProfileEditorView: View {
                             .onChange(of: pairingLinkText) { _, value in
                                 // A pasted pairing link is redeemed on the
                                 // spot: the credentials come from the link,
-                                // so there is nothing else to type.
+                                // so there is nothing else to type. A link
+                                // that is typed in is redeemed once the
+                                // typing settles.
+                                pendingPairingRedeem?.cancel()
                                 guard let link = PairingLink.parse(value) else { return }
-                                Task { await redeem(link) }
+                                pendingPairingRedeem = Task {
+                                    try? await Task.sleep(for: .milliseconds(400))
+                                    guard !Task.isCancelled else { return }
+                                    await redeem(link)
+                                }
                             }
                         Button {
                             Task { await redeemPairingLink(pairingLinkText) }

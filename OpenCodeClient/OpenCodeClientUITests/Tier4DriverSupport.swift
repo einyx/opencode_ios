@@ -42,9 +42,10 @@ enum Tier4DriverSupport {
             replaceText(in: usernameField, with: username)
         }
         if !password.isEmpty {
-            let passwordField = reveal(identifier: "host-password", anchor: "host-username", in: app)
-            XCTAssertTrue(passwordField.waitForExistence(timeout: 10), "host-password should exist")
-            XCTAssertTrue(passwordField.isHittable, "host-password should be hittable")
+            // The password field sits below the keyboard and is not hittable
+            // while it is covered, but it is in the tree: tapping it scrolls
+            // it into view.
+            let passwordField = secureField(identifier: "host-password", in: app)
             replaceText(in: passwordField, with: password)
         }
 
@@ -176,24 +177,48 @@ enum Tier4DriverSupport {
         return ""
     }
 
+    /// A secure text field.
+    ///
+    /// A secure field is not matched by an identifier predicate on `.any`, so
+    /// it is looked up by its own type.
+    @MainActor
+    static func secureField(identifier: String, in app: XCUIApplication) -> XCUIElement {
+        let field = app.secureTextFields[identifier]
+        XCTAssertTrue(field.waitForExistence(timeout: 10), "secure field \(identifier) should exist")
+        return field
+    }
+
     @MainActor
     static func reveal(identifier: String, anchor: String, in app: XCUIApplication, attempts: Int = 4) -> XCUIElement {
         func node() -> XCUIElement? {
             let nodes = app.descendants(matching: .any).matching(identifier: identifier)
-            guard nodes.count == 1 else { return nil }
-            return nodes.element(boundBy: 0)
+            if nodes.count == 1 { return nodes.element(boundBy: 0) }
+            // A secure text field is not matched by an identifier predicate on
+            // `.any`, so secure fields are looked up by their own type.
+            let secure = app.secureTextFields[identifier]
+            if secure.exists { return secure }
+            return nil
+        }
+        if let found = node(), found.isHittable { return found }
+        // The keyboard covers the lower fields, and a swipe on a form that is
+        // covered by the keyboard does not move the content. Dismiss the
+        // keyboard before scrolling for a field.
+        if app.keyboards.count > 0 {
+            app.keyboards.element(boundBy: 0).swipeDown()
+            RunLoop.current.run(until: Date().addingTimeInterval(0.3))
         }
         if let found = node(), found.isHittable { return found }
         if let scroller = editorScroller(in: app, anchor: anchor) {
             for _ in 0..<attempts {
                 if let found = node(), found.isHittable { return found }
                 scroller.swipeUp()
+                RunLoop.current.run(until: Date().addingTimeInterval(0.3))
             }
         }
-        if let found = node(), !found.isHittable, app.keyboards.count > 0 {
-            app.keyboards.element(boundBy: 0).swipeDown()
-        }
-        return node() ?? app.descendants(matching: .any)[identifier]
+        if let found = node() { return found }
+        return app.descendants(matching: .any)[identifier].exists
+            ? app.descendants(matching: .any)[identifier]
+            : app.secureTextFields[identifier]
     }
 
     @MainActor

@@ -102,8 +102,14 @@ nonisolated struct PairingLink: Equatable {
     }
 
     /// The server issues base64url codes: letters, digits, `_` and `-`.
+    /// A code is only usable once it is complete.
+    ///
+    /// The server issues `randomBytes(16).toString("base64url")` codes, which
+    /// are 22 characters long. A shorter prefix is what the field contains
+    /// while a link is still being typed, and redeeming it would spend the
+    /// single-use code on a typo.
     private static func isValidCode(_ code: String) -> Bool {
-        guard !code.isEmpty, code.count <= 128 else { return false }
+        guard code.count >= 16, code.count <= 128 else { return false }
         return code.unicodeScalars.allSatisfy { scalar in
             switch scalar.value {
             case 45, 48...57, 65...90, 95, 97...122:
