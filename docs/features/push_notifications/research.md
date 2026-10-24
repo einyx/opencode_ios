@@ -1,190 +1,190 @@
-# OpenCode iOS 推送通知调研
+# OpenCode iOS Push Notification Research
 
-更新：2026-07-24
+Updated: 2026-07-24
 
-## 结论
+## Conclusion
 
-我们可以在不修改每台 OpenCode Server 源码的前提下实现通知，但单纯依靠改造 iOS 客户端本身，无法达成及时且可靠的后台消息推送。
+We can implement notifications without modifying the source of every OpenCode Server, but relying on iOS client changes alone cannot achieve timely and reliable background message delivery.
 
-当 iOS App 处于前台运行时，现有代码已经能够实时消费 `/global/event` 事件流，精准识别 `question.asked` 与 `permission.asked` 事件，并将其归类为需要人工介入的 Needs Attention 状态。然而一旦 App 退到后台，系统会主动断开 SSE 长连接与 SSH 隧道；即使不主动断开，iOS 系统底层也会在短时间内将常规网络连接挂起。因此，若要在 App 脱离前台时依然能够触达用户，必须引入一个常驻的对端服务继续监听服务端事件流，并通过苹果官方的 APNs 通道唤醒或推送通知到手机。
+When the iOS app is running in the foreground, the existing code already consumes the `/global/event` event stream in real time, precisely identifies the `question.asked` and `permission.asked` events, and classifies them as a Needs Attention state that requires human intervention. However, once the app moves to the background, the system actively tears down the SSE long connection and the SSH tunnel; even when it does not tear them down proactively, the underlying iOS system suspends ordinary network connections within a short time. Therefore, in order to still reach the user while the app is not in the foreground, a resident side service must be introduced that keeps listening to the server event stream and wakes or pushes a notification to the phone through Apple's official APNs channel.
 
-综合考虑，建议引入一个独立的 Notification Bridge 旁路服务，而非侵入修改 OpenCode Server 的核心代码：
+On balance, we recommend introducing an independent Notification Bridge sidecar service rather than invasively modifying the core code of OpenCode Server:
 
 ```text
-多台 OpenCode server
-        │ 现有 SSE / REST，不改协议
+Multiple OpenCode servers
+        │ existing SSE / REST, protocol unchanged
         ▼
-常驻 notification bridge
-        │ 判断 question / permission / done / error
+Always-on notification bridge
+        │ decides question / permission / done / error
         ▼
        APNs
         ▼
-OpenCode iOS，点击通知打开对应 session
+OpenCode iOS, tapping the notification opens the matching session
 ```
 
-采用这种架构，既达成了“服务端零改动”的目标，代价仅仅是引入了一个极轻量的常驻旁路服务。如果要求连这一旁路服务也不允许部署，则系统只能退化为受系统调度制约、无法保证及时性的后台间歇轮询，无法作为正式交付的实时推送方案。
+With this architecture we achieve the goal of "zero server-side changes", and the only cost is the introduction of an extremely lightweight resident sidecar service. If even this sidecar service is not allowed to be deployed, then the system can only degrade to background intermittent polling that is subject to system scheduling and cannot guarantee timeliness, which is not acceptable as a formally deliverable real-time push solution.
 
-## 当前客户端已经具备一半能力
+## The Current Client Already Has Half of the Capability
 
-第一，客户端既有的 `SSEClient` 已经稳定连接至 `GET /global/event` 端点，无需 OpenCode 服务端专门开发新的通知接口（代码参见 `OpenCodeClient/OpenCodeClient/Services/SSEClient.swift:51-137`）。
+First, the client's existing `SSEClient` is already stably connected to the `GET /global/event` endpoint, so there is no need for the OpenCode server to specifically develop a new notification interface (see `OpenCodeClient/OpenCodeClient/Services/SSEClient.swift:51-137`).
 
-第二，客户端在业务层已经具备识别两类核心人工阻塞事件的能力：`permission.asked` 与 `question.asked`（代码参见 `OpenCodeClient/OpenCodeClient/AppState+SSE.swift:125-138`），且 `AppState` 内部已按 Session 维度完成 Attention 待办计数的聚合统计（代码参见 `OpenCodeClient/OpenCodeClient/AppState.swift:487-503`）。
+Second, the client already has the business-layer capability to recognize the two core human-blocking event types: `permission.asked` and `question.asked` (see `OpenCodeClient/OpenCodeClient/AppState+SSE.swift:125-138`), and `AppState` already aggregates an Attention todo count by Session (see `OpenCodeClient/OpenCodeClient/AppState.swift:487-503`).
 
-第三，服务端现有的 REST API 体系支持在连接重连后对账拉取挂起的 Pending Permission 与 Question 数据，因此 Bridge 服务或客户端无需过度依赖脆弱的瞬时 SSE 事件流（代码参见 `OpenCodeClient/OpenCodeClient/Services/APIClient.swift:386-423`）。
+Third, the server's existing REST API system supports reconciliation fetches of pending Permission and Question data after a reconnect, so the Bridge service or the client does not need to depend heavily on the fragile transient SSE event stream (see `OpenCodeClient/OpenCodeClient/Services/APIClient.swift:386-423`).
 
-第四，通知点击唤醒后的路由与导航基础已经完备。客户端已原生支持 `opencode://session/<session_id>` 深度链接跳转（配置参见 `OpenCodeClient/Info.plist:5-15`）。
+Fourth, the routing and navigation groundwork for notification-tap wakeup is already complete. The client natively supports the `opencode://session/<session_id>` deep link (configuration in `OpenCodeClient/Info.plist:5-15`).
 
-当前真正缺失的环节是后台交付能力（Background Delivery）。App 在退到后台时会主动断开 SSE 与 SSH 隧道连接（代码参见 `OpenCodeClient/OpenCodeClient/ContentView.swift:738-746`），且当前的 Xcode 工程尚未配置 `aps-environment` Entitlement 签名，亦未开启 Remote Notifications 后台模式支持。
+The one piece that is genuinely missing today is background delivery capability (Background Delivery). The app actively disconnects SSE and the SSH tunnel when it moves to the background (see `OpenCodeClient/OpenCodeClient/ContentView.swift:738-746`), and the current Xcode project has not yet configured the `aps-environment` entitlement signature, nor enabled Remote Notifications background mode support.
 
-## 为什么纯 client 方案不成立
+## Why a Client-Only Approach Does Not Work
 
-### 本地通知只能覆盖 app 仍在运行时收到的事件
+### Local Notifications Only Cover Events Received While the App Is Still Running
 
-如果 App 在前台运行期间收到了 `question.asked` 事件，客户端自然可以即时安排一条本地通知（Local Notification）。但用户真正依赖推送的核心场景恰恰在于 App 已经切到后台或手机处于锁屏状态；在此时段内根本没有网络事件能够触达手机，客户端自然没有任何触发本地通知的时机。
+If the app receives a `question.asked` event while running in the foreground, the client can of course schedule a Local Notification immediately. But the core scenario users actually depend on push notifications for is precisely the one where the app has already switched to the background or the phone is locked; during that period no network event can reach the phone at all, so the client naturally has no opportunity to trigger a local notification.
 
-### 后台轮询可以做 fallback，不能承担实时通知
+### Background Polling Can Serve as a Fallback but Cannot Carry Real-Time Notifications
 
-iOS 的 `BGAppRefreshTask` 机制虽然可以在后台由系统间歇唤醒 App，以便调用 `/permission`、`/question` 和 `/session/status` 接口，但其触发时机完全由系统策略黑盒决定，极易产生延迟甚至被直接跳过，且苹果仅提供极其短暂的运行窗口。该机制适合用于校准 Badge 角标或作为兜底对账，完全无法承担“AI 停下来正在等待用户确认”的即时触达需求（参考 [Apple：Choosing Background Strategies](https://developer.apple.com/documentation/backgroundtasks/choosing-background-strategies-for-your-app)）。
+The iOS `BGAppRefreshTask` mechanism can indeed wake the app up intermittently in the background so that it can call the `/permission`, `/question`, and `/session/status` endpoints, but its trigger timing is entirely determined by a black-box system policy, which easily produces delays or even outright skips, and Apple only provides an extremely brief execution window. This mechanism is suitable for calibrating the Badge count or acting as a fallback reconciliation, but it is completely unable to carry the immediate delivery need of "the AI has stopped and is waiting for the user to confirm" (see [Apple: Choosing Background Strategies](https://developer.apple.com/documentation/backgroundtasks/choosing-background-strategies-for-your-app)).
 
-此外，在当前产品架构下还存在第二层阻碍：通过 SSH 连接的主机需要由 App 主动协商建立隧道，而现有后台策略在切后台时会主动关闭隧道。即使系统偶尔赋予了一次后台唤醒机会，让 App 在后台临时完成 SSH 握手、对多台主机执行全量轮询再触发本地通知，在工程上也极不稳定且容易超时失败。
+Moreover, under the current product architecture there is a second layer of obstruction: a host connected over SSH requires the app to proactively negotiate and establish the tunnel, and the existing background policy actively closes the tunnel when the app moves to the background. Even if the system occasionally grants a background wakeup opportunity, having the app complete an SSH handshake in the background, run a full poll across multiple hosts, and then trigger a local notification is engineering-wise extremely unstable and prone to timeouts and failures.
 
-### Live Activity 不是 APNs 的替代品
+### Live Activity Is Not a Substitute for APNs
 
-实时活动（Live Activity）非常适合用于呈现已知长任务的持续进度，但 App 进入挂起状态后若要从远端更新灵动岛或锁屏小组件，底层依然必须依赖 ActivityKit Push 推送通道。同时，它并不适合承载 Permission 或 Question 这类离散、偶发且优先级极高的人工决策请求。首期方案应聚焦于打通标准的 Remote Push；后续若有长任务进度展示需求，再单独评估引入 Live Activity。
+Live Activity is very well suited to presenting the continuous progress of a known long-running task, but even after the app enters the suspended state, updating the Dynamic Island or the lock screen widget remotely still fundamentally depends on the ActivityKit Push channel. At the same time, it is not suitable for carrying discrete, sporadic, high-priority human decision requests such as Permission or Question. The first-phase solution should focus on getting the standard Remote Push working; if there is a later need for long-task progress display, Live Activity can be evaluated separately.
 
-### 不应借用 PushKit 或伪装后台模式
+### Do Not Borrow PushKit or Pretend to Be a Background Mode
 
-PushKit 属于苹果专为 VoIP 通话等强实时场景设立的通道。借用该机制维持普通的 OpenCode 事件流不仅违背了平台规范，在 App Store 审核中也存在极高的下架风险。同理，伪装音频播放或后台定位等模式同样不适用于本业务，不可作为技术方案。
+PushKit is a channel Apple created specifically for strongly real-time scenarios such as VoIP calls. Borrowing it to keep an ordinary OpenCode event stream alive not only violates platform guidelines, it also carries an extremely high risk of being rejected during App Store review. Likewise, pretending to play audio or track location in the background does not apply to this business and must not be used as a technical solution.
 
-## 推荐架构：server 零源码改动，增加旁路 bridge
+## Recommended Architecture: Zero Server Source Changes, Add a Sidecar Bridge
 
-Notification Bridge 核心承担四项职责：
+The Notification Bridge has four core responsibilities:
 
-1. 统一维护 iOS 客户端安装实例上报的 APNs Device Token，以及该实例订阅的 Host 与 Session 作用域。
-2. 面向各个已配置的 OpenCode Host 保持长连监听既有的 `/global/event` SSE 事件；发生断线后，调用 `/permission`、`/question` 与 `/session/status` 接口完成状态对账。
-3. 借助集中式的过滤与去重规则，精准判定哪些关键事件需要触发推送。
-4. 调用 APNs 接口下发用户可见的通知消息，推送 Payload 仅携带无敏感信息的 Host Profile ID、Session ID 与事件枚举，通知正文中严格避免出现用户 Prompt、源码路径或服务端认证凭证。
+1. Uniformly maintain the APNs Device Token reported by each iOS client installation, plus the Host and Session scopes that installation subscribes to.
+2. Keep a long-lived connection to the `/global/event` SSE events of every configured OpenCode Host; after a disconnect, call the `/permission`, `/question`, and `/session/status` endpoints to complete a state reconciliation.
+3. Rely on centralized filtering and deduplication rules to precisely decide which key events need to trigger a push.
+4. Call the APNs API to deliver user-visible notification messages; the push Payload carries only the non-sensitive Host Profile ID, Session ID, and event enum, and the notification body strictly avoids the user's Prompt, source code paths, and server-side authentication credentials.
 
-APNs 标准架构本身即要求客户端将 Device Token 注册给 Provider，再由 Provider 与 APNs 建立双向安全连接完成消息推送（参考 [Apple：Setting up a remote notification server](https://developer.apple.com/documentation/usernotifications/setting-up-a-remote-notification-server)）。
+The standard APNs architecture itself requires the client to register the Device Token with the Provider, and then the Provider establishes a bidirectional secure connection with APNs to deliver the message (see [Apple: Setting up a remote notification server](https://developer.apple.com/documentation/usernotifications/setting-up-a-remote-notification-server)).
 
-### bridge 放在哪里
+### Where to Put the Bridge
 
-在改动最小的初期落地阶段，可将 Bridge 部署在一台常驻开机、且能够直连所有 OpenCode Host 的机器上。它可以作为一个独立的 Daemon 守护进程、Docker 容器或轻量云服务运行，完全无需与 OpenCode 服务端进程代码发生编译期依赖。
+In the initial landing phase with minimal changes, the Bridge can be deployed on a machine that stays powered on and can directly connect to all OpenCode Hosts. It can run as a standalone Daemon process, a Docker container, or a lightweight cloud service, and it does not need any compile-time dependency on the OpenCode server process code whatsoever.
 
-如果各台 Server 部署在互相隔离的局域网内部，全局不存在一个能直连全部 SSE 流的中心节点，此时依然无需修改 Server 源码，只需在每个网络域内部署一个轻量级的 Watcher 代理，将清洗归一化后的 Attention 事件统一上报至中央 APNs Gateway。APNs 的推送私钥仅由中央 Gateway 集中托管，无需分发至各边缘节点。
+If the servers are deployed inside mutually isolated LANs and there is globally no central node that can connect directly to every SSE stream, there is still no need to modify the server source; instead deploy a lightweight Watcher proxy inside each network domain, which reports the cleaned and normalized Attention events to a central APNs Gateway. The APNs push private key is held only by the central Gateway and never needs to be distributed to the edge nodes.
 
-相较于“在每台 Server 内部侵入编写 Push 逻辑”，这种部署边界与当前的多 Host 架构更为契合：OpenCode 官方版本的常规升级不会破坏推送机制，推送过滤规则也得以在单一位置集中演进。
+Compared to "invasively writing push logic inside every server", this deployment boundary fits the current multi-Host architecture far better: regular upgrades of the official OpenCode version do not break the push mechanism, and the push filtering rules can evolve centrally in a single location.
 
-## 多用户产品应优先采用 OpenCode plugin
+## A Multi-User Product Should Prefer an OpenCode Plugin
 
-由中央 Bridge 直接持有所有用户 Host 访问权的做法仅适用于个人私有部署场景。在面向多用户的商业化产品中，绝不应在中心端收集用户的 OpenCode URL、Basic Auth 账密、SSH 私钥或内网穿透凭证。更为合理的拓扑架构是由 Plugin 在用户本地的 OpenCode 进程内部监听事件，仅在触发时通过出站 HTTPS 向中央 APNs Gateway 发送轻量事件摘要：
+Having the central Bridge directly hold access to all users' Hosts only applies to personal private deployments. In a multi-user commercial product, the center must never collect users' OpenCode URLs, Basic Auth credentials, SSH private keys, or intranet penetration credentials. A more reasonable topology is a Plugin that listens for events inside the user's local OpenCode process and, only when triggered, sends a lightweight event digest to the central APNs Gateway over outbound HTTPS:
 
 ```text
-用户机器：OpenCode + notification plugin
-                    │ 只上传最小 attention envelope
+User machine: OpenCode + notification plugin
+                    │ uploads only a minimal attention envelope
                     ▼
               APNs gateway
                     ▼
                  iPhone
 ```
 
-该方案无需对 OpenCode Core 源码做任何 Patch，仅需用户在宿主机安装一个 Plugin。OpenCode 官方原生支持从 `~/.config/opencode/plugins/` 自动加载本地 JS/TS 编写的 Plugin，亦支持在 `opencode.json` 的 `plugin` 列表中声明 npm 包依赖，并在服务启动时自动拉取安装（参考 [OpenCode Plugins](https://opencode.ai/docs/plugins)）。
+This approach requires no patch to the OpenCode Core source; users only need to install a Plugin on the host machine. OpenCode officially supports auto-loading locally written JS/TS Plugins from `~/.config/opencode/plugins/`, and also supports declaring npm package dependencies in the `plugin` list of `opencode.json`, which are automatically fetched and installed at server startup (see [OpenCode Plugins](https://opencode.ai/docs/plugins)).
 
-### 当前 plugin API 足够完成通知
+### The Current Plugin API Is Sufficient for Notifications
 
-OpenCode 公开提供的 `Hooks.event` 接口原生支持接收强类型的 `Event` 对象（参见 `opencode-official/packages/plugin/src/index.ts:222-225`）。官方文档中声明的稳定事件已经完全覆盖首期推送所需的核心场景：
+The publicly exposed `Hooks.event` interface of OpenCode natively supports receiving strongly typed `Event` objects (see `opencode-official/packages/plugin/src/index.ts:222-225`). The stable events declared in the official documentation fully cover the core scenarios needed by the first phase of push notifications:
 
 - `question.asked` / `question.replied` / `question.rejected`
 - `permission.asked` / `permission.replied`
 - `session.error`
-- `session.idle` 或 `session.status`
+- `session.idle` or `session.status`
 
-服务端的 `serve` 命令层明确挂载了 `Plugin.node`（参见 `opencode-official/packages/opencode/src/server/routes/instance/httpapi/server.ts:212-225`），因此该 Hook 绝非仅在终端 TUI 模式下生效。此外，Server Plugin 还能获取到同进程的 SDK Client 实例、当前 Working Directory 以及 Server URL（参见 `opencode-official/packages/plugin/src/index.ts:56-65`）。
+The `serve` command layer of the server explicitly mounts `Plugin.node` (see `opencode-official/packages/opencode/src/server/routes/instance/httpapi/server.ts:212-225`), so this Hook definitely does not only work in terminal TUI mode. In addition, a Server Plugin can also obtain the SDK Client instance of the same process, the current Working Directory, and the Server URL (see `opencode-official/packages/plugin/src/index.ts:56-65`).
 
-目前 OpenCode 的底层事件分发机制对 Plugin 采用了 Fire-and-forget 的异步调用策略（参见 `opencode-official/packages/opencode/src/plugin/index.ts:251-257`），因此推送网络请求的耗时绝不会阻塞 OpenCode Session 的正常推理与工具执行。Plugin 自身必须严密捕获所有网络异常并落入本地 Outbox 重试，防止未捕获的 Rejected Promise 演变成未处理的进程崩溃。
+The current underlying event dispatch mechanism of OpenCode uses a fire-and-forget asynchronous calling strategy for Plugins (see `opencode-official/packages/opencode/src/plugin/index.ts:251-257`), so the time cost of the push network request will never block the normal inference and tool execution of an OpenCode Session. The Plugin itself must tightly capture all network exceptions and fall into a local Outbox for retries, preventing an uncaught Rejected Promise from turning into an unhandled process crash.
 
-### 难度判断
+### Difficulty Assessment
 
-若仅实现“收到 `question.asked` 事件后向 Webhook 发起一次 POST 请求”的基础 Plugin，开发量极小，核心代码仅涉及事件过滤、Payload 裁剪与签名请求。社区中已存在针对 Pushover、Discord、Slack 等平台的通知插件，充分印证了该扩展路径的成熟度与可行性。
+If we only implement the basic Plugin that "issues one POST request to a Webhook upon receiving a `question.asked` event", the development effort is extremely small, and the core code only involves event filtering, Payload trimming, and signing the request. Notification plugins for platforms such as Pushover, Discord, and Slack already exist in the community, which strongly confirms the maturity and feasibility of this extension path.
 
-构建生产可用的完整闭环属于中等工作量，其核心复杂度主要集中在平台侧与网络侧，而非 OpenCode 本身：
+Building a complete production-ready closed loop is a medium amount of work, and its core complexity lies mainly on the platform side and the network side, rather than in OpenCode itself:
 
-| 模块 | 难度 | 主要工作 |
+| Module | Difficulty | Main work |
 |---|---|---|
-| OpenCode plugin | 小 | 事件过滤、隐私裁剪、签名、outbox |
-| 用户配对 | 中 | 把某个 host installation 与某台 iOS device 安全绑定 |
-| APNs gateway | 中 | device token 生命周期、鉴权、限流、无效 token 清理 |
-| 可靠性 | 中 | 本地持久化、重试、去重、解决事件撤销 badge |
-| 版本兼容 | 小到中 | 跟踪公开 event 名称和 payload 的版本变化 |
+| OpenCode plugin | Small | Event filtering, privacy trimming, signing, outbox |
+| User pairing | Medium | Securely binding a host installation to an iOS device |
+| APNs gateway | Medium | Device token lifecycle, authentication, rate limiting, invalid token cleanup |
+| Reliability | Medium | Local persistence, retries, deduplication, resolving event-revoked badges |
+| Version compatibility | Small to medium | Tracking version changes of public event names and payloads |
 
-### 维护成本可控的前提
+### Preconditions for a Manageable Maintenance Cost
 
-Plugin 自身应保持“轻量与精简”：严格限制在消费公开的 `event` Hook 上，不调用 OpenCode 的内部未公开模块，不侵入修改 Permission 或 Question 的正常流转逻辑，亦不在 Hook 回调内部同步阻塞等待 Gateway 响应。将推送文案组装、用户免打扰偏好、频控限流以及 APNs 交互逻辑全部沉淀在 Gateway 端，Plugin 仅负责投递带版本号的最小 Envelope 载荷。
+The Plugin itself should stay "lightweight and lean": strictly limited to consuming the public `event` Hook, without calling OpenCode's internal unpublished modules, without invasively modifying the normal flow of Permission or Question, and without synchronously blocking inside the Hook callback while waiting for a Gateway response. Assemble the push copy, the user's do-not-disturb preference, frequency control and rate limiting, and all APNs interaction logic in the Gateway; the Plugin only delivers a minimal Envelope payload carrying a version number.
 
-建议 Envelope 仅包含 `schema_version`、Plugin/OpenCode 版本号、Installation ID、Event ID/Type、Session ID、Request ID 及时间戳等元数据。默认严禁上传 Question 提问正文、Permission 规则匹配项、用户 Prompt 内容或具体的物理文件路径。
+The Envelope is recommended to contain only metadata such as `schema_version`, the Plugin/OpenCode version, Installation ID, Event ID/Type, Session ID, Request ID, and a timestamp. Uploading the Question body text, the Permission rule match item, the user's Prompt content, or concrete physical file paths is strictly forbidden by default.
 
-在版本管理上，需维护一个轻量的兼容性矩阵，至少覆盖当前最新版与上一代 OpenCode 官方 Release。鉴于 OpenCode 历史上确实发生过 v1/v2 事件名称更迭的情况，设计上不应假定 Payload 格式永久不变；但由于我们依赖的是官方公开的标准化 API，其维护与升级成本显著低于直接维护 Fork 分支或侵入式解析文本日志。
+For version management, a lightweight compatibility matrix must be maintained, covering at least the current latest version and the previous generation of the official OpenCode Release. Given that OpenCode has historically gone through v1/v2 event renames, the design must not assume that the Payload format stays unchanged forever; however, because we rely on the officially published standardized API, its maintenance and upgrade cost is significantly lower than directly maintaining a Fork branch or invasively parsing text logs.
 
-### 推荐配对流程
+### Recommended Pairing Flow
 
-1. iOS App 向中央 Gateway 上报注册 APNs Device Token，并生成一个短有效期的临时配对码（Pairing Code）。
-2. 用户在 Host 终端运行 Plugin 包提供的 Setup 配置命令并输入配对码；命令完成 Plugin 安装与配置，并在本地持久化生成 Installation Secret 密钥。
-3. Plugin 后续仅使用该 Secret 签名向 Gateway 发送结构化的 Attention 事件。Gateway 端无需持有用户的 OpenCode 登录凭据，亦不具备反向访问 Host 的网络权限。
-4. 推送下发时，Payload 仅携带 Installation ID 与 Session ID。iOS 客户端收到推送后，根据 Installation ID 检索本地的 Host Profile，并复用 Keychain 中保存的既有凭证建立连接并打开对应 Session。
+1. The iOS app reports and registers the APNs Device Token with the central Gateway and generates a short-lived temporary pairing code (Pairing Code).
+2. The user runs the Setup configuration command provided by the Plugin package on the Host terminal and enters the pairing code; the command completes the Plugin installation and configuration and locally persists a generated Installation Secret key.
+3. The Plugin subsequently uses only that Secret to sign structured Attention events sent to the Gateway. The Gateway side does not need to hold the user's OpenCode login credentials and does not have the network permission to access the Host in reverse.
+4. When a push is delivered, the Payload carries only the Installation ID and the Session ID. After the iOS client receives the push, it looks up the local Host Profile by Installation ID and reuses the existing credentials stored in the Keychain to establish the connection and open the matching Session.
 
-因此，“服务端零改动”在真实产品演进中的严谨表述应为：无需 Fork 或 Patch OpenCode 服务端源码，但要求用户在宿主机安装一个官方标准的 Plugin。如果连 Plugin 或 Companion 伴生进程也完全不允许部署，则只能推动 OpenCode 官方在 Core 层面原生支持 Webhook 能力；单纯依赖 iOS 客户端无法构建出高可用的后台推送体系。
+Therefore, the rigorous wording for "zero server-side changes" in a real product evolution should be: there is no need to fork or patch the OpenCode server source, but users are required to install a standard official Plugin on the host machine. If even a Plugin or companion process is completely disallowed from being deployed, then the only path is to push OpenCode officially to support Webhook capability natively at the Core level; relying on the iOS client alone cannot build a highly available background push system.
 
-## 第一版通知规则
+## First-Version Notification Rules
 
-首期版本切忌将服务端的全部事件无差别推送到手机端，建议严格收敛覆盖范围：
+The first release must never indiscriminately push all server events to the phone; keep the coverage strictly narrow:
 
-| 事件 | 默认行为 | 原因 |
+| Event | Default behavior | Reason |
 |---|---|---|
-| `question.asked` | 立即通知 | AI 明确阻塞，等待输入 |
-| `permission.asked` | 立即通知 | AI 明确阻塞，等待批准 |
-| `session.error` | 通知 | 需要人工恢复或判断 |
-| busy/retry → idle | 可配置通知 | 有价值，但高频任务容易制造噪声 |
-| message/todo 更新 | 不通知 | 不是 attention，只更新 app 内状态 |
+| `question.asked` | Notify immediately | The AI is explicitly blocked, waiting for input |
+| `permission.asked` | Notify immediately | The AI is explicitly blocked, waiting for approval |
+| `session.error` | Notify | Human recovery or judgment is required |
+| busy/retry → idle | Configurable notification | Valuable, but high-frequency tasks easily create noise |
+| message/todo updates | Do not notify | Not attention events, they only update in-app state |
 
-去重 Key 建议基于 `host_id + event_type + request_id` 复合生成。当 SSE 连接断开并触发 REST 补偿对账时，若再次扫描到相同的挂起请求，系统能够准确识别并抑制重复推送。当用户处理完 Permission 或 Question 后，客户端应及时清理对应 Badge 角标；点击通知跳转时统一复用现有的 Session 深度链接，并在 App 激活后实时向服务端拉取最新请求状态，严禁直接无条件盲信推送 Payload 中携带的陈旧上下文。
+The deduplication key is recommended to be generated from the `host_id + event_type + request_id` composite. When the SSE connection drops and a REST compensating reconciliation is triggered, if the same pending request is scanned again, the system can accurately identify and suppress the duplicate push. After the user finishes handling a Permission or Question, the client should promptly clear the corresponding Badge count; when a notification tap triggers navigation, reuse the existing Session deep link uniformly, and after the app is activated, pull the latest request state from the server in real time — never blindly trust the stale context carried in the push Payload.
 
-## 改动范围与难度
+## Scope of Change and Difficulty
 
-### iOS client：中等偏小
+### iOS client: Medium to small
 
-需在工程中配置 Push Notifications 能力与通知权限申请交互、完成 APNs Device Token 的生成与上报、制定前台通知呈现策略、打通通知点击的会话路由与 Badge 清理逻辑并补齐自动化测试。鉴于现有的 Deep Link 机制与 Attention 状态模型均可直接复用，客户端侧并非主要难点所在。
+Within the project we need to configure the Push Notifications capability and the notification permission request flow, complete the generation and reporting of the APNs Device Token, define the foreground notification presentation policy, wire up the notification-tap session routing and Badge cleanup logic, and fill in automated tests. Since the existing Deep Link mechanism and the Attention state model can both be reused directly, the client side is not where the main difficulty lies.
 
-### OpenCode server：可以为零
+### OpenCode server: Can be zero
 
-通过 Bridge 模式直接消费既有的 SSE 与 REST 端点，完全无需改动 OpenCode 的接口定义、事件 Schema 或各 Server 节点的业务实现。
+By consuming the existing SSE and REST endpoints directly in the Bridge model, there is no need to change OpenCode's interface definitions, event Schema, or the business implementation of any Server node.
 
-### 新增 bridge：中等
+### New bridge: Medium
 
-核心工作量集中在多 Host 的长连接生命周期管理、主机认证凭证的安全存储、SSE 断线重连与 REST 状态对账机制、事件幂等去重以及 APNs Token 的注册与失效维护。跑通单 Host 的验证 Demo 非常轻量，但构建一套高可用、多 Host 隔离的生产级服务才是该模块的主体工程量。
+The core workload is concentrated in the long-connection lifecycle management across multiple Hosts, the secure storage of host authentication credentials, the SSE disconnect/reconnect and REST state reconciliation mechanism, event idempotency and deduplication, as well as APNs Token registration and invalidation maintenance. Getting a single-Host validation Demo running is very lightweight, but building a highly available, multi-Host isolated production-grade service is the bulk of the engineering effort for this module.
 
-## 不建议的方案
+## Approaches Not Recommended
 
-| 方案 | 判断 |
+| Approach | Verdict |
 |---|---|
-| 只在 iOS 加本地通知 | 只能通知前台已收到的事件，没有解决问题 |
-| iOS 用 BGTaskScheduler 轮询所有 server | 可作低频 fallback，不及时、不保证执行，SSH host 尤其脆弱 |
-| 每台 OpenCode server 直接接 APNs | 能工作，但把 token、私钥和通知规则复制到所有 server，升级与运维成本最高 |
-| 修改 OpenCode core 增加 push endpoint | 当前没有必要；已有 SSE/REST 足够作为事件源 |
-| Live Activity 取代普通 push | 不成立；远端更新仍需要 push，且 question/permission 更适合普通通知 |
+| Only add local notifications on iOS | Can only notify events already received in the foreground, does not solve the problem |
+| Use BGTaskScheduler on iOS to poll all servers | Usable as a low-frequency fallback, but untimely, not guaranteed to run, and especially fragile for SSH hosts |
+| Connect each OpenCode server directly to APNs | Works, but duplicates the token, private key, and notification rules onto every server, with the highest upgrade and operations cost |
+| Modify the OpenCode core to add a push endpoint | Not necessary today; the existing SSE/REST is enough as an event source |
+| Replace ordinary push with Live Activity | Does not hold up; remote updates still require push, and question/permission are better suited to ordinary notifications |
 
-## 建议的验证顺序
+## Recommended Validation Order
 
-第一步：优先搭建单 Host、单设备的验证原型（Spike）：由 Bridge 监听现有的 SSE 事件流，专门过滤 `question.asked` 事件，并通过 APNs 成功向手机下发一条携带 Session 深度链接的通知。该步骤能以最低成本打通最关键的业务闭环，同时完全无需改动 OpenCode 服务端。
+Step one: first build a single-Host, single-device validation prototype (Spike): the Bridge listens to the existing SSE event stream, filters specifically for `question.asked` events, and successfully delivers one notification carrying a Session deep link to the phone via APNs. This step closes the most critical business loop at the lowest cost, while requiring absolutely no change to the OpenCode server.
 
-第二步：在此基础上扩充 `permission.asked`、`session.error`、任务完成等事件通知，完善 REST 补偿对账与防重逻辑，并逐步拓展支持多个直连 Host 节点。
+Step two: on that basis, extend the notifications to `permission.asked`, `session.error`, task completion, and other events, improve the REST compensating reconciliation and the deduplication logic, and gradually expand support to multiple directly connected Host nodes.
 
-第三步：针对 SSH 穿透或处于隔离私网环境的 Host 拓扑进行专项验证。若中央 Bridge 无法直连私网节点，则部署局域网 Watcher 代理，杜绝强迫 iOS 客户端在后台临时建立 SSH 隧道的脆弱方案。
+Step three: run dedicated validation for Host topologies that use SSH tunneling or sit in an isolated private network. If the central Bridge cannot connect directly to private-network nodes, deploy a LAN Watcher proxy, and rule out the fragile approach of forcing the iOS client to temporarily establish an SSH tunnel in the background.
 
-在第一步原型跑通后，即可根据业务场景决定将 Bridge 定位为用户本地常开 Mac 上的守护进程，还是托管于集中式的云服务。该决策仅影响后续的部署拓扑与凭证管理策略，对 iOS 端与 APNs 之间的通信协议设计完全透明。
+Once the step-one prototype runs through, the business scenario can decide whether the Bridge is positioned as a daemon on a user's always-on local Mac, or hosted as a centralized cloud service. This decision only affects the subsequent deployment topology and credential management strategy, and is completely transparent to the communication protocol design between the iOS side and APNs.
 
-## Apple 平台依据
+## Apple Platform Basis
 
-- [Setting up a remote notification server](https://developer.apple.com/documentation/usernotifications/setting-up-a-remote-notification-server)：provider 保存 device token，并向 APNs 发送请求。
-- [Sending notification requests to APNs](https://developer.apple.com/documentation/usernotifications/sending-notification-requests-to-apns)：provider 通过 HTTP/2/TLS 向 `/3/device/<token>` 发送 payload。
-- [Choosing Background Strategies for Your App](https://developer.apple.com/documentation/backgroundtasks/choosing-background-strategies-for-your-app)：后台任务由系统调度，remote notification 的后台执行窗口有限且可能限流。
-- [Configuring background execution modes](https://developer.apple.com/documentation/xcode/configuring-background-execution-modes)：普通 app 在后台通常处于 suspended；Remote notifications 只是受支持的有限后台入口之一。
+- [Setting up a remote notification server](https://developer.apple.com/documentation/usernotifications/setting-up-a-remote-notification-server): the provider stores the device token and sends requests to APNs.
+- [Sending notification requests to APNs](https://developer.apple.com/documentation/usernotifications/sending-notification-requests-to-apns): the provider sends the payload to `/3/device/<token>` over HTTP/2/TLS.
+- [Choosing Background Strategies for Your App](https://developer.apple.com/documentation/backgroundtasks/choosing-background-strategies-for-your-app): background tasks are scheduled by the system, and the background execution window for remote notifications is limited and may be rate limited.
+- [Configuring background execution modes](https://developer.apple.com/documentation/xcode/configuring-background-execution-modes): an ordinary app is usually suspended in the background; remote notifications are just one of the supported, limited background entry points.

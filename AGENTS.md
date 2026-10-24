@@ -21,7 +21,7 @@ Do not add sibling app targets or duplicate client trees at repo root. Server-si
 - Boot the simulator **before** `xcodebuild test`: check `xcrun simctl list devices booted` first; if nothing suitable is running, `xcrun simctl boot <UUID>` and let it finish booting before launching the test run. A cold-booted destination inside a test run costs minutes and is the most common cause of the flaky name-matching above.
 - Keep chat input UI tests anchored on stable accessibility identifiers rather than `TextField`-specific queries, because the composer implementation may use UIKit bridges.
 - In `opencode-official`, the working upstream for "latest code" is `origin/dev`, not `master`.
-- In this workspace, when the user says "用最新的 code 编译", the default meaning is: fetch `origin/dev`, rebase the current local integration branch on top of it while preserving local commits, then build/test/deploy from that rebased state.
+- In this workspace, when the user says "用最新的 code 编译" ("build with the latest code"), the default meaning is: fetch `origin/dev`, rebase the current local integration branch on top of it while preserving local commits, then build/test/deploy from that rebased state.
 - Here, "local commits" means commits that already exist on the current branch but are not yet integrated onto the latest `origin/dev`; it does not include uncommitted working tree changes.
 - Only skip the rebase step if the user explicitly says to build pure upstream code without local commits.
 - If the rebase fails or hits conflicts, stop there and ask before continuing to build/test/deploy.

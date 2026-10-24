@@ -1,36 +1,36 @@
-# Agent 目录校验与删除失败可见
+# Agent Catalog Validation and Making Deletion Failures Visible
 
-日期：2026-09-27
+Date: 2026-09-27
 
-## 背景
+## Background
 
-连上只暴露 `build` 的 host 时，客户端可能仍带着上一个 server 的 agent 名发 prompt，对方回 501。另一条是删除：host 对 `DELETE /session/:id` 回 501 时，如果错误信息看不到状态码和 body，用户会以为已经删掉。
+When connecting to a host that only exposes `build`, the client may still send a prompt with the agent name from the previous server, and the peer replies with 501. The other path is deletion: when the host replies 501 to `DELETE /session/:id`, if the error message does not show the status code and the body, the user will think the session has been deleted.
 
-iOS 的选择态是 `selectedAgentIndex`，不是持久化的 agent 名。`Message` 也不解码 `info.agent`，没有从历史推断 agent 的路径。跨 host 残留来自内存里的 agent 列表和 index：切 host 时 `resetConnectionRuntimeForHostSwitch` 原先不清 agents。占位列表（`OpenCode-Builder` 等）也不是当前 server 的 `GET /agent` 结果。
+On iOS the selection state is `selectedAgentIndex`, not a persisted agent name. `Message` does not decode `info.agent` either, and there is no path that infers the agent from history. The cross-host leftovers come from the in-memory agent list and index: when switching hosts, `resetConnectionRuntimeForHostSwitch` previously did not clear the agents. The placeholder list (`OpenCode-Builder` etc.) is also not the result of the current server's `GET /agent`.
 
-删除路径本身已经在 `APIClient.makeRequest` 里对 status >= 400 抛 `APIError.httpError`，`AppState.deleteSession` 只在请求成功后才删本地行，列表 UI 用 `error.localizedDescription` 弹错误。缺口是 `APIError` 没有 `LocalizedError`，弹窗看不到状态码和 body。
+The deletion path itself already throws `APIError.httpError` for status >= 400 in `APIClient.makeRequest`, and `AppState.deleteSession` only deletes the local row after the request succeeds; the list UI shows the error with `error.localizedDescription`. The gap is that `APIError` does not conform to `LocalizedError`, so the alert does not show the status code and the body.
 
-## 改动
+## Changes
 
-`AgentInfo.effectiveSelectedAgent(selection:agents:)`：目录为空则保留 selection；目录含该名则保留；否则取第一个可见 agent，再否则 `"build"`。
+`AgentInfo.effectiveSelectedAgent(selection:agents:)`: if the catalog is empty, keep the selection; if the catalog contains that name, keep it; otherwise take the first visible agent, and otherwise `"build"`.
 
-应用点：
+Application points:
 
-- `loadAgents()` 成功后，用这次返回的列表重校验 `selectedAgentName`，并同步 picker index。
-- `sendMessage()` 经 `agentNameForPrompt()` 再校验。还没有当前 host 的目录时，不发送占位名，固定用 `"build"`。
-- `loadMessages()` 成功后同样重校验。没有从消息推断 agent；目录为空时不改 selection。
-- 切 host 时清空 agent 列表和目录标记，selection 回到 `"build"`，避免用上一个 server 的列表给新 host 背书。
-- 默认 selection 是 `"build"`，不是占位列表的 index 0。server 目录里有 `build` 时会选它，即使它不是列表第一项。没有 `build` 时才回退到第一个可见 agent。
+- After `loadAgents()` succeeds, re-validate `selectedAgentName` against the list returned this time, and sync the picker index.
+- `sendMessage()` re-validates through `agentNameForPrompt()`. When there is still no catalog for the current host, no placeholder name is sent; it always uses `"build"`.
+- `loadMessages()` also re-validates after success. There is no inference of the agent from messages; when the catalog is empty the selection is not changed.
+- When switching hosts, clear the agent list and the catalog marker, and return the selection to `"build"`, to avoid endorsing the new host with the previous server's list.
+- The default selection is `"build"`, not index 0 of the placeholder list. When the server catalog contains `build` it will be chosen, even if it is not the first item in the list. Only when there is no `build` does it fall back to the first visible agent.
 
-删除：`APIError` 改为 `LocalizedError`。非 2xx 的描述是 `HTTP <status>: <body>`。UI 和本地列表的失败分支不用改。
+Deletion: `APIError` is changed to conform to `LocalizedError`. The description for a non-2xx response is `HTTP <status>: <body>`. The failure branches of the UI and the local list do not need to change.
 
-## 测试
+## Tests
 
-`OpenCodeClientTests`：
+`OpenCodeClientTests`:
 
-- 纯函数：未知回退、已知保留、空目录不动、没有可见 agent 时回 `"build"`。
-- `loadAgents` / `sendMessage` / `loadMessages` 对未知名的纠正，以及空目录不改 selection。
-- 切 host 丢掉上一个 server 的 agent。
-- `APIError` 文案含状态码和 body；delete 501 时本地行保留。
+- Pure function: unknown falls back, known is kept, an empty catalog leaves it unchanged, and it falls back to `"build"` when there is no visible agent.
+- The correction of unknown names by `loadAgents` / `sendMessage` / `loadMessages`, and an empty catalog not changing the selection.
+- Switching hosts drops the previous server's agent.
+- The `APIError` message contains the status code and the body; on a delete 501 the local row is kept.
 
-未跑 UI test。删除弹窗仍走原有 `actionError = error.localizedDescription`。
+UI tests were not run. The deletion alert still uses the existing `actionError = error.localizedDescription`.

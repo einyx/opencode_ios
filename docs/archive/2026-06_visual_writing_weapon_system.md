@@ -1,24 +1,24 @@
-# Visual Writing 武器系统:讨论稿 v2
+# Visual Writing Weapon System: Discussion Draft v2
 
-> 这份文档不是结论,是讨论锚点;也是 dogfood —— 它本身按 low-cognitive-burden 原则写,试试这套原则能否承重。
+> This document is not a conclusion, it is an anchor for discussion; it is also dogfood —— it is itself written according to the low-cognitive-burden principle, to test whether that principle can bear the weight.
 >
-> v2 改动:吃了三个 sub-agent 的批评,把"四轴"砍成"1 张力轴 + adaptive 路径 + 1 前置 gate + 1 不确定性轴";anti-pattern 分了 severity;self-eval 从问句改成扫描动作;原始辩论收进文末 `<details>`。
+> v2 changes: absorbed the criticism of three sub-agents, cutting the "four axes" down to "1 tension axis + adaptive path + 1 pre-gate + 1 uncertainty axis"; anti-patterns were split by severity; self-eval changed from questions into scan actions; the original debate was collected into `<details>` at the end of the document.
 >
-> v2.1 改动(读者反馈):把"注意力预算"从张力轴改成 adaptive 路径的输入 —— 不该预设 30 秒还是 30 分钟,该让文档同时承载两种 trajectory。这条 reframe 才接得住"同一份 RFC 第一稿 vs 大改动稿"这类反例。
+> v2.1 changes (reader feedback): moved "attention budget" from a tension axis to an input of the adaptive path —— it should not be preset to 30 seconds or 30 minutes; the document should carry both trajectories at once. Only this reframe can catch counterexamples like "first draft vs heavily revised draft of the same RFC".
 >
-> **2026-06-14 状态更新**:方法论本体已 sink 进 `rules/skills/workflow_internal_writing.md`(本 repo path 之外,`knowledge_working/rules/skills/` 下)的 "Visual Cognitive Load Reduction" 节。包括三公理、武器库总览、adaptive 路径机制、跟旧 markdown-first 实践的 delta、还没拍板的事。**这份文档保留为 dogfood case analysis,记录"一次 PRD/RFC dogfood + 三个 sub-agent 辩论"的完整路径**。要看 live methodology 看 skill,这里是历史 entry point。
+> **2026-06-14 status update**: the methodology itself has sunk into the "Visual Cognitive Load Reduction" section of `rules/skills/workflow_internal_writing.md` (outside this repo path, under `knowledge_working/rules/skills/`). It covers the three axioms, the weapon library overview, the adaptive path mechanism, the delta versus the old markdown-first practice, and the things not yet decided. **This document is kept as a dogfood case analysis, recording the complete path of "one PRD/RFC dogfood + three sub-agent debates"**. For the live methodology, read the skill; this is the historical entry point.
 
-## 真问题
+## The Real Question
 
-不是"该不该用 visual",也不是"该多用还是少用"。这两个都是假问题。真问题是:
+Not "should we use visual or not", and not "should we use it more or less". Both of those are fake questions. The real question is:
 
-> **AI 写一段 internal 文档时,什么时候 visual 真的减负、什么时候 visual 添假信号?**
+> **When an AI writes an internal document, when does visual genuinely reduce the load, and when does visual add false signals?**
 
-如果能把这个问题刻进 AI 写作回路,武器多少、长短、用不用 chip,都是自然推论。
+If this question can be carved into the AI writing loop, then how many weapons to use, how long they should be, and whether to use a chip are all natural corollaries.
 
-## 证据先行:8 个 anti-pattern,从 dogfood 真材实料挖出
+## Evidence First: 8 anti-patterns, dug out of real dogfood material
 
-这 8 个不是想象,是 anti-pattern hunter 从我刚写的真实文档里找出的 ground truth。按"严重度 × 修复成本"排序,前 3 个**周末就要先动**。
+These 8 are not imagined: they are the ground truth that the anti-pattern hunter found in the real document I had just written. Sorted by "severity × fix cost", the first 3 **must be tackled first over the weekend**.
 
 <style>
 .ap-grid{display:grid;grid-template-columns:1fr;gap:8px;margin:12px 0}
@@ -33,81 +33,81 @@
 <div class="ap-grid">
 
 <div class="ap-crit">
-<h4>① 跨文档自相矛盾(必须立刻修)</h4>
-<span class="ap-evi">证据 · 子 PRD §5.1 留删除线"~~Native 默认~~ 更新:Web 默认";子 RFC §12 仍写"决策:先不默认"</span>
-<p>同一决策在 5 个版本流通(子 PRD / 子 RFC / 主 PRD / 主 RFC / WORKING),只有 2 个进 git。读者不知道哪个是 source of truth。</p>
+<h4>① Cross-document contradictions (must be fixed immediately)</h4>
+<span class="ap-evi">Evidence · child PRD §5.1 keeps the strikethrough "~~Native by default~~ Updated: Web by default"; child RFC §12 still says "Decision: do not default for now"</span>
+<p>The same decision circulates in 5 versions (child PRD / child RFC / main PRD / main RFC / WORKING), but only 2 made it into git. Readers have no idea which one is the source of truth.</p>
 </div>
 
 <div class="ap-crit">
-<h4>② 表格 + 卡片镜像作"fallback",双重维护(必须立刻修)</h4>
-<span class="ap-evi">证据 · visual_explainer_html_md.md "第一屏状态卡" + "纯 Markdown 兜底"逐项对应</span>
-<p>理由是渲染器兼容,代价是同一信息两份维护。漏改就不一致;fallback 该是渲染降级,不是手抄副本。</p>
+<h4>② Table + card mirrored as "fallback", double maintenance (must be fixed immediately)</h4>
+<span class="ap-evi">Evidence · visual_explainer_html_md.md "first-screen status card" + "pure Markdown fallback" correspond item by item</span>
+<p>The reason is renderer compatibility; the cost is maintaining the same information twice. Missing one edit makes them inconsistent; the fallback should be a rendering degradation, not a hand-copied duplicate.</p>
 </div>
 
 <div class="ap-crit">
-<h4>③ <code>&lt;details&gt;</code> 装核心结论而非可选材料(必须立刻修)</h4>
-<span class="ap-evi">证据 · 主 RFC §7.5 的 details 里塞了渲染路径 / JS 依赖 / 安全模型 —— 这些是 RFC 工程读者的目标内容</span>
-<p>"按需展开"暗示非必读,但内容是必读。读者要么点开等于没折叠,要么不点开导致 RFC 退化为营销页。</p>
+<h4>③ <code>&lt;details&gt;</code> holding core conclusions instead of optional material (must be fixed immediately)</h4>
+<span class="ap-evi">Evidence · the details in main RFC §7.5 stuff in rendering paths / JS dependencies / the security model —— these are exactly the target content for engineering readers of the RFC</span>
+<p>"Expand on demand" implies optional reading, but the content is mandatory. Readers either click it open — in which case the folding is pointless — or don't, which degrades the RFC into a marketing page.</p>
 </div>
 
 <div class="ap-form">
-<h4>④ 决策反转用删除线+更新戳堆叠,而非重写正文</h4>
-<span class="ap-evi">证据 · 子 PRD §5.1 "~~第一版保留 Native~~ **更新(2026-06-14):...**"</span>
-<p>把 git history 倒灌进正文。半年后文档失修就是这么累积的。</p>
+<h4>④ Decision reversals stacked with strikethroughs + update stamps instead of rewriting the body</h4>
+<span class="ap-evi">Evidence · child PRD §5.1 "~~First version keeps Native~~ **Updated (2026-06-14): ...**"</span>
+<p>This dumps git history back into the body. This is exactly how document rot accumulates over six months.</p>
 </div>
 
 <div class="ap-form">
-<h4>⑤ 状态分类粒度过细且文档内漂移</h4>
-<span class="ap-evi">证据 · visual_explainer_html_md.md 不同 section 切换 chip 轴 3 次</span>
-<p>"成立但弱/否定/候选/阻塞" vs "完成/下一轮" vs "不优先/优先/并行" —— 读者要维护多套色码语义映射。</p>
+<h4>⑤ Status classification is too fine-grained and drifts within the document</h4>
+<span class="ap-evi">Evidence · visual_explainer_html_md.md switches the chip axis 3 times across different sections</span>
+<p>"holds but weak / rejected / candidate / blocked" vs "done / next round" vs "not prioritized / prioritized / parallel" —— readers have to maintain several sets of color-code semantic mappings.</p>
 </div>
 
 <div class="ap-form">
-<h4>⑥ Chip 用作行末状态戳,色彩单一无信息</h4>
-<span class="ap-evi">证据 · OpenCode_iOS_Client_PRD.md §4.3.5 状态表 7/8 行都是"上线"</span>
-<p>chip 在这里没筛选价值也没对比价值,只是给"上线"两字加胶囊。读者反而要逐行扫"哪里没完成"。<br><em>注:这条 anti-pattern 的存在,本文档 v1 自己就翻车过(8 张全红卡)——v2 把卡分了 3 个 severity tier 才修掉。</em></p>
+<h4>⑥ Chips used as end-of-row status stamps, a single color carrying no information</h4>
+<span class="ap-evi">Evidence · OpenCode_iOS_Client_PRD.md §4.3.5 status table: 7 of 8 rows are "shipped"</span>
+<p>A chip here has no filtering value and no comparison value; it just puts a capsule around the two characters "shipped". Readers instead have to scan line by line for "what is not finished".<br><em>Note: the existence of this anti-pattern was itself proven by this document's v1, which fumbled it (8 all-red cards) —— v2 only fixed it by splitting the cards into 3 severity tiers.</em></p>
 </div>
 
 <div class="ap-style">
-<h4>⑦ 状态表行 key 用 Phase/Sprint 而非用户体验</h4>
-<span class="ap-evi">证据 · 2026-06_markdown_web_preview_prd.md（archive/）§"实施进度" vs 主 PRD §4.3.5 同信息不同排</span>
-<p>同一团队同周写出两版,说明 AI 默认退回工程时序。Row key 替换成"用户在 App 看到什么"后顺序若变化,当前排序就是反模式。</p>
+<h4>⑦ Status table row keys use Phase/Sprint instead of user experience</h4>
+<span class="ap-evi">Evidence · 2026-06_markdown_web_preview_prd.md (archive/) §"Implementation Progress" vs main PRD §4.3.5 — same information, different layout</span>
+<p>The same team writing two versions in the same week shows that AI defaults back to engineering sequence. If the order changes after replacing the row key with "what the user sees in the App", then the current ordering is an anti-pattern.</p>
 </div>
 
 <div class="ap-style">
-<h4>⑧ 标题写范畴名而非判决</h4>
-<span class="ap-evi">证据 · 子 RFC §5 "方案总览"、§6 "组件设计"、§7 "安全模型"、§8 "UI 设计"</span>
-<p>skill 已警告别写"Flowchart""Matrix",但"安全模型"是同类问题深一层。"安全模型" → "WebView 只跑 bundle JS,sanitizer 在渲染后剥脚本"才是判决。</p>
+<h4>⑧ Titles name categories instead of verdicts</h4>
+<span class="ap-evi">Evidence · child RFC §5 "Solution Overview", §6 "Component Design", §7 "Security Model", §8 "UI Design"</span>
+<p>The skill already warns against writing "Flowchart" or "Matrix", but "Security Model" is the same problem one level deeper. "Security Model" → "The WebView only runs bundle JS; the sanitizer strips scripts after rendering" — that is a verdict.</p>
 </div>
 
 </div>
 
-<p><em>红边 = 内容/事实错误,会误导读者;橙边 = 维护性问题,长期会失修;灰边 = 形式问题,读起来累但不流血。</em></p>
+<p><em>Red border = content/factual error, will mislead readers; orange border = maintenance problem, will rot over the long run; gray border = form problem, tiring to read but not bleeding.</em></p>
 
-## 从证据里长出的 framing
+## Framing Grown Out of the Evidence
 
-把上面 8 条 anti-pattern 反过来看,真正在打架的不是"visual 多还是少",是这两条张力轴 + 一前一后两个判断 gate。
+Looking at the 8 anti-patterns above in reverse, what is really in conflict is not "more visual or less visual", but these two tension axes plus two judgment gates, one before and one after.
 
-### 一张张力轴 + adaptive 路径(块级)
+### One tension axis + adaptive path (block level)
 
-**轴 A · 读者在这一块要做什么** — commit-to-action(扫一眼下决策)还是 explore-to-understand(读完想清楚)?
-前者 visual 是利器,后者 visual 制造"以为看懂了"的幻觉。**判断信号**:这块紧跟 action item 列表 / 标题含动词?commit。这块在论证"为什么 X 不成立" / 后面跟着 tradeoff 段?explore。
+**Axis A · What the reader has to do in this block** — commit-to-action (glance and decide) or explore-to-understand (read through and think it through)?
+For the former, visual is a sharp tool; for the latter, visual manufactures the illusion of "I understood it". **Decision signal**: does this block directly follow an action item list / does its title contain a verb? commit. Is this block arguing "why X does not hold" / is it followed by a tradeoff paragraph? explore.
 
-**"注意力预算"不是张力轴,是 adaptive 阅读路径的输入信号**。同一份 RFC,intuitive 的小改读者 30 秒扫完就够;大改动稿读者会逐段 audit。**把预算预设成一个静态值,无论 30 秒还是 30 分钟,都会错** —— 该让文档同时承载两种 trajectory。具体做法:首屏给扫读层(visual + 一句话 takeaway);文中通过 anchor / link / `<details>` 给深读 hook —— 扫到不放心的点能 zoom in 到证据、tradeoff、推理。这就是为什么我们需要 HTML 扩展层而不是只用 markdown:adaptive 路径靠的是 anchor / 折叠 / hover 这些机制,markdown 本身不够。
+**"Attention budget" is not a tension axis; it is an input signal of the adaptive reading path**. For the same RFC, an intuitive small change only needs the reader to scan it in 30 seconds; a heavily revised draft has readers auditing it paragraph by paragraph. **Presetting the budget to a single static value is wrong, whether it is 30 seconds or 30 minutes** —— the document should carry both trajectories at once. Concrete approach: the first screen provides a skim layer (visual + a one-line takeaway); the body provides deep-reading hooks through anchors / links / `<details>` —— points that look dubious on a skim can zoom in to the evidence, the tradeoff, and the reasoning. This is why we need an HTML extension layer rather than markdown alone: the adaptive path relies on anchors / folding / hover, and markdown by itself is not enough.
 
-判断单位是**块**不是**整份**。一份周报可以首屏是 commit(状态卡顶用)、下面是 explore(论证段必须文字)。把整份文档锁定在一个端点是 overfitting。
+The unit of judgment is the **block**, not the **whole document**. A weekly report may be commit on the first screen (status cards on top) and explore below (argument sections must be prose). Locking an entire document to one end of the axis is overfitting.
 
-### 一前一后两个 gate(先过 gate 再谈张力轴)
+### Two gates, one before and one after (pass the gates before talking about tension axes)
 
-**前置 gate · 共享上下文厚度** — 读者能否解码你打算用的 visual 语义?
-读者集合 ≤ 3 人且本周内 = 厚;跨团队 / 跨季度 / 新人 = 薄。**薄,直接否决 visual,无论张力轴怎么投票**。这一 gate 不是张力,是先决条件。
+**Pre-gate · Thickness of shared context** — can the reader decode the semantics of the visual you intend to use?
+Reader set ≤ 3 people and within this week = thick; cross-team / cross-quarter / new hires = thin. **If thin, visual is rejected outright, no matter how the tension axis votes**. This gate is not a tension; it is a precondition.
 
-**后置 gate · 事实可信度** — 底层结论稳吗?
-visual 让"看起来很确定"。当事实在变(决策反转、数据未稳、PR 还没 merge),visual 的确定性外观就是负债 —— 读者会过度信任。anti-pattern ①②④ 的根因都是 visual 把不稳的事实包装成确定。**事实未稳时,visual 降级为表格 + 时间戳,或纯文字**。
+**Post-gate · Factual credibility** — are the underlying conclusions solid?
+Visual makes things "look very certain". When the facts are in flux (decision reversals, unsettled data, PRs not yet merged), the certainty of visual appearance becomes a liability —— readers will over-trust it. The root cause of anti-patterns ①②④ is the same: visual packages unsettled facts as certain. **When facts are unsettled, visual is downgraded to a table + timestamp, or plain text.**
 
-## Self-evaluation:写完扫描三件事
+## Self-evaluation: three things to scan after writing
 
-不是写之前问问题(AI 没答案),是写完后**扫描 + 阈值 + 修复路径**。
+Not questions to ask before writing (the AI has no answers), but **scan + threshold + fix path** after writing.
 
 <style>
 .se-tbl{margin:8px 0}
@@ -119,183 +119,183 @@ visual 让"看起来很确定"。当事实在变(决策反转、数据未稳、P
 
 <div class="se-tbl">
 
-| 扫描 | 阈值 = 触发 | 修复 |
+| Scan | Threshold = trigger | Fix |
 |---|---|---|
-| chip 那一列颜色枚举值出现次数 | 主色 ≥ 80% | 删 chip 列,例外行改成行末 `⚠ 阻塞` 标注 |
-| 本段核心结论 `grep -r` 当前 repo | 命中 ≥ 2 处 | 本段改成 `详见 [path]`,不复制文本 |
-| 每个 `##` / `###` 标题:删掉后正文第一句话能否独当小标题 | 能 = 标题是范畴名 | 重写标题为正文那句判决 |
-| 文中是否出现删除线 + "(日期)" 戳 | 有 = 历史倒灌正文 | 重写正文为最新决策,旧版搬文末 changelog |
-| `<details>` 里的内容删掉,读者还能完成首要判断吗 | 不能 = details 装了核心 | 把核心搬出 details,折叠区只留审计材料 |
-| chip / 状态分类的枚举值,本文档前后章节是否同一套 | 不同 = 语义漂移 | 全文统一一套(建议 ok/warn/bad/block 封顶) |
+| Number of occurrences of the color enum values in the chip column | dominant color ≥ 80% | delete the chip column; exception rows become an end-of-row `⚠ blocked` annotation |
+| `grep -r` this paragraph's core conclusion in the current repo | ≥ 2 hits | change the paragraph to `see [path]`, do not copy the text |
+| Every `##` / `###` heading: after deleting it, can the first sentence of the body stand alone as a subheading | yes = the heading is a category name | rewrite the heading as that verdict sentence in the body |
+| Whether the body contains a strikethrough + a "(date)" stamp | yes = history is back-filled into the body | rewrite the body as the latest decision; move the old version to a changelog at the end |
+| After deleting the content inside `<details>`, can the reader still make the primary judgment | no = the details hold the core | move the core out of the details; leave only audit material in the folded section |
+| Whether the enum values for chip / status classification are the same set in the earlier and later sections of this document | different = semantic drift | unify the whole document on one set (recommended cap: ok/warn/bad/block) |
 
 </div>
 
-## 武器谱系 vs 决策机制:不对等,后者是地基
+## Weapon Lineage vs Decision Mechanism: not symmetric; the latter is the foundation
 
-User 提的 joint optimization 是个 trade-off,但**两条腿不一样重**。
+The joint optimization the User proposed is a trade-off, but **the two legs are not equally weighted**.
 
-**地基:决策机制**。如果 AI internalize 了"先过两 gate、再判两轴",哪怕武器只给 4 件(短段落 / 短表 / details / chip 在分布均匀时用),也能命中绝大多数场景。
+**Foundation: the decision mechanism**. If the AI has internalized "pass the two gates first, then judge the two axes", then even with only 4 weapons (short paragraphs / short tables / details / chips when the distribution is uniform) it will hit the vast majority of scenarios.
 
-**上层:武器谱系**。武器多 → form factor 精准命中,单次减负深;但武器多 → AI 决策成本和错误率上升。所以"补武器"必须有 dogfood 证据(反复缺位了再补),不为"丰富武器库"加任何东西。
+**Upper layer: the weapon lineage**. More weapons → the form factor hits precisely and reduces the load deeply in a single pass; but more weapons → higher AI decision cost and error rate. Therefore "adding weapons" must be backed by dogfood evidence (add only after repeated gaps appear); nothing is added just to "enrich the weapon library".
 
-skill 升级优先级:① internalize 两 gate + 两轴(地基) → ② 把 self-eval 扫描表写成可执行护栏 → ③ 把 8 个 anti-pattern 加进失败模式表 → ④ 谨慎补武器(目前没有必须补的)。
+Skill upgrade priority: ① internalize the two gates + two axes (the foundation) → ② write the self-eval scan table as executable guardrails → ③ add the 8 anti-patterns to the failure-mode table → ④ cautiously add weapons (right now there is nothing that must be added).
 
-## 还没拍板的几件事
+## A few things not yet decided
 
-1. **chip 整体降级?** Anti-pattern ⑥ 暴露 chip 在同列同色场景纯装饰。是不是 chip 该改成"只用于异常/例外标注",默认不出现?
-2. **跨文档复制的修法**:(a) 单一 source + 其他文档 link / (b) 接受复制 + last-synced 戳 —— (a) 干净但读者要跳,(b) 现实但 6 个月后必然失修。
-3. **决策反转的标准操作**:直接重写正文 + changelog 搬历史,vs 删除线 + 更新戳保留 audit trail —— 后者销毁可追溯性。
-4. **"读者意图"vs"注意力预算"两轴的边界**:Framing Skeptic 建议把它们合,但我留两轴 —— 老板看 6 屏季度 doc 是 commit + 高预算,合了就抓不到这个反例。这个判断对吗?
+1. **Should chips be downgraded altogether?** Anti-pattern ⑥ exposes that in a same-column, same-color scenario the chip is pure decoration. Should chips become "only for anomaly/exception annotations", not appearing by default?
+2. **How to fix cross-document copying**: (a) a single source + links from the other documents / (b) accept copying + a last-synced stamp —— (a) is clean but readers have to jump; (b) is realistic but will inevitably rot after 6 months.
+3. **Standard operating procedure for decision reversals**: directly rewrite the body + move history into a changelog, vs strikethrough + update stamps to preserve the audit trail —— the latter destroys traceability.
+4. **The boundary between the "reader intent" and "attention budget" axes**: Framing Skeptic suggested merging them, but I keep two axes —— a boss reading a 6-screen quarterly doc is commit + high budget; once merged, this counterexample gets lost. Is this judgment right?
 
 ---
 
-## 附录:三个 sub-agent 的原始辩论(审计材料,可不读)
+## Appendix: the raw debate of three sub-agents (audit material, optional reading)
 
 <details>
-<summary>Framing Skeptic:四轴 framing 经不经得起拍?</summary>
+<summary>Framing Skeptic: can the four-axis framing hold up to scrutiny?</summary>
 
-读完全文,直接进入攻击。我分五点回答,最后给出我的建议拓扑。
+Having read the whole text, I go straight to the attack. I answer in five points and finish with my proposed topology.
 
-**一、四轴的独立性:有一对是同义反复,有一对是嵌套**
+**1. Independence of the four axes: one pair is a tautology, one pair is nested**
 
-**轴 2(生命周期)和轴 4(读者意图)高度相关**。一次性看完就丢的文档,读者几乎一定是 commit-to-action;长期维护的 PRD/RFC,读者大概率是 explore-to-understand。两轴几乎共变(~70%)。但**6 个月后给自己看的复盘**是长生命周期 + explore;**给陌生新人的 onboarding doc** 是长生命周期 + commit-to-action。所以两轴不能合并,但承认它们有共变。
+**Axis 2 (lifecycle) and axis 4 (reader intent) are highly correlated**. A document you read once and discard, its reader is almost certainly commit-to-action; a long-maintained PRD/RFC, its reader is most likely explore-to-understand. The two axes almost co-vary (~70%). But **a retrospective you read yourself six months later** is long-lifecycle + explore; **an onboarding doc for a stranger** is long-lifecycle + commit-to-action. So the two axes cannot be merged, but acknowledge that they co-vary.
 
-**轴 3(共享上下文厚度)根本不是张力轴,而是元 gate**。这是这套框架最该被攻击的一点。轴 1/2/4 都在描述"读者要做什么、文档要活多久",在同一抽象层级;轴 3 在描述"读者能不能解码 visual 的语义"。它的作用机制不是"在这端 visual 更好、另一端更糟",而是"上下文薄 → 任何 visual 都要先付解释税,可能直接否决 visual"。它跟前三轴不是平行的判断维度,而是一个前置条件。
+**Axis 3 (thickness of shared context) is not a tension axis at all, but a meta-gate**. This is the point of the framework that most deserves to be attacked. Axes 1/2/4 all describe "what the reader has to do, how long the document has to live", at the same level of abstraction; axis 3 describes "whether the reader can decode the semantics of visual". Its mechanism is not "visual is better on this end, worse on the other", but "thin context → any visual must first pay an explanation tax, which may outright reject visual". It is not a parallel dimension of judgment with the first three axes, but a precondition.
 
-**二、被忽略的更深维度**
+**2. Deeper dimensions that were overlooked**
 
-筛出两个真正独立于现有四轴的候选:
+Two candidates genuinely independent of the existing four axes were filtered out:
 
-- **作者熟练度** —— AI 写作场景下熟练度是常数(低),不构成判断变量
-- **读者数量(1 vs 100)** —— 实际可被轴 3 吸收
-- **读者注意力预算(30 秒 vs 30 分钟)** —— **这是真正独立的新轴,且解释力强**。30 秒预算下,即使开放判断,读者也只能依赖 visual 先 frame;30 分钟预算下,即使结构化,读者也愿意读完表格背后的解释。MD 里"周报 vs PRD"的对比其实混了两件事:判断结构性 + 注意力预算。**反例:给老板写 6 屏季度 doc** 是结构化 + 长预算,四轴框架说"用 visual",但老板会读 30 分钟,visual 反而是噪音。**注意力预算这一轴应该补。**
-- **信任级别** —— 可被轴 3 吸收
+- **Author proficiency** —— in AI writing scenarios proficiency is a constant (low) and does not constitute a judgment variable
+- **Number of readers (1 vs 100)** —— in practice absorbable by axis 3
+- **Reader attention budget (30 seconds vs 30 minutes)** —— **this is a genuinely independent new axis, and it is highly explanatory**. Under a 30-second budget, even with an open judgment, the reader can only rely on visual to frame things first; under a 30-minute budget, even with a structured document, the reader is willing to read the explanation behind the tables. The "weekly report vs PRD" comparison in the MD actually mixes two things: judgment structure + attention budget. **Counterexample: writing a 6-screen quarterly doc for the boss** is structured + long budget; the four-axis framework says "use visual", but the boss will read for 30 minutes, and visual becomes noise. **The attention budget axis should be added.**
+- **Trust level** —— absorbable by axis 3
 
-**三、极端测试**
+**3. Extreme tests**
 
-- 给老板写季度 doc → 四轴一致投"重 visual",但直觉是错的:老板会逐段读。框架失灵,缺**注意力预算**
-- 团队"要不要 adopt X"方案对比 → 轴 1 看似结构化,但实际是 explore-to-understand;轴 4 是 commit-to-action。**轴 1 和轴 4 直接冲突**,框架不告诉你听哪个
-- 6 个月后给自己看的复盘 → 四轴一致投"少 visual",框架有效
-- 跨部门 status update → 轴 1/2/4 都投 visual;轴 3 薄,直接否决前三票。**证明轴 3 是 gate 不是 axis**
+- Writing a quarterly doc for the boss → the four axes unanimously vote "heavy visual", but the intuition is wrong: the boss reads it paragraph by paragraph. The framework fails, it lacks **attention budget**
+- Team comparison of "should we adopt X" options → axis 1 looks structural, but is actually explore-to-understand; axis 4 is commit-to-action. **Axes 1 and 4 conflict directly**, and the framework does not tell you which one to listen to
+- A retrospective you read yourself six months later → the four axes unanimously vote "little visual", the framework holds
+- A cross-department status update → axes 1/2/4 all vote visual; axis 3 is thin, directly vetoing the first three votes. **Proves axis 3 is a gate, not an axis**
 
-**四、轴 1 的混合状态**
+**4. The mixed state of axis 1**
 
-MD 自己的例子已经暴露问题:周报"哪条路径成立"是结构化 visual,"为什么 confidence 不能用"是开放式文字。**同一份周报里两者并存**才是常态。判断单位不该是"整份文档"而该是"段落/块"。
+MD's own example already exposes the problem: in the weekly report, "which path holds" is structured visual, "why confidence cannot be used" is open-ended prose. **The two coexisting in the same weekly report** is the norm. The unit of judgment should not be "the whole document" but "the paragraph/block".
 
-**五、建议拓扑**
+**5. Proposed topology**
 
-- 留两条核心张力轴:**轴 A 读者要做的判断**(原轴 1,块级),**轴 B 注意力预算 × 生命周期**(合并)
-- 把原轴 4 降级为轴 A 的子情形
-- 把轴 3 提升为前置 gate,不再列张力轴
-- 新增第三轴:**作者的事实可信度** —— anti-pattern ①②④ 的根因都是 visual 让"看起来很确定"超出底层事实的确定性
+- Keep two core tension axes: **Axis A the judgment the reader has to make** (original axis 1, block level), **Axis B attention budget × lifecycle** (merged)
+- Demote original axis 4 to a sub-case of axis A
+- Promote axis 3 to a pre-gate, no longer listed as a tension axis
+- Add a third axis: **the author's factual credibility** —— the root cause of anti-patterns ①②④ is that visual makes "looks very certain" exceed the certainty of the underlying facts
 
-最终:**2 张力轴 + 1 前置 gate + 1 不确定性轴**。
+Final: **2 tension axes + 1 pre-gate + 1 uncertainty axis**.
 
 </details>
 
 <details>
-<summary>Implementation Surgeon:abstract 原则磨成可操作 instruction</summary>
+<summary>Implementation Surgeon: grinding abstract principles into actionable instructions</summary>
 
-**1. 太抽象的 rule**
+**1. Rules that are too abstract**
 
-"判断读者在哪端"对人是直觉,对 AI 是空概念。需要可观察信号:
+"Judging which end the reader is at" is intuition for a human, but an empty concept for an AI. Observable signals are needed:
 
-- 读者要做 commit 决策的信号:文档结尾是 action item 列表 / "Recommended Action" section / 文档标题含"周报""status""decision";作者本人在 24 小时内会基于这份文档做调度
-- 读者要 explore 的信号:文档要回答"为什么 X 不成立"、含"reasoning""分析""tradeoff" section、长度 >2000 字、文末没有可执行清单
-- 文档生命周期短的信号:文件名带日期 / 路径在 `weekly_reports/` `status/` `worklog/` 下
-- 共享上下文厚的信号:读者集合 ≤ 3 人且在同一项目同一周
+- Signals that the reader has to make a commit decision: the document ends with an action item list / a "Recommended Action" section / the document title contains "weekly report", "status" or "decision"; the author themself will use this document for scheduling within 24 hours
+- Signals that the reader has to explore: the document must answer "why X does not hold", contains a "reasoning"/"analysis"/"tradeoff" section, is longer than 2000 characters, and has no actionable checklist at the end
+- Signals that the document's lifecycle is short: the filename carries a date / the path is under `weekly_reports/` `status/` `worklog/`
+- Signals that shared context is thick: the reader set is ≤ 3 people and they are on the same project in the same week
 
-**2. 冲突调和**
+**2. Reconciling the conflict**
 
-MD anti-pattern 4 vs skill "每个 HTML visual 都要有 Markdown fallback" —— 表面冲突,本质不冲突。fallback 是渲染失败时承载等价信息,不是"为所有读者并列两份"。调和:fallback 应放在 `<details>` 里;两份信息可见性必须互斥,不能并列首屏。
+MD anti-pattern 4 vs the skill's "every HTML visual must have a Markdown fallback" —— a surface conflict, not a real one. The fallback carries equivalent information when rendering fails; it is not "presenting two copies side by side for all readers". Reconciliation: the fallback should live inside `<details>`; the visibility of the two copies must be mutually exclusive, and they must not sit side by side on the first screen.
 
-**3. 8 个 anti-pattern 的自检信号**
+**3. Self-check signals for the 8 anti-patterns**
 
-可直接用:#2(details 装核心 —— "把 details 里内容删掉,读者还能完成首要判断吗?")、#4(镜像 —— "卡片和表格的每一行是否一一对应")、#7→现 #6(chip 单色 —— "这一列 ≥80% 同色")。
+Usable as is: #2 (details holding the core —— "after deleting the content in the details, can the reader still make the primary judgment?"), #4 (mirroring —— "does every row of the card correspond one-to-one with the table?"), #7 → now #6 (single-color chips —— "is ≥80% of this column the same color?").
 
-需要更清晰判别信号的:
+These need sharper discriminating signals:
 
-- #1(Phase/Sprint 排序):"行 key 替换成'用户在 App 里看到什么'后,顺序是否变化?变化 = 反模式"
-- #3(chip 语义漂移):"本文档之前章节的 chip 颜色语义,和当前是同一套吗?"
-- #5(跨文档复制):"这段结论的文本字符串,grep 整个 repo 是否 ≥2 处?"
-- #6→现 #8(范畴名标题):"删掉这个标题,正文第一句话能否独立做小标题?能 = 范畴名"
-- #8→现 #4(删除线戳):"这段文字里有删除线或'更新(日期)'戳吗?"
+- #1 (Phase/Sprint ordering): "after replacing the row key with 'what the user sees in the App', does the order change? A change = anti-pattern"
+- #3 (chip semantic drift): "are the chip color semantics of the earlier sections of this document the same set as the current ones?"
+- #5 (cross-document copying): "does grepping the whole repo find this conclusion's text string in ≥2 places?"
+- #6 → now #8 (category-name headings): "after deleting this heading, can the first sentence of the body stand alone as a subheading? Yes = category name"
+- #8 → now #4 (strikethrough stamps): "does this passage contain a strikethrough or an 'Updated (date)' stamp?"
 
-**4. Self-eval 改成"写完扫描"**
+**4. Self-eval changed into "scan after writing"**
 
-MD 现在的 checklist 全是问句,AI 写之前不知道答案。改成"写完一遍后执行的扫描":
+MD's current checklist is all questions, and the AI does not know the answers before writing. Change it into "scans executed after one writing pass":
 
-- 色彩分布 → "写完整张表后,数 chip 那列的颜色枚举值次数;若主色 ≥ 80%,删掉这列"
-- 跨文档复制 → "把本段核心结论复制成一行 grep;命中 ≥ 2 处,改 link"
-- 标题判决 → "扫一遍所有 H2/H3,逐个问'删掉标题,正文第一句话能不能直接当小标题'"
+- Color distribution → "after writing the whole table, count the occurrences of the color enum values in the chip column; if the dominant color is ≥ 80%, delete this column"
+- Cross-document copying → "turn this paragraph's core conclusion into a one-line grep; if it hits ≥2 places, change it to a link"
+- Heading verdicts → "sweep all H2/H3 and ask each one: 'if the heading is deleted, can the first sentence of the body serve directly as a subheading?'"
 
-关键改造:**问句换成"动作 + 阈值 + 修复路径"三元组**。
+The key change: **questions become "action + threshold + fix path" triples**.
 
-**5. 四轴改成"每段四个 yes/no"**
+**5. The four axes become "four yes/no per paragraph"**
 
-写 visual 之前必须答完:
+Before writing a visual, all of these must be answered:
 
-1. 读者读完这段会在 24 小时内执行某动作吗?
-2. 这份文档下周会被改 / 6 个月后会被引用吗?(yes = 长生命周期,visual 是税)
-3. 文档的目标读者集合 ≤ 3 人且都在本项目本周吗?(no = 薄上下文)
-4. 读者扫完是"下决策"还是"想清楚"?(后者 = 不加 visual)
+1. After reading this paragraph, will the reader take some action within 24 hours?
+2. Will this document be edited next week / referenced six months from now? (yes = long lifecycle, visual is a tax)
+3. Is the document's target reader set ≤ 3 people and all on this project this week? (no = thin context)
+4. After the skim does the reader "make a decision" or "think it through"? (the latter = no visual)
 
-四个里出现 ≥1 "no / 想清楚",当前段不加 visual。**硬门禁,不是建议**。
+If ≥1 of the four is a "no / think it through", the current paragraph gets no visual. **A hard gate, not a suggestion**.
 
-**6. 分类:skill 主体 vs self-eval**
+**6. Classification: skill body vs self-eval**
 
-- 进 skill 主体(写之前 / 写之中):四轴 yes/no 门禁、HTML fallback 可见性互斥、anti-pattern 1/2/6(影响骨架,事后改成本高)
-- 进 self-eval(写完扫描):anti-pattern 3/4/7(局部扫描就抓)、anti-pattern 5/8(grep + 正则能查)
+- Into the skill body (before / during writing): the four-axis yes/no gate, mutual exclusion of HTML fallback visibility, anti-patterns 1/2/6 (they affect the skeleton, so changing them afterwards is expensive)
+- Into self-eval (scan after writing): anti-patterns 3/4/7 (a local scan catches them), anti-patterns 5/8 (grep + regex can check them)
 
 </details>
 
 <details>
-<summary>Visual Form Critic:MD 自己的 form 站得住吗</summary>
+<summary>Visual Form Critic: does MD's own form hold up?</summary>
 
-**1. "真正的张力轴"4 行表**
+**1. The 4-row "real tension axes" table**
 
-比 markdown 表低负担吗?**不明显**。这表 2 列固定宽度、内容主要是散文,本质就是"加粗标签 + 段落"。改成纯 markdown 的 `**X**:Y<br><sub>例:...</sub>` 损失为零。CSS 块是首次出现的"轴卡"形式,读者要花一拍学,但学完发现只是表格 —— ROI 负。
+Is it lower-burden than a markdown table? **Not obviously**. The table has 2 fixed-width columns and its content is mostly prose; in essence it is "bold label + paragraph". Converting it to pure markdown `**X**:Y<br><sub>example: ...</sub>` loses nothing. The CSS block is an "axis card" form appearing for the first time; readers have to spend a beat learning it, but after learning it they find it is just a table —— negative ROI.
 
-层级跳得合适吗?主标题 600 字重 + 灰副 em 0.92x 对比偏弱。轴名建议 1rem/700 + 圈码 ① ② ③ ④。
+Is the hierarchy jump appropriate? The main heading at 600 weight + the gray secondary em at 0.92x has too weak a contrast. Axis names are recommended at 1rem/700 + circled numbers ① ② ③ ④.
 
-**改成**:换 markdown 表,2 列 `| 张力轴 | visual 减负 / 添负担 |`。
+**Change to**: a markdown table with 2 columns, `| Tension axis | visual reduces load / adds burden |`.
 
-**2. Anti-pattern 库 8 张红边卡**
+**2. The anti-pattern library's 8 red-bordered cards**
 
-**全红冲突 #7 自己** —— 是,而且尴尬。8 张卡全红 = 8 个"危险等级相同"的隐含信号,正是 #7 说的"色彩单一无信息"。chip/红边的语义本该承载严重度,现在沦为装饰外框。
+**All-red conflicts with #7 itself** —— yes, and awkwardly. 8 all-red cards = an implicit signal of "8 identical danger levels", which is exactly the "single color, no information" that #7 describes. The semantics of chips/red borders were supposed to carry severity; they have now degraded into decorative frames.
 
-**改成**:引入两个 severity tier。"必须立刻修"(#5/#2/#4)红边;"形式问题但不流血"(#6/#7/#1)橙或灰边。这一改,#7 当场被 dogfood 印证。
+**Change to**: introduce two severity tiers. "Must be fixed immediately" (#5/#2/#4) get red borders; "form problems that do not bleed" (#6/#7/#1) get orange or gray borders. With this change, #7 is immediately corroborated by dogfood.
 
-`.ap-evi` 小灰证据会被跳过。卡是扫的,小灰字 0.85rem 在卡底就是"装饰元数据"。但证据恰恰是这份文档相对其他空谈的关键差异(它声称的 ground truth) —— 应该上浮。
+The small gray `.ap-evi` evidence gets skipped. Cards are scanned, and small gray 0.85rem text at the bottom of a card is "decorative metadata". But the evidence is precisely this document's key difference from other empty talk (the ground truth it claims) —— it should be floated up.
 
-**改成**:证据行从卡底搬到 h4 下一行,用单色 monospace。
+**Change to**: move the evidence line from the card bottom to just below the h4, in monochrome monospace.
 
-**排序?** 现在 1-8 看不出逻辑。按"严重度 + 修复成本"排:#5 → #4 → #2 → #8 → #3 → #7 → #1 → #6。
+**Ordering?** Right now 1-8 shows no logic. Sort by "severity + fix cost": #5 → #4 → #2 → #8 → #3 → #7 → #1 → #6.
 
-**3. "武器谱系 vs 决策机制"双栏**
+**3. The two-column "weapon lineage vs decision mechanism" layout**
 
-两栏是同一 tradeoff 两面?**部分是**。两边都是"精细度 vs internalize 成本"。把它们并列暗示"独立维度",但作者自己下一句就说"两条腿不一样重,决策是地基" —— 既然不对等,双栏就误导。
+Are the two columns two sides of the same tradeoff? **Partly**. Both sides are "precision vs internalize cost". Placing them side by side implies "independent dimensions", but the author says in the very next sentence "the two legs are not equally weighted, the decision mechanism is the foundation" —— since they are not symmetric, the two columns mislead.
 
-移动端折单列后还有意义吗?没有。
+After collapsing to a single column on mobile, does it still mean anything? No.
 
-**改成**:删双栏,改成两段普通段落,层级关系明示在标签里。
+**Change to**: remove the two columns, make them two ordinary paragraphs, and make the hierarchy explicit in the labels.
 
-**4. 整篇 narrative**
+**4. The overall narrative**
 
-当前 6 个 ## :真问题 → 四轴 → anti-pattern → 双腿 → checklist → 讨论项。
+The current 6 ## : the real question → four axes → anti-pattern → two legs → checklist → discussion items.
 
-**问题**:anti-pattern 才是这份稿 unique evidence,埋在第三屏太可惜。frame 应该从证据里长出来,而不是先立 frame 再找证据。
+**Problem**: the anti-patterns are this draft's unique evidence; burying them on the third screen is a waste. The frame should grow out of the evidence, rather than establishing the frame first and then hunting for evidence.
 
-**改成**:anti-pattern 提到第二节(紧接"真问题"),用真证据砸开局;frame 变成"从这 8 条看,真正的对立是这两轴 + 两 gate"。
+**Change to**: move the anti-patterns up to the second section (right after "the real question"), opening with real evidence; the frame becomes "looking at these 8, the real opposition is these two axes + two gates".
 
-**5. `<details>` 缺席**
+**5. `<details>` absent**
 
-该 dogfood,而且现在没用是真破绽 —— 文档明确把 details 列为关键工具,自己一个没用。可折的合法对象:三个 sub-agent 辩论的原始输出(audit trail,非必读)。这些是教科书式"审计材料"用例,正好示范 #2 的正面。
+It should be dogfooded, and the fact that it is unused right now is a real flaw —— the document explicitly lists details as a key tool while not using a single one. Legitimate things to fold: the raw outputs of the three sub-agent debates (audit trail, not required reading). These are textbook "audit material" use cases, and they demonstrate the positive side of #2 perfectly.
 
-**改成**:文末加 `## 附录` 三个 details 折 sub-agent 输出。
+**Change to**: add a `## Appendix` at the end with three details folding in the sub-agent outputs.
 
 ---
 
-**一句话总结**:稿在论点层是真东西,在 form 层有 3 处自己打自己 —— 全红 anti-pattern 卡撞 #7、双栏双腿撞"不对等"自陈、整篇缺 details 撞自己的 toolkit 主张。修这 3 处 + 把 anti-pattern 上浮做开局,文档就能真正承重它鼓吹的原则。
+**One-sentence summary**: the draft is real substance at the level of its argument, but at the level of form there are 3 places where it defeats itself —— the all-red anti-pattern cards collide with #7, the two-column two-legs layout collides with its own statement of "not symmetric", and the document-wide absence of details collides with its own toolkit claims. Fixing these 3 places + floating the anti-patterns up as the opening would let the document actually bear the weight of the principles it advocates.
 
 </details>

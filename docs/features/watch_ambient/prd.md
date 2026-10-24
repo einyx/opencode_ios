@@ -1,106 +1,106 @@
-# Watch Ambient 语音入口 PRD（Experimental）
+# Watch Ambient Voice Entry PRD (Experimental)
 
-## 当前状态：Experimental
+## Current Status: Experimental
 
-真机语音输入、播放和工具结果回传已跑通，手机 App 不在前台时也曾成功建立连接。但回答中或第二轮对话仍会断开；显式重连可恢复，后续仍可再次断开。当前版本按实验性功能集成，不作为稳定的连续对话入口。
+On-device voice input, playback, and tool result return have been proven to work, and a connection was also established successfully once while the phone app was not in the foreground. However, the connection still drops during an answer or in the second turn; an explicit reconnect recovers it, and it can drop again afterwards. The current version is integrated as an experimental feature and is not a stable continuous-conversation entry point.
 
-已观察到的直接触发点是音频帧发送未完成，手表客户端在 5 秒后退出连接；底层原因未确认。手机前台且设备相邻时也会复现，现有证据不足以归因于 WatchConnectivity。持续后台、锁屏和 SSH 唤醒恢复仍待验证。
+The directly observed trigger is an incomplete audio frame send, after which the watch client drops the connection at the 5-second deadline; the underlying cause is unconfirmed. It also reproduces with the phone in the foreground and the devices next to each other, and the current evidence is insufficient to attribute it to WatchConnectivity. Continuous background operation, lock screen, and SSH wake-up recovery are still to be verified.
 
-Watch 自己连接现有 Live 网关收发实时语音，所有 OpenCode 工具调用交给配对的 iPhone 执行，结束手表上的语音不会停止后台正在运行的 OpenCode 工作。
+The Watch connects to the existing Live gateway on its own to send and receive real-time voice, all OpenCode tool calls are handed to the paired iPhone for execution, and ending the voice session on the watch does not stop OpenCode work that is still running in the background.
 
-本稿面向已熟悉 OpenCode iPhone 客户端的后续实现者，定义第一版 Watch 语音入口的产品范围、交互边界与真机验收标准。第一版要在不改动现有八工具契约、不把主机凭据搬上手表的前提下，提供可落地的抬腕语音，而不是另建审批平台或跨设备调度框架。
+This document is aimed at implementers who are already familiar with the OpenCode iPhone client, and defines the product scope, interaction boundaries, and on-device acceptance criteria for the first version of the Watch voice entry point. The first version must deliver a workable raise-the-wrist voice experience without changing the existing eight-tool contract and without moving host credentials onto the watch, instead of building another approval platform or cross-device scheduling framework.
 
-## 1. 用户能做什么
+## 1. What The User Can Do
 
-用户可以在 Apple Watch 上发起 Live 语音。手表使用自己的麦克风和扬声器。每次开始语音，先用交互 reply 向手机要 Builder token 和门户地址并只放内存；拿到当次内存凭证后，再申请录音权限并激活本地音频；音频成功之后，才向现有 Live 门户 POST 会话路径创建会话并打开返回的 WebSocket。会话创建仍走现有路径 `/v1/audio/live/sessions`，这是换票的 HTTP 入口，不是 WebSocket 地址本身。语音模型固定 `gpt-live-1`，托管推理固定 `gpt-6-luna`，默认音色 `marin`。对话中支持连续语音、显式静音与取消静音，以及打断播放。静音走 mute / unmute，静音或静音帧都不会结束会话。
+The user can start Live voice on an Apple Watch. The watch uses its own microphone and speaker. Each time voice starts, the watch first asks the phone for the Builder token and portal address via an interactive reply and keeps them in memory only; after receiving the in-memory credentials for that run, it requests the recording permission and activates local audio; only after audio succeeds does it POST the session path on the existing Live portal to create the session and open the returned WebSocket. Session creation still goes through the existing path `/v1/audio/live/sessions`, which is the HTTP ticket-exchange entry point, not the WebSocket address itself. The voice model is fixed to `gpt-live-1`, hosted inference is fixed to `gpt-6-luna`, and the default voice is `marin`. The conversation supports continuous voice, explicit mute and unmute, and interrupting playback. Muting goes through mute / unmute, and neither muting nor a mute frame ends the session.
 
-界面保持最小。一块大的麦克风，说话时同一位置变成打断。下面是最近几行字幕。角落或底边放静音和结束。一行状态，覆盖连接中、在听、手机在执行、不可达、结果未知、语音已结束。不增加第二屏，不做抢占状态机。
+The interface stays minimal. One large microphone button that becomes an interrupt button in the same place while speaking. Below it, the most recent few lines of transcript. Mute and End sit in a corner or along the bottom edge. A single status line covering connecting, listening, executing on the phone, unreachable, result unknown, and voice ended. No second screen and no preemption state machine.
 
-手表说出的工具请求，使用与手机相同的八个名字：`query_jobs`、`get_session_messages`、`start_job`、`continue_job`、`stop_job`、`answer_pending`、`archive_job`、`unarchive_job`。Watch 经 WatchConnectivity 把调用交给配对 iPhone。手机用已经配好的直连（局域网、VPN、Tailscale 或 HTTPS）或现有那一条本地 SSH 隧道监听，经 Watch bridge 独占的第二个 `APIClient` 和它自己的 `URLSession` 访问 OpenCode。工具调用先受理，回复里不放输出正文；正文由手表按固定 8192 字节的 `Data` 分片拉取，带总长度和 sha256，拼完核对后再送进自己的 Live socket。commentary 和完成后的结果，优先由手表大约每 2 秒 pull 一次，驱动手机上独立的 reply bridge 用这个 sibling client 轮询，不连接、不读取全局 SSE。
+The tool requests spoken on the watch use the same eight names as on the phone: `query_jobs`, `get_session_messages`, `start_job`, `continue_job`, `stop_job`, `answer_pending`, `archive_job`, `unarchive_job`. The Watch hands the calls to the paired iPhone over WatchConnectivity. The phone reaches OpenCode through the direct connection already configured (LAN, VPN, Tailscale, or HTTPS) or through the existing single local SSH tunnel listener, using the second `APIClient` owned exclusively by the Watch bridge and its own `URLSession`. A tool call is accepted first, and the reply does not carry the output body; the watch pulls the body in fixed 8192-byte `Data` chunks with the total length and sha256, verifies the reassembled body, and only then feeds it into its own Live socket. Commentary and the final result are preferably pulled by the watch about every 2 seconds, which drives the independent reply bridge on the phone to poll with this sibling client, without connecting to or reading the global SSE.
 
-用户结束手表语音时，只断开 Watch 自己的 Live 连接，清掉内存凭证，并释放当次手机桥接运行。已经受理的 OpenCode 工作继续跑。结束语音不调用 `stop_job`。用户不需要为了维持后台工作而一直开着手表语音。commentary 只有手表自己的 gateway 发出 `commentaryAppended` 且标识相符之后才向手机 ack；语音结束时丢掉未 ack 的记录，不补发结果。
+When the user ends voice on the watch, only the watch's own Live connection is dropped, the in-memory credentials are cleared, and the phone bridge run for that session is released. Already accepted OpenCode work keeps running. Ending voice does not call `stop_job`. The user does not have to keep watch voice running to sustain background work. A commentary entry is acked to the phone only after the watch's own gateway has emitted `commentaryAppended` with a matching identifier; when voice ends, unacked records are dropped and results are not re-sent.
 
-Watch 与 iPhone Ambient 各自拥有麦克风、扬声器和 Live 连接。在手表上开始、静音或结束，不会启动、停止或静音手机的 `CarLiveController`，也不把声音路由到手机。
+The Watch and iPhone Ambient each own their microphone, speaker, and Live connection. Starting, muting, or ending on the watch does not start, stop, or mute the phone's `CarLiveController`, and does not route audio to the phone.
 
-## 2. 不做什么
+## 2. What We Do Not Do
 
-Watch 不运行 Tailscale，不建立 SSH 隧道，不保存 SSH 私钥、主机密码、基本认证或整份 host profile。对 OpenCode 主机的访问留在手机侧。手表上的 Builder token 和门户地址只放内存，不写入手表 Keychain，不进 UserDefaults，不进 `applicationContext`，也不进其他会落盘的传输。
+The Watch does not run Tailscale, does not establish an SSH tunnel, and does not store an SSH private key, host password, basic auth credentials, or the whole host profile. Access to the OpenCode host stays on the phone side. The Builder token and portal address on the watch live only in memory: they are not written to the watch Keychain, not put in UserDefaults, not put in `applicationContext`, and not put into any other transport that persists to disk.
 
-八工具里保留 `answer_pending`，但手表不提供完整审批。它使用这次 Watch run 自己的 binding，经带 token 的读取和回复接口处理，提交后再读一次确认，不使用手机 pending 列表的 revision，也不调用手机 Ambient 那条审批函数。没有绑定或读不到项就返回 `needs_input`，不写，文案是没有待确认项，实际上没有批准。权限回复只接受 `once` 或 `reject`，不支持 always，不跨会话发现请求，也不展示完整命令范围。确认失败是 `not_confirmed`，待确认项仍保留。这些情况都引导用户到手机 OpenCode 界面处理。本版不新建审批状态机。
+The eight-tool set keeps `answer_pending`, but the watch does not provide full approval. It uses the binding of its own Watch run, handles items through the token-carrying read and reply interfaces, and reads once more after submitting to confirm. It does not use the revision of the phone's pending list and does not call the phone Ambient approval function. When there is no binding or the item cannot be read, it returns `needs_input` without writing anything; the copy says there is nothing pending, and in fact nothing was approved. Permission replies accept only `once` or `reject`, do not support always, do not discover requests across sessions, and do not show the full command scope. A failed confirmation is `not_confirmed`, and the pending item is kept. All of these cases direct the user to the phone's OpenCode interface. This version does not create a new approval state machine.
 
-不增删或改名八个工具，不在参数里塞主机、账号或密钥。不在 WatchConnectivity 之上自造加密协议，不使用文件传输，也不把正文放进会在 run 结束后仍可能送达的异步队列。不要给现有 `CarLiveTransportGate` 加第二个槽，也不要调用 `armLiveTransport()` 或 `startCarLive()`。手机不可达、主机不可达、超时或结果未知时，直接告诉用户，不把有副作用的请求排队，也不在网络恢复后自动重放。不做跨设备抢占状态机。
+The eight tools are neither added to, removed from, nor renamed, and no host, account, or secret is stuffed into the parameters. No custom encryption protocol is built on top of WatchConnectivity, file transfer is not used, and the output body is never placed into an asynchronous queue that could still deliver after the run ends. Do not add a second slot to the existing `CarLiveTransportGate`, and do not call `armLiveTransport()` or `startCarLive()`. When the phone is unreachable, the host is unreachable, the request times out, or the result is unknown, the user is told directly; side-effecting requests are not queued and are not automatically replayed after the network recovers. No cross-device preemption state machine is built.
 
-`start_job` 与 `continue_job` 的 HTTP 200/202/204 只表示已受理。没有结果证据时，语音和界面都不能说任务已完成。
+For `start_job` and `continue_job`, HTTP 200/202/204 only means the call was accepted. Without evidence of a result, neither the voice nor the UI may say the task is complete.
 
-## 3. 第一轮真机验收
+## 3. First-Round On-Device Acceptance
 
-第一轮只验证手表语音加手机桥接读操作，不自动创建工作，也不做审批。
+The first round only verifies watch voice plus read operations through the phone bridge; it does not automatically create work and does not do approvals.
 
-1. 手机已有可用的 Live 门户地址、Builder token 和到 OpenCode 的连接。每次开始语音，用交互 reply 向手机要 Builder token 和门户地址，手表仅在当次启动调用中使用，不跨轮复用、不落盘。没有回复就不录音、不 POST。手表后台音频与清理行为仍待真机验收。
-2. 手表先拿到当次内存凭证，再申请录音权限并激活 24 kHz、单声道、Int16 PCM 音频（不调用 `setPreferredSampleRate` 或 `setPreferredIOBufferDuration`）。失败则清掉凭证并停止，不 POST、不开 socket。成功后才 POST 会话路径创建 Live 会话并打开返回的 WebSocket。20 秒 started 从 socket 打开算起。静音、取消静音、打断和结束语音可用。
-3. `query_jobs` 必须显式 `archivedOnly=false`，并且 count 小。默认 `true` 只会查到归档。结果由语音播报，不念会话 ID 或路径。
-4. `get_session_messages` 只读已经存在的会话。
-5. 这一轮不主动调用 `start_job`、`continue_job`、`stop_job`、`archive_job`、`unarchive_job` 或 `answer_pending`。八个工具仍留在 schema 里，供用户以后明确要求时使用。
+1. The phone already has a usable Live portal address, a Builder token, and a connection to OpenCode. Each time voice starts, the watch asks the phone for the Builder token and portal address via an interactive reply, and uses them only in that launch call — never reused across rounds and never persisted. Without a reply it does not record and does not POST. The watch's background audio and cleanup behavior still await on-device acceptance.
+2. The watch first obtains the in-memory credentials for that run, then requests the recording permission and activates 24 kHz, mono, Int16 PCM audio (without calling `setPreferredSampleRate` or `setPreferredIOBufferDuration`). On failure it clears the credentials and stops, without POSTing and without opening a socket. Only after success does it POST the session path to create the Live session and open the returned WebSocket. The 20-second started deadline is counted from opening the socket. Mute, unmute, interrupt, and ending voice are available.
+3. `query_jobs` must explicitly set `archivedOnly=false`, with a small count. The default `true` only finds archived items. Results are announced by voice, without reading out session IDs or paths.
+4. `get_session_messages` only reads sessions that already exist.
+5. This round does not proactively call `start_job`, `continue_job`, `stop_job`, `archive_job`, `unarchive_job`, or `answer_pending`. The eight tools stay in the schema, for when the user explicitly asks for them later.
 
-## 4. 失败时用户看到什么
+## 4. What The User Sees On Failure
 
-WatchConnectivity 封套固定为 `v`、`op`、`run`、`call`、`seq`、`payload`。`v` 为 1。失败语义至少区分 `unreachable`、`stale`、`unknown`、`duplicate`、`needs_input`、`not_confirmed`。只有 `ready` 才继续 pull 正文。未知和失效都不重放。
+The WatchConnectivity envelope is fixed to `v`, `op`, `run`, `call`, `seq`, `payload`. `v` is 1. The failure semantics must distinguish at least `unreachable`, `stale`, `unknown`, `duplicate`, `needs_input`, and `not_confirmed`. Only `ready` allows the body pull to continue. Neither unknown nor invalidated results are replayed.
 
-| 失败场景 | 用户看到 | 系统边界 |
+| Failure scenario | What the user sees | System boundary |
 |---|---|---|
-| token 或门户地址未准备 | 请先在 iPhone 的 OpenCode 里准备语音凭证 | 没有交互 reply 回复就不录音、不 POST；只放内存，不写入手表 Keychain、UserDefaults、`applicationContext` 或日志，不内置备用 token |
-| 音频激活失败 | 音频无法启动，回到待机 | 清掉当次内存凭证，不 POST，不开 WebSocket |
-| 配对手机不可达，或手机到不了主机 | 手机不可达，或当前无法执行 | 返回 `unreachable`；手机不可达时不先去连 SSH，sibling client 自己的 health 不通即回不可达；不排队，不重放 |
-| 手机切换主机或断开 | 连接已变更，需要重新开始语音 | 先同步取消 sibling client 网络并作废其 token，再拆 SSH 隧道；当次 run 返回 `stale`，在途工具不再写主机 |
-| 超时、分片校验失败或结果未知 | 结果未知，请到手机查看 | 长度、哈希、序号或 run 不符回 `unknown` 并记 tombstone；不把未知当成成功，手机不重新执行，不自动重试有副作用的调用 |
-| 同一 callID 再次到达 | 不向用户展示成一次新的执行 | 同一 run 内按 callID 去重，标记 `duplicate`，不重放。已有结果就返回那次结果头；还在执行就不再开一次；已留 tombstone 的 `unknown` 仍返回 `unknown` |
-| `needs_input` 或 `not_confirmed` | 请到手机 OpenCode 处理 | 没有绑定或读不到项回 `needs_input` 且不写；提交后再读确认失败回 `not_confirmed`；不伪造已批准 |
-| 用户结束语音，后台仍有工作 | 语音已结束，后台工作仍在继续 | 只关 Watch 连接、清掉内存凭证并释放当次 run，丢掉未 ack 的 commentary，不发 `stop_job`，不承诺随后通知 |
+| Token or portal address not ready | Please prepare voice credentials in OpenCode on iPhone first | Without an interactive reply there is no recording and no POST; memory only, never written to the watch Keychain, UserDefaults, `applicationContext`, or logs, and no fallback token is embedded |
+| Audio activation failed | Audio cannot start, returning to standby | Clear the in-memory credentials for that run, do not POST, do not open a WebSocket |
+| The paired phone is unreachable, or the phone cannot reach the host | The phone is unreachable, or it cannot execute right now | Return `unreachable`; when the phone is unreachable, do not open SSH first — if the sibling client's own health check fails, reply unreachable; no queueing, no replay |
+| The phone switched hosts or disconnected | The connection changed, voice must be restarted | First synchronously cancel the sibling client's network and invalidate its token, then tear down the SSH tunnel; the run returns `stale`, and in-flight tools no longer write to the host |
+| Timeout, chunk verification failure, or unknown result | Result unknown, please check the phone | A mismatched length, hash, sequence number, or run replies `unknown` and records a tombstone; unknown is never treated as success, the phone does not re-execute, and side-effecting calls are not retried automatically |
+| The same callID arrives again | Not presented to the user as a new execution | Within the same run, deduplicate by callID and mark `duplicate` without replaying. If a result exists, return that result header; if it is still running, do not start it again; an `unknown` that left a tombstone still returns `unknown` |
+| `needs_input` or `not_confirmed` | Please handle it in OpenCode on the phone | No binding or an unreadable item replies `needs_input` without writing; if the post-submit read-back confirmation fails, reply `not_confirmed`; never fake an approval |
+| The user ends voice while background work remains | Voice ended, background work is still running | Only the Watch connection is closed, the in-memory credentials are cleared, and that run is released; unacked commentary is dropped, no `stop_job` is sent, and no subsequent notification is promised |
 
-## 5. 待验证
+## 5. Still To Be Verified
 
-连续语音稳定性尚未通过真机验收。下列后台与启动行为也属于实验，不能写成保证；失败就停，不重试有副作用的调用。构建、单测和安装成功不代表连续对话稳定。
+Continuous voice stability has not yet passed on-device acceptance. The background and startup behaviors below are also experimental and must not be written as guarantees; on failure, stop, and do not retry side-effecting calls. A successful build, unit test run, and install does not mean continuous conversation is stable.
 
-后台唤醒后 SSH 与 HTTP 能否在系统允许的时间内完成（活动 Watch run 期间应用不主动断开 SSH，但这只是实验，不是 iOS 后台永久保活保证）。
+Whether SSH and HTTP can complete within the time the system allows after a background wake (the app does not proactively drop SSH during an active Watch run, but this is only an experiment and not a guarantee of permanent iOS background keep-alive).
 
-手表先拿到当次内存凭证、激活音频再 POST 会话路径，是否会被系统收掉。
+Whether the system kills the app when the watch first obtains the in-memory credentials for that run, activates audio, and only then POSTs the session path.
 
-20 秒 started 从 socket 打开算起，在手表网络路径上是否够用。
+Whether the 20-second started deadline, counted from opening the socket, is enough on the watch's network path.
 
-## 附录 A. 界面短文案
+## Appendix A. Short Interface Copy
 
-短文案服务小屏。已受理不是已完成，结果未知不是失败后自动再试一次。结束语音后不承诺通知。
+The short copy serves a small screen. Accepted is not completed, and an unknown result is not an automatic retry after a failure. No notification is promised after ending voice.
 
-| 场景 | 中文 | English |
+| Scenario | Chinese | English |
 |---|---|---|
-| 开始 | 开始语音 / 连接中… | Start Voice / Connecting… |
-| 静音 | 静音 / 取消静音。已静音，轻点恢复说话 | Mute / Unmute. Muted. Tap to speak again |
-| 打断 | 打断。已停下播报，请直接说 | Interrupt. Playback stopped. Go ahead |
-| 结束语音 | 结束语音。只断开手表语音 | End Voice. Disconnects Watch voice only |
-| 手机不可达 | 手机不可达。无法连到配对 iPhone | iPhone Unreachable. Can't reach the paired iPhone |
-| 凭证未就绪 | 请先在 iPhone 的 OpenCode 里准备语音凭证 | Open OpenCode on iPhone to prepare voice setup |
-| 工具执行中 | 正在通过手机执行 | Running on iPhone |
-| 结果未知 | 结果未知。请到手机查看，不要再发一次同样的操作 | Result unknown. Check iPhone. Don't send the same action again |
-| 结束后工作仍在 | 语音已结束。后台工作仍在继续，可到手机查看 | Voice ended. Background work keeps running. Check iPhone |
-| 需手机确认 | 请在手机处理。手表完不成这项确认 | Review on iPhone. Watch can't finish this confirmation |
-| 连接已变更 | 手机上的主机已切换或断开，请重新开始语音 | Host changed on iPhone. Start voice again |
+| Start | 开始语音 / 连接中… | Start Voice / Connecting… |
+| Mute | 静音 / 取消静音。已静音，轻点恢复说话 | Mute / Unmute. Muted. Tap to speak again |
+| Interrupt | 打断。已停下播报，请直接说 | Interrupt. Playback stopped. Go ahead |
+| End voice | 结束语音。只断开手表语音 | End Voice. Disconnects Watch voice only |
+| Phone unreachable | 手机不可达。无法连到配对 iPhone | iPhone Unreachable. Can't reach the paired iPhone |
+| Credentials not ready | 请先在 iPhone 的 OpenCode 里准备语音凭证 | Open OpenCode on iPhone to prepare voice setup |
+| Tool executing | 正在通过手机执行 | Running on iPhone |
+| Result unknown | 结果未知。请到手机查看，不要再发一次同样的操作 | Result unknown. Check iPhone. Don't send the same action again |
+| Work continues after ending | 语音已结束。后台工作仍在继续，可到手机查看 | Voice ended. Background work keeps running. Check iPhone |
+| Needs phone confirmation | 请在手机处理。手表完不成这项确认 | Review on iPhone. Watch can't finish this confirmation |
+| Connection changed | 手机上的主机已切换或断开，请重新开始语音 | Host changed on iPhone. Start voice again |
 
-## 附录 B. Watch 前端指令草稿
+## Appendix B. Watch Front-End Instruction Draft
 
-下面这段是长期注入 Watch Live 会话的草稿。它不是手机那份「iPhone 上的 Ambient Mode」指令。第一轮真机验收的只读限制不要写进长期指令；验收时另加一段临时覆盖，见附录 C。
+The following is the draft that is injected into the Watch Live session for the long term. It is not the phone's "Ambient Mode on iPhone" instruction. The read-only restrictions of the first-round on-device acceptance must not be written into the long-term instruction; during acceptance, add a separate temporary override, see Appendix C.
 
-你是用户手腕上的语音入口，不是手机上的那个入口。你用手表的麦克风和扬声器交谈。OpenCode 工具经配对 iPhone 执行，主机和目录由手机在本次运行开始时绑定。不要在参数里填主机、账号或密钥。
+You are the voice entry point on the user's wrist, not the one on the phone. You talk with the watch's microphone and speaker. OpenCode tools are executed via the paired iPhone, and the host and directory are bound by the phone when this run starts. Do not fill host, account, or secret values into the parameters.
 
-回答要短，适合抬腕听完。不要念会话 ID、目录、文件路径、主机地址、账号或任何凭据。用任务主题和最近进展指代工作。
+Keep answers short, suitable for being heard with the wrist raised. Do not read out session IDs, directories, file paths, host addresses, accounts, or any credentials. Refer to the work by its subject and its most recent progress.
 
-结束手表语音只断开这段语音，不会停止已经受理的 OpenCode 工作。只有用户明确要求停止某个具体任务时才调用 `stop_job`。不要承诺结束后推送或稍后把结果送到手表。
+Ending watch voice only closes this voice session and does not stop OpenCode work that has already been accepted. Call `stop_job` only when the user explicitly asks to stop a specific task. Do not promise a push notification after ending, or that results will later be delivered to the watch.
 
-只能使用这八个工具，不要自造名字：`query_jobs`、`get_session_messages`、`start_job`、`continue_job`、`stop_job`、`answer_pending`、`archive_job`、`unarchive_job`。查在途工作必须给 `query_jobs` 传 `archivedOnly=false`，默认 true 只查归档。新工作模型只有 `ollama-cloud/deepseek-v4.1-flash` 和 `openai/gpt-6.1-sol`。`continue_job` 不能改模型。HTTP 200/202/204 只表示已受理，没有完成证据就不能说已经完成。
+Only these eight tools may be used; do not invent names: `query_jobs`, `get_session_messages`, `start_job`, `continue_job`, `stop_job`, `answer_pending`, `archive_job`, `unarchive_job`. To look up in-flight work you must pass `archivedOnly=false` to `query_jobs`; the default true only searches archived items. The only models for new work are `ollama-cloud/deepseek-v4.1-flash` and `openai/gpt-6.1-sol`. `continue_job` cannot change the model. HTTP 200/202/204 only means the call was accepted; without completion evidence, you cannot say it is complete.
 
-错误、超时、手机不可达、主机不可用、连接失效或结果未知都不是成功。如实说明状态，不要自动重试或重放有副作用的调用。
+An error, a timeout, an unreachable phone, an unavailable host, an invalidated connection, and an unknown result are not success. Report the status truthfully; do not automatically retry or replay side-effecting calls.
 
-`answer_pending` 不是完整审批。它只按本次 Watch run 自己的会话绑定读取并回复待确认项，提交后再读一次确认，权限只支持 `once` 或 `reject`。返回 `needs_input` 或 `not_confirmed`，或用户需要核对完整命令、处理别的会话时，告诉用户打开手机 OpenCode 处理。不要把它说成已经批准。
+`answer_pending` is not full approval. It only reads and replies to pending items according to the session binding of the current Watch run, and reads once more after submitting to confirm; permissions support only `once` or `reject`. When it returns `needs_input` or `not_confirmed`, or when the user needs to check the full command or handle another session, tell the user to open OpenCode on the phone. Do not describe it as already approved.
 
-## 附录 C. 仅第一轮验收使用的临时覆盖
+## Appendix C. Temporary Override For First-Round Acceptance Only
 
-验收期间只做小范围读。`query_jobs` 必须 `archivedOnly=false` 且 count 小。`get_session_messages` 只读已有会话。不要主动调用 `start_job`、`continue_job`、`stop_job`、`archive_job`、`unarchive_job` 或 `answer_pending`。这段覆盖验收结束后去掉，不进入长期前端指令。
+During acceptance, only do small-scale reads. `query_jobs` must use `archivedOnly=false` with a small count. `get_session_messages` only reads existing sessions. Do not proactively call `start_job`, `continue_job`, `stop_job`, `archive_job`, `unarchive_job`, or `answer_pending`. This override is removed after acceptance finishes and does not enter the long-term front-end instruction.

@@ -1,35 +1,35 @@
-# OpenCode iOS Client 测试策略
+# OpenCode iOS Client Test Strategy
 
-日期：2026-06-03
+Date: 2026-06-03
 
-本文档系统阐述 OpenCode iOS 客户端的测试架构设计。日常改动记录请参阅 `docs/WORKING.md`；本文主要解答体系层面的核心问题：各测试层级分别验证什么、为何设立、如何运行以及依赖哪些前置条件。
+This document systematically explains the test architecture design of the OpenCode iOS client. For day-to-day change records, see `docs/WORKING.md`; this document mainly answers the core questions at the system level: what each test tier verifies, why it exists, how to run it, and which preconditions it depends on.
 
-这套设计对齐了 Android client 已落地的 four-tier testing model，并结合 iOS 现有架构进行了适配与重新梳理。工程既有的 Swift Testing、`AppState` mock flow 以及 fixture-driven XCUITest 均予以保留并归入对应层级；同时补充了真实 server integration 与 LLM-driven UI 的最小闭环。
+This design aligns with the four-tier testing model already implemented on the Android client, and adapts and re-sorts it against the existing iOS architecture. The project's existing Swift Testing, `AppState` mock flow, and fixture-driven XCUITest are all preserved and assigned to their corresponding tiers; at the same time, a minimal closed loop of real server integration and LLM-driven UI is added.
 
-## 为什么分四层
+## Why Four Tiers
 
-这四个层级并非依据测试工具划分，而是综合考虑了它们所回答的核心问题、执行成本以及触发频率。
+These four tiers are not divided by the testing tool, but by the core questions they answer, their execution cost, and how often they are triggered.
 
-首先，unit/contract 专注于保护纯业务逻辑与数据契约。这一层无需启动 app 或连接 server，执行速度最快、稳定性最高，应当在每次 commit 时运行。
+First, unit/contract focuses on protecting pure business logic and data contracts. This tier requires neither launching the app nor connecting to a server, runs the fastest, and has the highest stability, so it should be run on every commit.
 
-其次，state/component 负责验证 client 内部状态机与 fixture UI。这也是 iOS 架构的一大优势：`AppState` 支持注入 `MockAPIClient` 与 `MockSSEClient`，因此大量贴近用户真实操作的状态流都可以在不依赖真实 server 的前提下精确复现。fixture-driven XCUITest 同样归属于该层：虽然启动了真实 app，但状态完全由测试用例注入，通过固定断言来确保 view wiring 正确。
+Second, state/component is responsible for verifying the client's internal state machine and fixture UI. This is also a major advantage of the iOS architecture: `AppState` supports injecting `MockAPIClient` and `MockSSEClient`, so a large number of state flows that closely mirror real user operations can be reproduced precisely without depending on a real server. fixture-driven XCUITest also belongs to this tier: although it launches the real app, the state is entirely injected by the test case, and fixed assertions ensure that the view wiring is correct.
 
-再次，integration-UI 移除了 mock 依赖，直接连接真实的 OpenCode server 与真实 session。它核心回答的问题是：当 server 产生真实的 endpoint 响应、payload 数据以及 SSE/tool part shape 时，client 是否依然能够正确 decode、加载并完成渲染。Tier 2 无法捕捉 server 端发生的 protocol drift，而 Tier 3 正是用来把守这道边界。
+Third, integration-UI removes the mock dependency and connects directly to a real OpenCode server and real sessions. The core question it answers is: when the server produces real endpoint responses, payload data, and SSE/tool part shapes, can the client still decode, load, and complete the rendering correctly? Tier 2 cannot capture the protocol drift that happens on the server side, and Tier 3 exists precisely to guard that boundary.
 
-最后，LLM-driven-UI 由 agent 驱动真实 app，通过读取 accessibility tree 与截图，对照具体场景目标对结果进行综合判定。前三层均属于过程确定性测试：断言规则预先写死，仅能覆盖已知且预料到的场景。而 Tier 4 则侧重于结果确定性：给出目标与验收标准后，由 agent 自主完成操作、观察、等待与评估，专门用于捕获未提前固化为断言的 UI/UX regression。Tier 4 同样可以使用 curated deterministic fixture；划分层级的标准并非数据是否经过预先构造（curated），而在于是否在真实 app/simulator 上生成了可观察的运行证据，并交由 agent 完成整屏级别的 UX 评估。
+Finally, LLM-driven-UI is driven by an agent operating the real app, reading the accessibility tree and screenshots, and making a comprehensive judgement against the goals of a specific scenario. The first three tiers are all process-determinism tests: the assertion rules are hard-coded up front and can only cover known and anticipated scenarios. Tier 4 instead focuses on outcome determinism: given a goal and acceptance criteria, the agent autonomously performs the operation, observes, waits, and evaluates, and it is specifically used to catch UI/UX regressions that were not hardened into assertions in advance. Tier 4 can equally use curated deterministic fixtures; the criterion for dividing the tiers is not whether the data was pre-constructed (curated), but whether observable runtime evidence has been produced on the real app/simulator and handed to the agent for a full-screen-level UX evaluation.
 
-整体来看，层级越靠前（Tier 1/2），运行速度越快、确定性越高，越适合纳入日常提交流水线；层级越靠后（Tier 3/4），运行环境越真实、成本越高，也越能发掘潜在的未知缺陷。对于 Tier 4 探明的问题，凡是能够固化的验证逻辑，都应当逐步下沉沉淀到 Tier 3 或 Tier 2 中；在 Tier 4 探索过程中编写的稳定 harness 与 CLI 工具也应及时 check in，而运行产生的截图、`.xcresult` 以及临时 config 等产物则严格保留在 gitignored 路径下。
+Overall, the earlier the tier (Tier 1/2), the faster the run and the higher the determinism, which makes it more suitable for the daily commit pipeline; the later the tier (Tier 3/4), the more realistic the runtime environment and the higher the cost, and the more it can uncover potential unknown defects. For the problems uncovered in Tier 4, any verification logic that can be hardened should gradually be pushed down and settled into Tier 3 or Tier 2; the stable harness and CLI tools written during the Tier 4 exploration should also be checked in promptly, while the artifacts produced by the runs — screenshots, `.xcresult`, and temporary configs — must be strictly kept under gitignored paths.
 
-## 当前测试 Targets
+## Current Test Targets
 
-当前工程暴露两个测试 target：
+The project currently exposes two test targets:
 
-| Target | 框架 | 归属 | 当前状态 |
+| Target | Framework | Tier | Current Status |
 | --- | --- | --- | --- |
-| `OpenCodeClientTests` | Swift Testing (`import Testing`) | Tier 1 + Tier 2 | 主力测试层 |
+| `OpenCodeClientTests` | Swift Testing (`import Testing`) | Tier 1 + Tier 2 | Main test tier |
 | `OpenCodeClientUITests` | XCTest UI Testing | Tier 2 | fixture UI / smoke guard |
 
-主要文件：
+Main files:
 
 - `OpenCodeClient/OpenCodeClientTests/OpenCodeClientTests.swift`
 - `OpenCodeClient/OpenCodeClientTests/ModelsTests.swift`
@@ -56,9 +56,9 @@
 - `skills/ui_test_tasks.md`
 - `skills/ui_test_prompts/01_read_card_visible.md`
 
-## 日常 runner：日志、结果证据与退出码
+## Daily Runner: Logs, Result Evidence, and Exit Codes
 
-单测使用 `./scripts/test_unit.sh`，UI 使用 `./scripts/test_ui.sh`。两者保留既有 simulator pin、15 秒截图预检、专用 DerivedData、增量 `build-for-testing` → `test-without-building` 顺序，以及 ONLY / REBUILD / UI launch-perf skip 规则。显式 destination 不代表设备独占；运行前先确认该设备和构建目录已释放。
+Unit tests use `./scripts/test_unit.sh`, UI tests use `./scripts/test_ui.sh`. Both keep the existing simulator pin, the 15-second screenshot preflight, the dedicated DerivedData, the incremental `build-for-testing` → `test-without-building` order, and the ONLY / REBUILD / UI launch-perf skip rules. An explicit destination does not mean the device is exclusively owned; before running, confirm that the device and the build directory have been released.
 
 ```bash
 OPENCODE_TEST_DESTINATION="platform=iOS Simulator,id=$SIM_UUID" \
@@ -66,35 +66,35 @@ OPENCODE_TEST_ONLY='OpenCodeClientTests/SessionIndicatorTests' \
 OPENCODE_TEST_PHASE_TIMEOUT_SECONDS=180 ./scripts/test_unit.sh
 ```
 
-新增参数：`OPENCODE_TEST_OUTPUT_ROOT` 默认是 repo 内 `.occlient/test-runs/`；自定义根也必须规范化到本 repo 的 `.occlient/` 内、受 Git ignore 保护，且 `.occlient/` 下不能存在 tracked 文件。拒绝外部根、symlink/`..` 越界、未忽略目录和嵌套 repo，在写完整日志前返回 73。每轮用独立随机目录，不覆盖旧证据。`OPENCODE_TEST_PHASE_TIMEOUT_SECONDS` 默认 0（不限时），正整数分别约束 preflight/build/test，每阶段超时可再有 5 秒终止宽限；不要把定向测试的 90 秒预算设成约 5.5 分钟全 UI suite 的默认值。结果包的 xcresulttool 查询单独限时 15 秒；随后的本地小 JSON 解析不在该计时器内。
+New parameters: `OPENCODE_TEST_OUTPUT_ROOT` defaults to `.occlient/test-runs/` inside the repo; a custom root must also be normalized into this repo's `.occlient/`, be protected by Git ignore, and there must be no tracked files under `.occlient/`. External roots, symlink/`..` escapes, non-ignored directories, and nested repos are rejected with a return code of 73 before the full log is written. Each run uses an independent random directory and never overwrites old evidence. `OPENCODE_TEST_PHASE_TIMEOUT_SECONDS` defaults to 0 (no limit); a positive integer constrains preflight/build/test respectively, and each phase timeout can have an additional 5-second termination grace period; do not set the 90-second budget for a targeted test as the default for the ~5.5-minute full UI suite. The xcresulttool query on the result bundle has its own 15-second limit; the subsequent small local JSON parsing is not inside that timer.
 
-每轮有完整实时合流的 `preflight.log`、`build.log`、`test.log`，显式 `test.xcresult`，以及 `events.tsv`、各阶段 `*.status.tsv` 和最终 `state.tsv`。状态分别保存原始 command_exit、tee_exit、阶段 wrapper_exit、最终 acceptance_exit；普通非零测试码原样保留，tee 单独失败返回 74。测试原始码 0 但包缺失、不可解析、schema 不认识或结果非 Passed 时，最终 runner 返回 65，不能让仅判断退出码的调用者假通过。返回 0 要求 test 阶段成功且本轮结果包可解析为 Passed；仍需审阅选择的用例及数量是否正确。stdout 的 passed 文本和截图均不替代这一验收。
+Each run has a fully live-merged `preflight.log`, `build.log`, and `test.log`, an explicit `test.xcresult`, plus `events.tsv`, the per-phase `*.status.tsv` files, and a final `state.tsv`. The state saves the original command_exit, tee_exit, phase wrapper_exit, and the final acceptance_exit separately; an ordinary non-zero test code is preserved as-is, and a tee failure alone returns 74. When the raw test code is 0 but the bundle is missing, unparsable, of an unrecognized schema, or the result is not Passed, the final runner returns 65, so that callers who only check the exit code cannot pass falsely. Returning 0 requires the test phase to succeed and this run's result bundle to be parsable as Passed; the selected test cases and their count still need to be reviewed. The passed text on stdout and the screenshots do not replace this acceptance.
 
-TSV 是数据，不要 source/eval。value 对 `%`、tab、CR、LF 编码为 `%25`、`%09`、`%0D`、`%0A`，解码时最后处理 `%25`。超时或中断时来不及取得的原始码写 unknown，不伪造 xcodebuild 退出码；清理仅针对本轮进程组。
+TSV is data, not source/eval. For `%`, tab, CR, and LF the value is encoded as `%25`, `%09`, `%0D`, `%0A`, and `%25` is processed last when decoding. When a timeout or an interruption leaves no time to obtain the raw code, write unknown; never fabricate an xcodebuild exit code. The cleanup targets only this run's process group.
 
-完整 stdout/stderr 可能含私密路径或 app 输出。ignored 只防 Git 收录，不保护控制台。本 runner 的完整输出用于本地开发；公开 CI 必须采用私有日志/工件及对外脱敏摘要，不把实时 tee 直接公开。原始运行目录和结果包不提交。
+The full stdout/stderr may contain private paths or app output. ignored only prevents Git from tracking it; it does not protect the console. This runner's full output is used for local development; public CI must use private logs/artifacts together with a redacted external summary, and must not expose the live tee directly. The raw run directory and result bundle are not committed.
 
-离线回归入口是 `bash scripts/tests/test_runner_observability.sh`：复制实际 runner 到新临时目录，通过 fake Xcode/设备命令覆盖错误路径，再在临时 Git repo 中检查真实 ignore、tracked、嵌套 repo 和 symlink 边界。不启动真实设备、安装依赖或修改当前 repo 的 index；证据路径在末尾输出。该脚本保留临时证据供检查。
+The offline regression entry point is `bash scripts/tests/test_runner_observability.sh`: it copies the real runner into a new temporary directory, covers the error paths with fake Xcode/device commands, and then checks the real ignore, tracked, nested repo, and symlink boundaries in a temporary Git repo. It does not start a real device, install dependencies, or modify the current repo's index; the evidence paths are printed at the end. The script keeps the temporary evidence for inspection.
 
-2026-10-14 验证：9 个 shell 文件语法检查、43/43 回归场景通过（35 个 mock + 8 个真实 Git 边界场景）。一次真实 `SessionIndicatorTests` 36/36 通过，preflight/build/test/query 分别 1/19/9/0 秒、原始码均为 0，总计 29 秒。初始 parser 因错误字段名返回 acceptance 65；真实 Xcode 27.0 / 27A266a 的摘要使用顶层 `result: Passed`，已做最小修正。保留本轮 JSON离线回放后 parse=parsed、acceptance=0；未第二次运行 Xcode，也不改写首次失败状态。脱敏后的摘要子集保存在 `scripts/tests/fixtures/xcresult-summary-passed.json`，未知 schema 分支继续拒绝。
+2026-10-14 verification: 9 shell files passed the syntax check, 43/43 regression scenarios passed (35 mock + 8 real Git boundary scenarios). One real `SessionIndicatorTests` run passed 36/36, with preflight/build/test/query at 1/19/9/0 seconds and all raw codes at 0, 29 seconds in total. The initial parser returned acceptance 65 because of a wrong field name; the summary of the real Xcode 27.0 / 27A266a uses a top-level `result: Passed`, and a minimal fix has been made. After keeping this run's JSON offline replay, parse=parsed and acceptance=0; Xcode was not run a second time, and the first failure status was not rewritten. The redacted summary subset is stored in `scripts/tests/fixtures/xcresult-summary-passed.json`, and the unknown-schema branch keeps rejecting.
 
-## Tier 1：unit / contract
+## Tier 1: unit / contract
 
-Tier 1 专注于纯逻辑与数据契约测试，既不需要依赖真实 server，也不涉及 UI 操作。测试位于 `OpenCodeClientTests`，采用 Swift Testing 框架。
+Tier 1 focuses on pure logic and data contract tests; it needs neither a real server nor any UI operation. The tests live in `OpenCodeClientTests` and use the Swift Testing framework.
 
-该层级建设已相对成熟，主要覆盖：
+This tier is relatively mature and mainly covers:
 
-- `Session` / `SessionStatus` / `Message` / `Part` decoding。
-- `SSEEvent` payload shape。
-- `TodoItem`、`Project`、`QuestionRequest` 等 API model。
-- URL 修正、scheme 补全、路径规范化、文件路径提取。
-- Client capability action/callback decoding、Pending/Outbox expiration 与幂等、权限和原 session continuation。
-- `ToolCardClassifier`：哪些 part 进入 file-card grid，哪些折叠进 merged tool calls row；目录 read 的识别和 entries parsing。
-- `SSHKeyManager` 密钥生命周期：read/create 分离（`getKeyPair()` 只读不生成）、仅条目缺失（`errSecItemNotFound`）时引导生成、Keychain 暂不可读 fail-closed 抛 `keyUnavailable` 而非重新生成、缓存公钥由私钥派生一致性校验与修复。
+- `Session` / `SessionStatus` / `Message` / `Part` decoding.
+- `SSEEvent` payload shape.
+- API models such as `TodoItem`, `Project`, `QuestionRequest`.
+- URL correction, scheme completion, path normalization, and file path extraction.
+- Client capability action/callback decoding, Pending/Outbox expiration and idempotency, and permission plus original session continuation.
+- `ToolCardClassifier`: which parts enter the file-card grid and which are folded into the merged tool calls row; directory read detection and entries parsing.
+- `SSHKeyManager` key lifecycle: separating read from create (`getKeyPair()` is read-only and never generates), guiding generation only when the entry is missing (`errSecItemNotFound`), failing closed by throwing `keyUnavailable` when the Keychain is temporarily unreadable instead of regenerating, and a consistency check plus repair for a cached public key derived from the private key.
 
-这一层主要验证 client 针对已知输入格式与纯规则的处理是否正确。但它并不能证明真实 server 当前仍在发送符合该契约的数据格式；这一问题交由 Tier 3 验证。
+This tier mainly verifies whether the client correctly handles known input formats and pure rules. But it cannot prove that the real server is still sending data that conforms to the contract; that question is left to Tier 3.
 
-运行：
+Run:
 
 ```bash
 xcodebuild test \
@@ -103,58 +103,58 @@ xcodebuild test \
   -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.4'
 ```
 
-在新增纯逻辑、model decoding、path/URL 处理或 tool classification 逻辑时，应优先补充 Tier 1 测试。
+When adding pure logic, model decoding, path/URL handling, or tool classification logic, you should preferentially add Tier 1 tests.
 
-## Tier 2：state flow / fixture UI
+## Tier 2: state flow / fixture UI
 
-Tier 2 基于 fake data 或 mock 依赖来驱动真实的 client 状态机及真实 UI。由于无需连接真实 server，该层具备成本低、确定性强、可控度高的特点，非常适合覆盖各类边缘状态与异常分支。
+Tier 2 drives the real client state machine and the real UI based on fake data or mock dependencies. Because it needs no real server connection, this tier is cheap, highly deterministic, and highly controllable, which makes it very suitable for covering all kinds of edge states and abnormal branches.
 
-在 iOS 工程中，这一层包含两种形态：
+In the iOS project, this tier has two forms:
 
-第一种是 `AppState` 状态流测试。由于 `AppState` 支持注入 `MockAPIClient` 与 `MockSSEClient`，测试用例可以精确控制 API 响应、错误注入及 SSE event 分发，从而驱动真实的 `AppState` 完成确定性的状态迁移。现有覆盖范围包括：
+The first is `AppState` state-flow testing. Because `AppState` supports injecting `MockAPIClient` and `MockSSEClient`, test cases can precisely control API responses, error injection, and SSE event dispatch, driving the real `AppState` through deterministic state transitions. The current coverage includes:
 
-- `loadSessions()` / `loadMoreSessions()`。
-- `createSession()` / `deleteSession()` / fallback selection。
-- `message.updated` / `message.part.updated` / `session.updated`。
-- optimistic user row dedupe 和失败回滚。
-- session tree、sidebar root-only helper、archived filtering。
+- `loadSessions()` / `loadMoreSessions()`.
+- `createSession()` / `deleteSession()` / fallback selection.
+- `message.updated` / `message.part.updated` / `session.updated`.
+- optimistic user row dedupe and failure rollback.
+- session tree, sidebar root-only helper, archived filtering.
 
-第二种是 fixture-driven XCUITest。app 在启动时通过 launch arguments 注入确定性的 deterministic state，随后由 UI test 驱动真实 app 进行操作验证：
+The second is fixture-driven XCUITest. The app injects deterministic state at launch through launch arguments, and then the UI test drives the real app to verify operations:
 
-- `UITEST_SESSION_TREE_FIXTURE`：验证 child/subagent session 在 session list 里可见；当前 fixture 也包含 active/archived session tree，用来覆盖 archive section wiring。
-- `UITEST_TOOL_CARDS_FIXTURE`：验证半宽过程 tile 网格（file card 与 merged tool calls tile 同进 2-up 网格、永远半宽）、展开后的内容（展开内容留在半宽 tile 内）。
-- `UITEST_F3_TRANSCRIBING_FIXTURE`：验证 voice rail 在 agent running + transcribing 并行状态下仍保留 text review/send，并把 agent interrupt 降到 `⋯` 菜单。
-- `UITEST_F3_RETRY_FIXTURE`：验证 preserved-audio retry 状态清楚表达“重试同一段音频”，并且恢复动作与 agent abort 语义分离。
-- `UITEST_CLIENT_CAPABILITY_FIXTURE`：验证 Health export 本地授权理由、仅这次、以后自动允许和取消入口。
-- launch/input smoke：验证 app 启动、chat input 可达、长输入保持可滚动。
+- `UITEST_SESSION_TREE_FIXTURE`: verifies that child/subagent sessions are visible in the session list; the current fixture also contains an active/archived session tree to cover the archive section wiring.
+- `UITEST_TOOL_CARDS_FIXTURE`: verifies the half-width process tile grid (file cards and the merged tool calls tile share a 2-up grid and are always half-width), and the expanded content (the expanded content stays inside the half-width tile).
+- `UITEST_F3_TRANSCRIBING_FIXTURE`: verifies that the voice rail still keeps text review/send when the agent is running and transcribing in parallel, and that the agent interrupt is demoted to the `⋯` menu.
+- `UITEST_F3_RETRY_FIXTURE`: verifies that the preserved-audio retry state clearly expresses "retrying the same audio clip", and that the recovery action is separated from the agent abort semantics.
+- `UITEST_CLIENT_CAPABILITY_FIXTURE`: verifies the Health export local authorization reason, the "just this once" and "always allow in the future" options, and the cancel entry point.
+- launch/input smoke: verifies app launch, chat input reachability, and that long input stays scrollable.
 
-Tier 2 能够有效保护 client 内部的状态流转编排与 view wiring，但它本质上仍运行在测试构造的假定环境里。一旦 server 变更了 protocol 而 mock 仍在使用旧 payload，Tier 2 测试依然可能假性通过，因此它无法替代 Tier 3。
+Tier 2 effectively protects the client's internal state-flow orchestration and view wiring, but in essence it still runs in an assumed environment constructed by the test. Once the server changes the protocol while the mock still uses old payloads, Tier 2 tests may still pass falsely, so it cannot replace Tier 3.
 
-需要特别区分的是：fixture-driven XCUITest 可以同时服务于 Tier 2 和 Tier 4。当仅执行固定代码断言时，它属于 Tier 2；而当复用相同的 fixture 启动真实 app、展开目标 UI 并导出截图，再交由 agent 读图评估界面布局、层级结构、视觉密度与隐私合规性时，它便构成了 Tier 4 的 deterministic visual QA 模式。该模式虽然不使用真实 server 数据，但换取了高可复现、无敏感 secret、可快速迭代的视觉反馈证据，非常适合用于设计打磨与 UI 回归定损。
+One point that must be distinguished carefully: fixture-driven XCUITest can serve both Tier 2 and Tier 4. When it only executes fixed code assertions, it belongs to Tier 2; when it reuses the same fixture to launch the real app, expands the target UI, and exports screenshots, and then hands them to the agent to read and evaluate the screen layout, hierarchy structure, visual density, and privacy compliance, it becomes Tier 4's deterministic visual QA mode. Although this mode does not use real server data, it trades that for highly reproducible, secret-free, fast-iterating visual feedback evidence, which is very suitable for design polish and UI regression assessment.
 
-## Tier 3：integration
+## Tier 3: integration
 
-Tier 3 通过直连真实的 OpenCode server、创建真实 session 并接收 server 端实际生成的 message 与 tool part，借助固定断言来验证 client 的契约正确性。其核心目标在于尽早捕获 client 与 server 接口边界上的协议漂移（drift）。
+Tier 3 connects directly to a real OpenCode server, creates real sessions, and receives the message and tool parts actually produced by the server, verifying the correctness of the client's contract through fixed assertions. Its core goal is to catch the protocol drift at the client/server interface boundary as early as possible.
 
-目前该层级的最小落地实现为 `ReadToolCardIntegrationTests.swift`。该测试默认跳过 live path，仅在显式设置环境变量 `OPENCODE_INTEGRATION_TESTS=1` 时才会真正连接测试 server。测试进程会优先读取 `ProcessInfo.processInfo.environment`，若缺少对应配置，则会从 repo root 下被 git 忽略的 `.env` 中按需补齐缺失 key，同时确保不覆盖已存在的环境变量。
+The current minimal implementation of this tier is `ReadToolCardIntegrationTests.swift`. The test skips the live path by default and only really connects to the test server when the environment variable `OPENCODE_INTEGRATION_TESTS=1` is explicitly set. The test process reads `ProcessInfo.processInfo.environment` first; if the corresponding configuration is missing, it fills in the missing keys on demand from the git-ignored `.env` at the repo root, while making sure not to overwrite existing environment variables.
 
-其完整执行流程包括：
+Its full execution flow includes:
 
-1. 连接本地测试 server，通常是 4097，避免碰用户正在使用的 4096。
-2. 用真实 `APIClient` health check。
-3. 创建真实 session。
-4. 发送 read-only prompt：读取 `AGENTS.md`，明确禁止创建、编辑、写文件。
-5. 轮询真实 messages，直到出现 read tool part。
-6. 用真实 decode 结果和 `ToolCardClassifier` 验证 read tool part 能被识别为 read/file operation。
-7. best-effort 删除创建的 session。
+1. Connect to the local test server, usually 4097, to avoid touching the 4096 the user is using.
+2. Run a health check with the real `APIClient`.
+3. Create a real session.
+4. Send a read-only prompt: read `AGENTS.md`, with creating, editing, and writing files explicitly forbidden.
+5. Poll the real messages until a read tool part appears.
+6. Use the real decode result and `ToolCardClassifier` to verify that the read tool part is recognized as a read/file operation.
+7. Delete the created session on a best-effort basis.
 
-当前版本的 Tier 3 重点把守真实 server -> client 的 decode 与 classification 契约，尚未包含完整的 app 端到端 UI 导航链路。后续可进一步扩展完整 UI 版本：拉起 app、配置 server 连接、下发 prompt 并对整屏 UI 表现进行端到端检验。
+The current version of Tier 3 focuses on guarding the real server -> client decode and classification contract, and does not yet include the complete app-side end-to-end UI navigation chain. A complete UI version can be added later: launch the app, configure the server connection, dispatch the prompt, and verify the full-screen UI behavior end to end.
 
-相关的 credential 以及 model/agent 配置必须通过 gitignored `.env` 或测试运行参数提供，严禁硬编码进源码、文档示例或 Xcode project。在从 Android client 合并 `.env` 配置时，应仅补充缺失的 key，不覆盖 iOS 现存配置；此外，`OPENCODE_SERVER_URL` 须使用 iOS Simulator 能够正常访问的宿主机地址（如 `127.0.0.1`），不可直接复用 Android emulator 专用的 `10.0.2.2`。当未检测到配置或 server 不可达时，测试应当明确执行 skip/block 并输出具体原因，避免将环境缺失误报为 app 自身的功能故障。
+The related credentials and model/agent configuration must be provided through the gitignored `.env` or through test run parameters, and must never be hardcoded into the source code, the documentation examples, or the Xcode project. When merging the `.env` configuration from the Android client, only the missing keys should be added, without overwriting the existing iOS configuration; in addition, `OPENCODE_SERVER_URL` must use a host address that the iOS Simulator can reach (such as `127.0.0.1`), and must not directly reuse the `10.0.2.2` dedicated to the Android emulator. When no configuration is detected or the server is unreachable, the test should explicitly perform a skip/block and print the specific reason, so that a missing environment is not misreported as a functional failure of the app itself.
 
-Tier 3 默认仅允许执行只读类安全场景。真实的 write/edit 操作会直接修改当前 workspace，除非 server cwd 明确指向专用的隔离 sandbox，否则严禁在 Tier 3 中触发写操作。
+Tier 3 by default only allows read-only safe scenarios. Real write/edit operations would directly modify the current workspace, so write operations are strictly forbidden in Tier 3 unless the server cwd explicitly points to a dedicated isolated sandbox.
 
-Live run 示例：
+Live run example:
 
 ```bash
 xcodebuild test \
@@ -164,32 +164,32 @@ xcodebuild test \
   -only-testing:OpenCodeClientTests/ReadToolCardIntegrationTests
 ```
 
-本地 `.env` 至少需配置 `OPENCODE_INTEGRATION_TESTS=1`、`OPENCODE_SERVER_URL` 及 `OPENCODE_AGENT`；若 server 开启了鉴权，还需提供 `OPENCODE_USERNAME` / `OPENCODE_PASSWORD`。如需指定 model，可通过 `OPENCODE_MODEL_PROVIDER` / `OPENCODE_MODEL_ID` 配置。
+The local `.env` must configure at least `OPENCODE_INTEGRATION_TESTS=1`, `OPENCODE_SERVER_URL`, and `OPENCODE_AGENT`; if the server has authentication enabled, `OPENCODE_USERNAME` / `OPENCODE_PASSWORD` must also be provided. If a model needs to be specified, it can be configured through `OPENCODE_MODEL_PROVIDER` / `OPENCODE_MODEL_ID`.
 
-## Tier 4：LLM-driven UI
+## Tier 4: LLM-driven UI
 
-Tier 4 由 agent 实际驱动真实 app，通过解析工具返回的 UI 状态或截屏，对照用户业务场景与验收准则自主作出判定。该层级并不追求全量穷举覆盖，其核心在于发现固定代码断言难以预料的隐性问题，尤其是涉及异步时序、整屏信息可读性以及交互体验退化等 UX regression。
+Tier 4 is actually driven by an agent operating the real app. By parsing the UI state returned by the tooling or taking screenshots, it autonomously judges against the user's business scenarios and acceptance criteria. This tier does not pursue exhaustive coverage; its core is to find the implicit problems that fixed code assertions cannot anticipate, especially UX regressions involving async timing, full-screen information readability, and interaction experience degradation.
 
-当前 iOS 端落地的最小闭环包括：
+The current minimal closed loop implemented on iOS includes:
 
-- `ui_driver/`：`simctl` backed Python CLI skeleton。
-- `skills/operate_ios_simulator.md`：操作层 skill。
-- `skills/ui_test_tasks.md`：Tier 4 测试任务 workflow。
-- `skills/ui_test_prompts/01_read_card_visible.md`：第一条 read-card prompt。
-- `OpenCodeClientUITests/testCaptureSessionArchiveFixtureScreenshot`：默认 skip 的 deterministic screenshot harness。设置 `TIER4_SCREENSHOT_PATH` 或 `/tmp/opencode-ios-tier4-config.json` 的 `screenshot_path` 后，它用 synthetic session tree fixture 启动真实 app、展开 Archive section，并把 PNG 写到指定路径。
+- `ui_driver/`: a `simctl` backed Python CLI skeleton.
+- `skills/operate_ios_simulator.md`: the operation-layer skill.
+- `skills/ui_test_tasks.md`: the Tier 4 test task workflow.
+- `skills/ui_test_prompts/01_read_card_visible.md`: the first read-card prompt.
+- `OpenCodeClientUITests/testCaptureSessionArchiveFixtureScreenshot`: a deterministic screenshot harness that is skipped by default. After `TIER4_SCREENSHOT_PATH` or the `screenshot_path` in `/tmp/opencode-ios-tier4-config.json` is set, it launches the real app with a synthetic session tree fixture, expands the Archive section, and writes the PNG to the specified path.
 
-`ui_driver` 目前支持 `devices`、`launch`、`screenshot`、`tree`、`run-xcuitest`、`configure-server` 以及 `send-prompt` 等子命令。其中 `tree` 命令提供两种工作模式：在未传入 Xcode 参数时，执行诚实的 screenshot-only observation，返回 `observability: screenshot_only`、空的 `nodes` / `compact` 并附带 warning 提示；而在传入 `--project`、`--scheme`、`--destination` 参数时，则会调用 `Tier4DriverUITests/testAccessibilityObservationSnapshot`，返回 `observability: xcuitest_accessibility_snapshot` 以及对应的 XCTest summary。这里依然不做 Android 式完整 accessibility tree 的失真模拟。当需要精确断言特定 UI element 时，建议通过 `run-xcuitest` 或基于 XCTest 的 `tree` 命令触发聚焦的 UI harness，这比硬编码坐标点击或构造虚假 tree 更符合 iOS 平台的最佳工程实践。Tier 4 综合利用截图证据、XCTest summary 以及 agent 的自主认知输出最终 verdict；在信息不足以得出结论时明确报告 BLOCKED。
+`ui_driver` currently supports subcommands such as `devices`, `launch`, `screenshot`, `tree`, `run-xcuitest`, `configure-server`, and `send-prompt`. The `tree` command provides two working modes: when no Xcode arguments are passed, it performs an honest screenshot-only observation and returns `observability: screenshot_only`, empty `nodes` / `compact`, and a warning; while when the `--project`, `--scheme`, and `--destination` arguments are passed, it calls `Tier4DriverUITests/testAccessibilityObservationSnapshot` and returns `observability: xcuitest_accessibility_snapshot` together with the corresponding XCTest summary. Even here, there is still no Android-style faithful simulation of a complete accessibility tree. When a specific UI element needs to be asserted precisely, it is recommended to trigger a focused UI harness through `run-xcuitest` or the XCTest-based `tree` command; this conforms better to iOS platform engineering best practice than hard-coded coordinate tapping or fabricating a fake tree. Tier 4 combines screenshot evidence, the XCTest summary, and the agent's autonomous cognition to reach a final verdict; when the information is insufficient to reach a conclusion, it explicitly reports BLOCKED.
 
-`configure-server` 与 `send-prompt` 在 live 4097 测试端口下的执行链路已验证通过。driver 借助权限为 `0600` 的临时文件 `/tmp/opencode-ios-tier4-config.json` 向 XCTest 传递运行配置，确保命令行与 `xcodebuild_args` 中不泄露任何明文密码；对于 password 输入，统一通过 paste/`Cmd+V` 注入，且 JSON 输出会对 stdout/stderr 尾部日志中的敏感 password 进行脱敏（redact）。此外，Xcode UI test 固定显式指定 `-parallel-testing-enabled NO`，防止因 clone runner 冲突导致测试启动失败。
+The execution chain of `configure-server` and `send-prompt` on the live 4097 test port has been verified. The driver passes the run configuration to XCTest via a temporary file `/tmp/opencode-ios-tier4-config.json` with permission `0600`, ensuring that no plaintext password leaks into the command line or into `xcodebuild_args`; for password entry it uniformly injects via paste/`Cmd+V`, and the JSON output redacts sensitive passwords in the tail logs of stdout/stderr. In addition, the Xcode UI test always explicitly specifies `-parallel-testing-enabled NO`, preventing test startup failures caused by clone runner conflicts.
 
 ### Deterministic screenshot QA
 
-在处理纯 UI 布局或视觉设计改动时，应优先采用 deterministic screenshot harness，而非依赖 live server 的动态截图。live screenshot 容易将 server 运行状态、账号凭证、网络波动时序以及动态 session 数据掺杂进测试评估中；而 fixture screenshot 则专注于检验当前界面设计是否在 iPhone/iPad 上得到了精准渲染。该流程的成功验收标准并非单纯的“测试用例执行通过”，而在于产出的截图能够通过读图人工或智能复核。
+When dealing with pure UI layout or visual design changes, the deterministic screenshot harness should be preferred over dynamic screenshots that depend on a live server. A live screenshot easily mixes the server's running state, account credentials, network fluctuation timing, and dynamic session data into the test evaluation; a fixture screenshot, in contrast, focuses on checking whether the current interface design is rendered precisely on iPhone/iPad. The success acceptance criterion of this flow is not simply "the test case executed successfully", but that the produced screenshots can pass a manual or intelligent review by reading the image.
 
-运行方式：
+How to run:
 
 ```bash
-# 写入 gitignored 临时配置；也可以改用 TIER4_SCREENSHOT_PATH 环境变量。
+# Write the gitignored temporary config; you can also use the TIER4_SCREENSHOT_PATH environment variable instead.
 printf '{"screenshot_path":"%s"}\n' \
   "$PWD/tmp/visual_qa/session_archive_fixture.png" \
   > /tmp/opencode-ios-tier4-config.json
@@ -202,7 +202,7 @@ xcodebuild test \
   -parallel-testing-enabled NO
 ```
 
-F3 voice composer 的 deterministic fixture 可以用同一层 UI test 单独跑：
+The deterministic fixture for the F3 voice composer can be run separately with the same layer of UI test:
 
 ```bash
 xcodebuild test \
@@ -213,43 +213,43 @@ xcodebuild test \
   -only-testing:OpenCodeClientUITests/OpenCodeClientUITests/testF3RetryComposerFixtureScreenshot
 ```
 
-同一套 harness 仅需切换 destination 即可复用到 iPad 设备验证。截图产物建议输出至 `tmp/visual_qa/` 目录下，严禁提交入库。执行完成后必须打开图像逐项核验：界面是否正确停留在目标页面、目标 section 是否已正常展开、是否存在未预期的系统弹窗或陈旧 UI 残留、是否泄露真实私有数据，以及整体视觉层级是否严格符合设计预期。
+The same harness only needs the destination switched to be reused for iPad device verification. Screenshot artifacts are recommended to be output under the `tmp/visual_qa/` directory and must never be committed. After execution, the images must be opened and verified item by item: whether the interface correctly stayed on the target page, whether the target section expanded properly, whether any unexpected system dialogs or stale UI remainders are present, whether real private data leaks, and whether the overall visual hierarchy strictly matches the design expectations.
 
-在 session archive 功能的设计实践中，该 workflow 成功捕获了固定代码断言未能发现的两个典型问题：其一，`DisclosureGroup` 与系统 list row 的组合容易导致 section header 退化为视觉笨重的默认样式 cell；其二，尝试通过负向 top padding 抵消 sheet/list 内边距的做法，会导致 `Active` header 在特定视口下被上方标题栏遮挡。截图复核机制将此类布局退化（layout regression）转化为直观可见的确定性证据，从而便于后续将修复后的稳定交互行为下沉沉淀到 fixture UI test 中。
+In the design practice of the session archive feature, this workflow successfully captured two typical problems that fixed code assertions could not find: first, the combination of `DisclosureGroup` and the system list row easily degrades the section header into a visually clumsy default-styled cell; second, trying to offset the sheet/list padding with a negative top padding causes the `Active` header to be occluded by the title bar above in certain viewports. The screenshot review mechanism turns such layout regressions into directly visible, deterministic evidence, which makes it easy to later push the fixed, stable interaction behavior down into the fixture UI test.
 
-该架构延续了在 Android 端得到验证的核心理念：CLI 充当骨架（skeleton），agent 充当智能决策判断层，test 用例即是 prompt。不同之处在于，iOS 平台缺乏类似于 Android `uiautomator dump` 那样低开销的直接导出接口，因此现阶段采用 XCTest 作为精确识别 UI 身份的桥梁。目前 `configure-server` 与 `send-prompt` 已作为高阶命令封装进 `ui_driver`；后续若能建立起稳定可靠的 iOS accessibility tree 解析能力，将进一步接入通用的 `tap-label` 等交互指令。
+This architecture continues the core idea validated on the Android side: the CLI acts as the skeleton, the agent acts as the intelligent decision layer, and the test case is the prompt. The difference is that the iOS platform lacks a low-overhead direct export interface like Android's `uiautomator dump`, so at this stage XCTest is used as the bridge for precisely identifying UI identity. Currently `configure-server` and `send-prompt` have been packaged into `ui_driver` as advanced commands; if a stable and reliable iOS accessibility tree parsing capability can be built later, generic interaction instructions such as `tap-label` will be added further.
 
-Tier 4 测试无需纳入每次 commit 的日常触发链路，通常按需触发或定期执行。当 Tier 4 探索并明确了某种具备稳定断言特征的交互行为后，应及时将可固化部分下沉至 Tier 3 或 Tier 2 中维护。
+Tier 4 tests do not need to be part of the daily trigger chain of every commit; they are usually triggered on demand or run periodically. When Tier 4 exploration has identified an interaction behavior with stable assertion characteristics, the hardenable part should promptly be pushed down to Tier 3 or Tier 2 for maintenance.
 
-在 Tier 4 实施过程中沉淀出的具备长期维护价值的代码应纳入版本库（如 launch fixture、XCTest screenshot harness、`ui_driver` 子命令以及脱敏/辅助脚本等）；而各类单次运行产生的一次性 artifacts 严禁入库，具体包括真实截图、fixture 截图、`.xcresult`、DerivedData 缓存、Xcode workspace 的 `xcuserdata`、临时配置文件 `/tmp/opencode-ios-tier4-config.json` 以及包含凭证的 credential JSON。
+The code with long-term maintenance value that emerges during the Tier 4 implementation should be committed to the repository (such as the launch fixture, the XCTest screenshot harness, the `ui_driver` subcommands, and the redaction/helper scripts); while the various one-off artifacts produced by a single run must never be committed, specifically including real screenshots, fixture screenshots, `.xcresult`, DerivedData caches, the Xcode workspace's `xcuserdata`, the temporary config file `/tmp/opencode-ios-tier4-config.json`, and the credential JSON that contains credentials.
 
-## 贯穿全局的前提：UI 可观测性
+## Cross-Cutting Prerequisite: UI Observability
 
-Tier 2、Tier 3 与 Tier 4 的有效运作均高度依赖于稳定、语义化的 accessibility surface。凡是需要供自动化测试断言或 agent 感知判断的 UI 元素，必须显式声明清晰的 `accessibilityIdentifier` 与 `accessibilityLabel`，严禁依赖脆弱的绝对坐标、视图颜色或排版间距等渲染细节。
+The effective operation of Tier 2, Tier 3, and Tier 4 all depends heavily on a stable, semantic accessibility surface. Any UI element that must be asserted by automated tests or perceived and judged by an agent must explicitly declare a clear `accessibilityIdentifier` and `accessibilityLabel`; relying on fragile absolute coordinates, view colors, typography spacing, and other rendering details is strictly forbidden.
 
-目前 iOS 端 tool card 组件已在 accessibility 层对 read/write 操作进行了细致区分：
+The tool card components on iOS already make a fine-grained distinction between read and write operations at the accessibility layer:
 
-- file read：`toolcard.read.<basename>`，label `Read file <basename>`。
-- write/edit/patch：`toolcard.write.<basename>`，label `Write file <basename>`。
-- directory read：`toolcard.folder.<basename>`，label `Read directory <basename>`。
-- merged non-file tools：`toolcard.toolcalls`。该 tile 为自绘按钮行（不用系统 DisclosureGroup）：`.isButton` trait + 展开 value（`已展开`/`已收起`），identifier 保持不变。
-- thinking tile：`message-thinking-card`。同样为自绘按钮行：`.isButton` trait + 展开 value（`已展开`/`已收起`），identifier 保持不变。
+- file read: `toolcard.read.<basename>`, label `Read file <basename>`.
+- write/edit/patch: `toolcard.write.<basename>`, label `Write file <basename>`.
+- directory read: `toolcard.folder.<basename>`, label `Read directory <basename>`.
+- merged non-file tools: `toolcard.toolcalls`. This tile is a custom-drawn button row (not the system DisclosureGroup): `.isButton` trait + expansion value (`已展开`/`已收起`, i.e. expanded/collapsed), with the identifier unchanged.
+- thinking tile: `message-thinking-card`. Also a custom-drawn button row: `.isButton` trait + expansion value (`已展开`/`已收起`, i.e. expanded/collapsed), with the identifier unchanged.
 
-`ToolCardsUITests` 通过 `UITEST_TOOL_CARDS_FIXTURE` 确保 read 与 write 类型的卡片均能在 XCUITest 中被正确捕获识别。鉴于在真实 server 上执行 write/edit/patch 操作存在安全隐患，write card 的 UI 渲染主要依托 Tier 2 fixture 开展验证；而 read card 则由 Tier 2 fixture 与 Tier 3 真实 server 的 read 路径提供双重覆盖保障。
+`ToolCardsUITests` uses `UITEST_TOOL_CARDS_FIXTURE` to ensure that both read-type and write-type cards can be correctly captured and recognized in XCUITest. Given that performing write/edit/patch operations on a real server carries safety risks, the UI rendering of write cards is mainly verified with Tier 2 fixtures; read cards, on the other hand, get dual coverage from the Tier 2 fixture and the Tier 3 real-server read path.
 
-过程 tile（thinking / merged tool calls）的**半宽视觉 QA** 由 `ToolCardsUITests` 产出的 `oc_toolcards_collapsed` / `oc_toolcards` 截图承担（deterministic screenshot，读图核对 tile 宽度 = 网格列宽、展开内容留在半宽内）。注意当前 `UITEST_TOOL_CARDS_FIXTURE` 不含 reasoning part，thinking tile 暂无 UI 覆盖；可选给该 fixture 补一个 reasoning part 以补齐。
+The **half-width visual QA** of the process tiles (thinking / merged tool calls) is carried by the `oc_toolcards_collapsed` / `oc_toolcards` screenshots produced by `ToolCardsUITests` (deterministic screenshots; read the image to check that the tile width equals the grid column width and that the expanded content stays within the half width). Note that the current `UITEST_TOOL_CARDS_FIXTURE` does not contain a reasoning part, so the thinking tile currently has no UI coverage; optionally adding a reasoning part to that fixture would complete it.
 
-## 边界与安全
+## Boundaries and Safety
 
-本地运行的 OpenCode server 可能会共享 `/Users/grapeot/co/knowledge_working` 工作目录。在未配置专用隔离 sandbox 的情况下，Tier 3 与 Tier 4 仅被允许触发只读（read）类 tool call。任何包含新建、修改或写文件意图的 prompt 均被视为越界操作，必须严格禁止。
+The locally running OpenCode server may share the `/Users/grapeot/co/knowledge_working` working directory. Without a dedicated isolated sandbox configured, Tier 3 and Tier 4 are only allowed to trigger read-only tool calls. Any prompt that contains an intent to create, modify, or write files is treated as an out-of-bounds operation and must be strictly forbidden.
 
-自动化测试产出的截图及 UI tree 中可能携带 server URL、用户名、session 详情或其他敏感隐私信息。因此 Tier 4 生成的所有 artifact 必须强制输出至 gitignored 目录；在对外共享或提交之前，须严格核验确保未夹带 token、密码或真实私有数据。
+The screenshots and UI trees produced by automated tests may carry server URLs, usernames, session details, or other sensitive private information. Therefore all artifacts generated by Tier 4 must be forcibly output to a gitignored directory; before sharing them externally or committing them, they must be strictly verified to ensure that no token, password, or real private data is smuggled along.
 
-测试命令的执行规则须严格遵循项目 `AGENTS.md` 规范：`xcodebuild build` 与 `xcodebuild test` 必须按序串行执行，严禁并发运行，以避免因共享 DerivedData / build database 出现 `build.db: database is locked`。
+The execution rules for test commands must strictly follow the project `AGENTS.md` spec: `xcodebuild build` and `xcodebuild test` must be executed serially in order, and concurrent runs are strictly forbidden, to avoid `build.db: database is locked` caused by a shared DerivedData / build database.
 
-## 推荐验证命令
+## Recommended Verification Commands
 
-日常进行业务代码或测试用例修改后，应至少按序执行如下构建与测试命令：
+After modifying business code or test cases in daily work, the following build and test commands should at least be executed in order:
 
 ```bash
 xcodebuild build \
@@ -263,9 +263,9 @@ xcodebuild test \
   -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.4'
 ```
 
-若要运行 Tier 3，还需额外准备本地测试 server、认证凭据以及 agent/model 配置；若要运行 Tier 4，则需确保目标 simulator 已处于 booted 状态、app 已预装，并就绪 iOS `ui_driver` 及其配套 skill/prompt。
+To run Tier 3, you additionally need a local test server, authentication credentials, and agent/model configuration; to run Tier 4, you need to ensure that the target simulator is already booted, that the app is preinstalled, and that the iOS `ui_driver` and its accompanying skill/prompt are ready.
 
-执行 `ui_driver` 自带的单元测试：
+Run the unit tests that ship with `ui_driver`:
 
 ```bash
 cd ui_driver

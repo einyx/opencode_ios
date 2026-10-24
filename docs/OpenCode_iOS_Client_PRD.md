@@ -2,133 +2,133 @@
 
 > Version 0.4 · Working Draft · Jul 2026
 
-## 1. 产品定位
+## 1. Product Positioning
 
-OpenCode iOS Client 是面向 OpenCode 服务端的原生 iOS 远程控制应用。它并非独立的 AI 编程工具，而是运行在 Mac/Server 上的 OpenCode 实例在**移动端的延伸**——方便用户在沙发上、通勤途中等远离电脑的场景下，发送指令、监控 AI 工作进度、浏览代码变更以及切换模型。
+OpenCode iOS Client is a native iOS remote-control app for the OpenCode server. It is not a standalone AI programming tool; rather, it is the **mobile extension** of an OpenCode instance running on a Mac/Server — letting users send instructions, monitor AI work progress, browse code changes, and switch models from situations far from their computer, such as the sofa or a commute.
 
-核心设计原则：**轻量、快速、以阅读和交互为主**。所有繁重的配置（如 Provider 密钥、MCP 服务、workspace 设置）均在电脑端完成，iOS 端仅负责必要的交互与内容消费。
+Core design principle: **lightweight, fast, focused on reading and interaction**. All heavy configuration (such as Provider keys, MCP services, workspace settings) happens on the computer side; the iOS side only handles the necessary interaction and content consumption.
 
-比起技术架构，该 App 更核心的目标是解决人机交互闭环：**如何让 AI 将关键决策充分呈现给人类审查，并在必要时支持通过语音快速介入纠偏**——我们将这种模式定义为 **Steer（统领）**。在该模式下，AI 负责执行与探索，人类负责判断与方向把控。App 的价值不仅在于“看一眼 AI 在做什么”的状态监控，更在于充当轻量的**决策审查与方向控制终端**——用户每次打开 App，主要是阅读 Markdown 报告、查看内嵌的截图与产物，并通过语音下达新的方向性指令。它的本质是统领工具，而非单纯的内容浏览工具。
+Beyond the technical architecture, the App's more fundamental goal is to close the human–machine interaction loop: **how to make the AI present its key decisions for human review, and, when necessary, support quick voice-driven intervention to correct course** — we call this model **Steer (command)**. In this model, the AI is responsible for execution and exploration, while the human is responsible for judgement and direction control. The App's value lies not only in status monitoring ("taking a look at what the AI is doing"), but in acting as a lightweight **decision-review and direction-control terminal** — each time the user opens the App, they mostly read Markdown reports, inspect embedded screenshots and artifacts, and issue new directional instructions by voice. It is fundamentally a steering tool, not a mere content-browsing tool.
 
-围绕 Steer 范式，App 将核心聚焦在三个交互载体上：**Markdown 对话窗口**（AI 向人类汇报进展与展示产物的主要途径）、**文件卡片预览**（用于快速查看 AI 的修改内容，以文档而非代码为主）以及**语音输入**（方便用户在脱离键盘时高效下达方向性指令）。代码语法高亮并非核心优先级——因为用户审查的重点在于 AI 做出决策的依据与结果，而非代码本身的排版美感。
+Around the Steer paradigm, the App focuses on three interaction surfaces: the **Markdown conversation window** (the primary channel through which the AI reports progress and shows artifacts to the human), the **file card preview** (for quickly reviewing the AI's modifications, mostly documents rather than code), and **voice input** (so the user can efficiently issue directional instructions when away from a keyboard). Code syntax highlighting is not a core priority — the user's review focus is the basis and the results of the AI's decisions, not the typographic beauty of the code itself.
 
-### 1.1 它不是什么
+### 1.1 What It Is Not
 
-该 App 明确不做以下事情：在手机端编辑代码、在手机端运行 OpenCode server，或替代完整的 Web UI。它的核心场景在于：在 AI 执行任务的任意时刻，用户随时拿出手机阅读刚生成的 Markdown 分析报告或代码改动；一旦发现方向有偏差，即可立即通过语音指令调整路线。
+This App explicitly does not do the following: edit code on the phone, run an OpenCode server on the phone, or replace the full Web UI. Its core scenario is this: at any moment while the AI is executing a task, the user can pull out the phone and read the freshly generated Markdown analysis report or code changes; as soon as they notice the direction has drifted, they can immediately correct course with a voice instruction.
 
-### 1.2 核心交互范式
+### 1.2 Core Interaction Paradigm
 
-#### Steer 范式
+#### Steer Paradigm
 
-App 围绕“统领”的认知闭环设计交互流程：
+The App designs its interaction flow around the cognitive loop of "command":
 
-1. **Surface**——AI 通过 Markdown 窗口向人类呈现其决策过程、参考代码、执行命令、分析思路与最终结论。内容采用自然语言 Markdown 表达，并支持嵌入部署结果截图、图表、UI diff 等可视化产物，而非单纯堆砌代码。这是 AI 与人类之间最主要的信息通道。
-2. **Review**——人类通过阅读 Markdown 来评估结论合理性与整体方向。大部分产出为文档、分析或调研内容，天然适合 Markdown 呈现；必要时也可查看代码 diff 确认细节。人类在这一环节的核心职责是决策判断，而非编写代码。
-3. **Steer**——若发现执行方向偏离预期，用户可通过语音快速下达纠偏指令（例如“停，不要用继承，换成组合模式”），或切换模型/Agent 重新开始。指令采用自然语言输入，无需繁琐打字。
+1. **Surface** — The AI presents its decision process, reference code, executed commands, analysis reasoning, and final conclusions to the human through the Markdown window. Content is expressed in natural-language Markdown and supports embedding visual artifacts such as deployment-result screenshots, charts, and UI diffs, rather than merely piling up code. This is the primary information channel between the AI and the human.
+2. **Review** — The human evaluates the soundness of the conclusions and the overall direction by reading Markdown. Most output consists of documents, analyses, or research content, which is naturally suited to Markdown; when necessary, code diffs can be inspected to confirm details. The human's core responsibility in this step is decision-making, not writing code.
+3. **Steer** — If the execution direction deviates from expectations, the user can quickly issue a corrective instruction by voice (for example, "Stop, don't use inheritance — switch to composition instead"), or switch the model/Agent and start over. Instructions are entered in natural language, with no tedious typing.
 
-整个闭环在两端均为异步运行：AI 在电脑端执行，人类在手机端审查，两端无需保持实时同步——这也是移动端相比桌面端的独特优势。但也因此带来了一个实际痛点：当 AI 暂停等待人类决策时（例如触发 `question` tool），用户在离开 App 时无法收到通知，容易造成双方等待。该问题的根本解法不在 UX 交互层，而在 iOS 系统工程层面——需要引入 push notification 或 Live Activity 实现主动提醒。
+The whole loop runs asynchronously on both ends: the AI executes on the computer, the human reviews on the phone, and the two sides need not stay in real-time sync — a unique advantage of mobile over desktop. But this also creates a practical pain point: when the AI pauses and waits for a human decision (for example, when it triggers the `question` tool), the user receives no notification while away from the App, easily leaving both sides waiting. The root fix is not in the UX interaction layer but at the iOS system-engineering level — push notification or Live Activity must be introduced to provide proactive reminders.
 
-#### Markdown 作为交互窗口
+#### Markdown as the Interaction Window
 
-Markdown 是该 App 中 AI 与人类交互的**核心信息媒介**。该 App 并非“顺便支持 Markdown”的代码编辑器，而是将 Markdown 阅读与审查体验做到极致的统领终端。具体设计体现为：
+Markdown is the **core information medium** through which the AI and the human interact in this App. The App is not a code editor that "happens to support Markdown"; it is a steering terminal that takes the Markdown reading and review experience to the extreme. The concrete design shows up as follows:
 
-- **不强调代码语法高亮**，优先保证 Markdown 渲染质量（如清晰的标题层级、列表、链接、代码块以及图片嵌入）。用户的核心诉求是审查 AI 的思考逻辑与交付产物，而非代码的外观样式。
-- **完善的图片嵌入支持**：AI 可将部署结果截图、生成图表、UI 对比图直接嵌入 Markdown 报告中。App 配套了专门的 Skill 体系引导 AI 运用这些能力，并确保相对路径图片在 Files 预览与 Chat 渲染中表现一致。
-- **内容形态不局限于编程**：AI 的产出既包含代码 diff，也涵盖调研文章、分析报告与系统设计文档。Markdown 天然能良好承载各类内容形态。
+- **Code syntax highlighting is not emphasized**; Markdown rendering quality comes first (clear heading hierarchy, lists, links, code blocks, and embedded images). The user's core need is to review the AI's reasoning logic and delivered artifacts, not the appearance of the code.
+- **Complete image embedding support**: the AI can embed deployment-result screenshots, generated charts, and UI comparison images directly into Markdown reports. The App ships with a dedicated Skill system that guides the AI in using these capabilities, and ensures that relative-path images behave consistently in Files preview and Chat rendering.
+- **Content forms are not limited to programming**: the AI's output includes both code diffs and research articles, analysis reports, and system design documents. Markdown naturally carries all kinds of content well.
 
-#### 文件卡片预览（非代码编辑器）
+#### File Card Preview (Not a Code Editor)
 
-文件浏览的核心定位在于**快速确认 AI 的改动**，而非“在手机上写代码”。在绝大多数场景下，用户直接通过 Chat 窗口中的 tool/patch 卡片跳转查看文件预览——Files Tab 属于兜底入口，并非主要工作流。例如在 Chat 中看到 `edit_file` 卡片时，点击卡片上的文件路径即可直接调起预览，无需切到 Files Tab 逐层翻找目录树。
+The core positioning of file browsing is to **quickly confirm the AI's changes**, not "to write code on the phone". In the vast majority of cases the user jumps straight to the file preview through the tool/patch cards in the Chat window — the Files Tab is a fallback entry point, not the main workflow. For example, when the user sees an `edit_file` card in Chat, tapping the file path on the card opens the preview directly, with no need to switch to the Files Tab and dig through the directory tree layer by layer.
 
-文档 diff 的审查权重远高于代码 diff：目前 AI 已具备较好的编码能力，人类审查的重点主要在于文档维度的逻辑与架构决策。
+Document diffs carry far more review weight than code diffs: the AI already has good coding ability, so the human's review focus is mainly on document-level logic and architectural decisions.
 
-该 App 明确不做以下事情：在手机端编辑代码、在手机端运行 OpenCode server，或替代完整的 Web UI。它的价值在于“随时拿出手机查看 AI 当前进展，必要时快速介入调整方向”这一核心场景。
+This App explicitly does not do the following: edit code on the phone, run an OpenCode server on the phone, or replace the full Web UI. Its value lies in the core scenario of "pulling out the phone at any time to check the AI's current progress and, when necessary, quickly intervening to adjust direction".
 
-## 2. 目标用户与使用场景
+## 2. Target Users and Use Cases
 
-目标用户为日常使用 OpenCode 的开发者（初期以作者本人为主）。需要明确的关键认知是：重度用户打开 App 并非为了“扫一眼状态”——每次打开都是深度交互：阅读 Markdown 报告、通过语音与 AI 对话、在各 Session 间频繁切换以追踪不同任务。App 的核心价值在于让用户在远离电脑时，依然保持对 AI 工作全流程的判断力与控制力，而非单纯充当 status checker。
+The target users are developers who use OpenCode daily (initially mainly the author). The key insight to make explicit is that heavy users do not open the App to "glance at the status" — every opening is a deep interaction: reading Markdown reports, talking to the AI by voice, and frequently switching between Sessions to track different tasks. The App's core value is letting the user keep judgement and control over the AI's entire workflow while away from the computer, rather than acting as a mere status checker.
 
-**场景 A — 远程监控与审阅**：在电脑端发起了一项耗时较长的重构任务后离开工位。拿出手机时，用户不仅能查看 AI 处理了多少文件，更能直接阅读 AI 最新生成的 Markdown 分析报告——报告中会阐述各项修改的原因并附带架构图截图。用户的核心操作包括：深入阅读报告、点开文件卡片核对具体改动、确认整体方向无误。
+**Scenario A — Remote Monitoring and Review**: after kicking off a long-running refactor task on the computer, the user leaves their desk. When they pick up the phone, they can not only check how many files the AI has processed, but directly read the latest Markdown analysis report the AI produced — the report explains the reason behind each change and includes architecture diagram screenshots. The user's core actions are: read the report in depth, tap file cards to verify specific changes, and confirm the overall direction is correct.
 
-**场景 B — 快速纠偏（语音驱动）**：在手机上发现 AI 的实现思路偏离了预期，正在采用错误方案编写功能。此时可通过语音输入迅速下达指令：“停，不要用继承，改用组合模式”，随后收起手机。语音输入在该场景下的关键价值在于规避手机端打字的不便，将方向调控的交互摩擦降至最低。
+**Scenario B — Fast Correction (Voice-Driven)**: on the phone, the user discovers the AI's implementation approach has deviated from expectations and it is building the feature with the wrong approach. They can then quickly issue an instruction via voice: "Stop, don't use inheritance — use composition instead", and put the phone away. The key value of voice input in this scenario is avoiding the inconvenience of typing on a phone and reducing the interaction friction of steering to a minimum.
 
-**场景 C — 模型 A/B 测试**：需要对比不同模型（如 GPT-5.3 Codex / DeepSeek / Opus / GLM）在同一任务下的表现。用户可在手机端一键切换至另一模型，发送相同指令以观察差异。该场景通常还会配合 Fork Session 使用——从同一对话节点分叉出不同模型的尝试分支。
+**Scenario C — Model A/B Testing**: the user needs to compare how different models (such as GPT-5.3 Codex / DeepSeek / Opus / GLM) perform on the same task. On the phone they can switch to another model with one tap and send the same instruction to observe the differences. This scenario is usually paired with Fork Session — branching attempt branches of different models from the same conversation node.
 
-**场景 D — 文档审查**：AI 完成一轮修改后，用户在手机端浏览 Markdown 文档的 diff，以 Preview 模式为主查看变更内容，确认文档改动合理后再让 AI 执行下一步。代码审查则作为辅助——目前 AI 已具备编写高质量代码的能力，人类审查的重心主要在文档层面的逻辑与架构决策。产出内容也不限于编程，可能涵盖调研报告、系统设计文档、部署结果展示等，这些内容天然以 Markdown 形式呈现。
+**Scenario D — Document Review**: after the AI finishes a round of modifications, the user browses the diff of the Markdown document on the phone, primarily using Preview mode to review the changes, and only lets the AI proceed to the next step once the document edits look reasonable. Code review is secondary — the AI already writes high-quality code, so the human's review center of gravity lies in document-level logic and architectural decisions. Output is not limited to programming either; it may cover research reports, system design documents, deployment-result showcases, and other content that naturally takes the form of Markdown.
 
-### 2.0 重度用户的时间分布
+### 2.0 Time Distribution of Heavy Users
 
-深入理解重度用户的时间分配，对把握产品演进方向至关重要：
+Understanding how heavy users allocate their time is essential for steering the product's evolution:
 
-- **约 60% 的时间用于阅读 Markdown**——包括 AI 输出的分析报告、调研文章、设计文档以及带有嵌入截图的部署结果，对应“审”的环节。
-- **约 25% 的时间用于与 AI 对话**——通过语音下达新指令、纠正执行方向或追问细节，对应“领”的环节。
-- **约 10% 的时间用于在 Session 间切换**——追踪不同项目、不同方向的进展，判断哪些任务需要介入，对应“多线统领”。
-- **约 5% 的时间用于 Files Tab**——该入口本质上是兜底通道，绝大多数文件访问均由 Chat 窗口中的 tool/patch 卡片直接跳转完成。
+- **Roughly 60% of the time is spent reading Markdown** — including the AI's analysis reports, research articles, design documents, and deployment results with embedded screenshots; this corresponds to the "review" step.
+- **Roughly 25% of the time is spent talking to the AI** — issuing new instructions by voice, correcting the execution direction, or asking follow-up questions; this corresponds to the "command" step.
+- **Roughly 10% of the time is spent switching between Sessions** — tracking progress across different projects and directions and deciding which tasks need intervention; this corresponds to "commanding multiple lines at once".
+- **Roughly 5% of the time is spent in the Files Tab** — this entry is essentially a fallback channel; the vast majority of file access happens by jumping straight from tool/patch cards in the Chat window.
 
-基于上述时间分布，产品体验优化的优先级定义为：Markdown 渲染质量 > 语音输入流畅度 > Session 辨识度 > 文件树功能。
+Based on the time distribution above, the priority order for product-experience optimization is defined as: Markdown rendering quality > voice input fluency > Session distinguishability > file tree features.
 
-### 2.1 分发方式
+### 2.1 Distribution
 
-为降低用户的试用门槛，产品同时提供两种分发路径：
+To lower the barrier to trying the product, two distribution paths are offered at the same time:
 
-- **TestFlight**：面向绝大多数用户，安装即可使用，无需 Apple Developer account
-- **源码构建**：面向需要本地修改代码、调试或自定义签名的开发者
+- **TestFlight**: for the vast majority of users; install and use, no Apple Developer account required
+- **Source build**: for developers who need to modify the code locally, debug it, or use custom signing
 
-README 负责提供最新的安装入口，PRD 仅保留产品维度的分发策略。
+The README provides the latest installation entry points; this PRD only keeps the product-level distribution strategy.
 
-## 3. 技术架构
+## 3. Technical Architecture
 
-### 3.1 整体架构
+### 3.1 Overall Architecture
 
 ```
-┌──────────────┐         HTTP REST + SSE         ┌──────────────────┐
-│              │ ◄──────────────────────────────► │                  │
-│  iOS Client  │    局域网 / Tailscale / etc.     │  OpenCode Server │
-│  (SwiftUI)   │                                  │  (Mac/Linux)     │
-│              │                                  │                  │
-└──────────────┘                                  └──────────────────┘
-     纯展示 + 指令发送                              文件系统 + AI 计算
+┌──────────────┐                                 ┌──────────────────┐
+│              │ ◄─────────────────────────────► │                  │
+│  iOS Client  │    LAN / Tailscale / etc.       │  OpenCode Server │
+│  (SwiftUI)   │                                 │  (Mac/Linux)     │
+│              │                                 │                  │
+└──────────────┘                                 └──────────────────┘
+     Presentation only + command sending              File system + AI compute
 ```
 
-iOS 端设计为纯粹的 API 消费者，不承担任何本地 AI 推理、文件系统访问或 shell 执行逻辑。所有数据均通过 OpenCode 的 HTTP API 获取，实时状态则通过 SSE（Server-Sent Events）推送。
+The iOS side is designed as a pure API consumer: it carries no local AI inference, file system access, or shell execution logic. All data is fetched through OpenCode's HTTP API, and real-time state is delivered via SSE (Server-Sent Events).
 
-### 3.2 技术选型
+### 3.2 Technology Choices
 
-| 层面 | 选择 | 理由 |
+| Layer | Choice | Rationale |
 |------|------|------|
-| UI 框架 | SwiftUI | 原生体验、流畅动画、充分利用 iOS 系统特性 |
-| 网络层 | URLSession + 原生 SSE | 无需引入第三方 HTTP 库，SSE 协议实现轻量直接 |
-| 状态管理 | Swift Observation (@Observable) | iOS 17+ 原生方案，与 SwiftUI 配合最为简洁 |
-| 代码高亮 | 暂不实现 | 当前仅保留等宽字体与行号 |
-| Markdown 渲染 | MarkdownUI + 自定义图片解析 | 满足文档预览、代码块展示，并支持 repo 内相对路径图片解析 |
-| Diff 渲染 | 自建组件 (基于服务端返回的 before/after) | 服务端已完成 diff 计算，客户端仅需渲染；文档 diff 需高亮 changes |
-| 最低版本 | iOS 17.0 | 全面采用 Observation 框架，不再兼容 iOS 16 |
-| 持久化 | UserDefaults + Keychain | 仅需存储连接配置与模型预设，无需引入本地数据库 |
+| UI framework | SwiftUI | Native experience, smooth animations, full use of iOS system capabilities |
+| Networking | URLSession + native SSE | No third-party HTTP library needed; the SSE protocol implementation is lightweight and direct |
+| State management | Swift Observation (@Observable) | Native iOS 17+ solution; the most concise fit with SwiftUI |
+| Code highlighting | Not implemented for now | For now only a monospaced font and line numbers are kept |
+| Markdown rendering | MarkdownUI + custom image resolution | Meets document preview and code block display needs, and supports resolving relative-path images inside the repo |
+| Diff rendering | Custom-built component (based on the server-returned before/after) | The server already computes the diff, so the client only renders it; document diffs need changes highlighted |
+| Minimum version | iOS 17.0 | Fully adopts the Observation framework; iOS 16 is no longer supported |
+| Persistence | UserDefaults + Keychain | Only connection configuration and model presets need to be stored; no local database required |
 
-### 3.3 与 OpenCode Server 的通信
+### 3.3 Communication with the OpenCode Server
 
-客户端与服务端的通信基于两条通道：
+Communication between the client and the server runs over two channels:
 
-**REST API** — 承载所有主动操作（如发送消息、获取文件列表、修改配置等）。请求的基础路径由用户在 Settings 中配置的 `http://<ip>:<port>` 决定。
+**REST API** — Carries all active operations (such as sending messages, fetching file lists, modifying configuration, etc.). The base path for requests is determined by the `http://<ip>:<port>` the user configures in Settings.
 
-**SSE (Server-Sent Events)** — 承载实时事件推送。客户端连接至 `GET /global/event` 端点接收全量事件，数据格式为 `{ directory, payload: { type, properties } }`。
+**SSE (Server-Sent Events)** — Carries real-time event pushes. The client connects to the `GET /global/event` endpoint to receive the full event stream, with the data format `{ directory, payload: { type, properties } }`.
 
-SSE 连接的生命周期管理是客户端的核心技术点之一：
-- App 进入前台时建立或恢复 SSE 连接
-- App 进入后台时断开 SSE 连接（避免在 iOS 后台维持长连接）
-- 从后台切回前台时，先通过 REST API 拉取最新状态完成全量同步，随后重新建立 SSE 连接
+Lifecycle management of the SSE connection is one of the client's core technical points:
+- Establish or restore the SSE connection when the App enters the foreground
+- Disconnect the SSE connection when the App enters the background (to avoid keeping a long connection alive in the iOS background)
+- When returning from background to foreground, first pull the latest state via the REST API to complete a full sync, then re-establish the SSE connection
 
-### 3.4 认证
+### 3.4 Authentication
 
-OpenCode Server 支持可选的 Basic Auth（由服务端环境变量 `OPENCODE_SERVER_PASSWORD` 控制）。iOS 端在 Settings 中提供用户名与密码配置项，并安全存储于 Keychain 中。客户端在发起的每个 REST 请求与 SSE 连接中均附带 Basic Auth header。
+The OpenCode Server supports optional Basic Auth (controlled by the server-side environment variable `OPENCODE_SERVER_PASSWORD`). The iOS side exposes username and password fields in Settings and stores them securely in the Keychain. The client attaches a Basic Auth header to every REST request it issues and to the SSE connection.
 
-## 4. 功能规格
+## 4. Feature Specifications
 
-### 4.1 布局结构
+### 4.1 Layout Structure
 
-#### 4.1.1 iPhone：Tab Bar
+#### 4.1.1 iPhone: Tab Bar
 
-iPhone 采用底部 Tab Bar，三个 Tab：
+The iPhone uses a bottom Tab Bar with three tabs:
 
 ```
 ┌─────────────────────────────────────┐
@@ -140,242 +140,242 @@ iPhone 采用底部 Tab Bar，三个 Tab：
 └───────────┴───────────┴─────────────┘
 ```
 
-#### 4.1.2 iPad / Vision Pro：Split View（无 Tab）
+#### 4.1.2 iPad / Vision Pro: Split View (No Tabs)
 
-在 iPad 和 Apple Vision Pro 上，**不显示 Tab Bar**，采用三栏布局（Workspace / Preview / Chat）：
+On iPad and Apple Vision Pro, the **Tab Bar is not shown**; a three-column layout is used (Workspace / Preview / Chat):
 
 ```
-┌──────────────────────────────────────────────────────────────────────────────────────────────┐
-│ [新建] [重命名] [Session 列表]        [GPT] [Spark] [Opus] [GLM] [◔] [⚙]                        │  ← 第一行：Session 操作 + 模型 + Context 使用量 + Settings
-├──────────────────────────────┬───────────────────────────────┬───────────────────────────────┤
+┌──────────────────────────────┬───────────────────────────────┬───────────────────────────────┐
+│ [New] [Rename] [Session List]        [GPT] [Spark] [Opus] [GLM] [◔] [⚙]                      │  ← Row 1: Session actions + models + Context usage + Settings
+├──────────────────────────────┼───────────────────────────────┼───────────────────────────────┤
 │                              │                               │                               │
-│     🧭 Workspace             │         📄 Preview             │           💬 Chat              │
-│     （Files + Sessions）      │         （文件预览）             │           （消息流 + 输入）      │
+│     🧭 Workspace             │         📄 Preview            │           💬 Chat             │
+│     (Files + Sessions)       │         (File preview)        │      (Message feed + input)   │
 │                              │                               │                               │
-│  文件树（上）                 │  文件内容 / Markdown 预览       │  消息流 + 输入框                │
-│  Sessions（下）              │  右上角刷新按钮                 │                               │
+│  File tree (top)             │File content / Markdown preview│  Message feed + input box     │
+│  Sessions (bottom)           │  Refresh button (top right)   │                               │
 │                              │                               │                               │
 └──────────────────────────────┴───────────────────────────────┴───────────────────────────────┘
 ```
 
-**设计要点**：
-- **左栏**：Workspace（包含文件树与 Sessions 列表）
-- **中栏**：Preview（展示文件内容与 Markdown 预览，支持手动刷新）
-- **右栏**：Chat（包含消息流与输入框，交互逻辑与 iPhone 保持一致）
-- **宽度比例**：Workspace ≈ 1/6；Preview ≈ 5/12；Chat ≈ 5/12（Preview 与 Chat 保持等宽）
-- **可拖动**：支持用户拖动分割线调整三栏宽度，默认采用上述初始比例
-- **Settings**：作为独立按钮置于第一行 toolbar（与 Session 操作、模型切换并列），点击后以 sheet 或 navigation push 形式展示
-- **优势**：在大屏设备上 Chat 与 Preview 并排呈现，查看文件预览无需弹出浮层；同时 Workspace 与 Sessions 常驻左侧，不干扰主要阅读流
+**Design points**:
+- **Left column**: Workspace (contains the file tree and the Sessions list)
+- **Middle column**: Preview (shows file content and Markdown preview, supports manual refresh)
+- **Right column**: Chat (contains the message stream and the input field; the interaction logic stays identical to iPhone)
+- **Width ratio**: Workspace ≈ 1/6; Preview ≈ 5/12; Chat ≈ 5/12 (Preview and Chat keep the same width)
+- **Draggable**: users can drag the dividers to adjust the three column widths, with the initial ratios above used by default
+- **Settings**: an independent button in the first toolbar row (alongside the Session actions and the model switch), presented as a sheet or a navigation push when tapped
+- **Advantage**: on large-screen devices Chat and Preview sit side by side, so viewing a file preview requires no overlay; meanwhile Workspace and Sessions stay docked on the left without disturbing the main reading flow
 
-### 4.2 Chat Tab（主交互界面）
+### 4.2 Chat Tab (Main Interaction Screen)
 
-作为 App 的核心交互界面，Chat Tab 顶部包含模型与 Agent 选择器，中间为消息流，底部为输入控制区（Composer）。
+As the App's core interaction screen, the Chat Tab has the model and Agent selectors at the top, the message stream in the middle, and the input controls (Composer) at the bottom.
 
-#### 4.2.1 模型与 Agent 选择器
+#### 4.2.1 Model and Agent Selectors
 
-位于 Chat 页面顶部的右侧 toolbar 区域。采用**下拉列表**（Menu + Picker）形式，取代原有的 chip 横向滚动条。
+Located in the right-hand toolbar area at the top of the Chat screen. It uses a **dropdown list** (Menu + Picker), replacing the original horizontally scrolling chip bar.
 
-**模型选择器**：下拉列表，包含以下固定选项：
+**Model selector**: a dropdown list containing the following fixed options:
 
-| 显示名称 | providerID | modelID |
+| Display Name | providerID | modelID |
 |----------|------------|---------|
 | GLM-5.1 | `zai-coding-plan` | `glm-5.1` |
 | GPT-5.4 | `openai` | `gpt-5.4` |
 | GPT-5.3 Codex | `openai` | `gpt-5.3-codex` |
 | DeepSeek | `deepseek` | `deepseek-v4-pro` |
 
-**Agent 选择器**：下拉列表，选项由 `GET /agent` API 动态获取，客户端过滤掉 `hidden != true` 的 agent 后进行展示。每个选项展示 agent 名称（如 `Sisyphus`），description 可作为 tooltip 或 subtitle 辅助展示。
+**Agent selector**: a dropdown list whose options are fetched dynamically from the `GET /agent` API; the client filters out agents with `hidden != true` before displaying them. Each option shows the agent name (such as `Sisyphus`), and the description can be shown as a tooltip or subtitle for extra context.
 
-**iPhone 显示策略**：在窄屏的 iPhone 上使用短名称（`DeepSeek` / `GPT` / `GLM`）以保证紧凑布局；iPad 等大屏设备上展示全称。
+**iPhone display strategy**: on narrow-screen iPhones short names (`DeepSeek` / `GPT` / `GLM`) are used to keep the layout compact; on larger devices such as iPad the full names are shown.
 
-**技术实现**：
-- 切换模型或 Agent 仅改变本地状态，无需向服务端发起 API 调用
-- 发送消息时在 `POST /session/:id/prompt_async` 的请求 body 中附带：
-  - `model: { providerID, modelID }` 字段
-  - `agent: string` 字段（对应 agent 名称）
-- 模型与 Agent 的选择状态按 Session 独立记忆，切换 Session 时自动还原对应配置
+**Technical implementation**:
+- Switching the model or Agent only changes local state; no API call to the server is needed
+- When sending a message, the request body of `POST /session/:id/prompt_async` includes:
+  - the `model: { providerID, modelID }` field
+  - the `agent: string` field (the agent name)
+- The selected model and Agent are remembered per Session; switching Sessions automatically restores the corresponding configuration
 
-#### 4.2.1.1 Context Usage（上下文占用）指示器
+#### 4.2.1.1 Context Usage Indicator
 
-在 Chat 顶部右侧（Agent 选择器与 Settings 齿轮图标之间）展示一个**环形进度条**，用于表示当前 session 最近一次生成时的上下文窗口占用比例。
+A **ring-shaped progress indicator** is shown at the top right of Chat (between the Agent selector and the Settings gear icon), representing how much of the context window was used during the most recent generation of the current session.
 
-- **数据来源**：由 `GET /session/:id/message` 返回的 assistant message 中 `info.tokens.total`（以及 input/output/reasoning/cache 细分指标），结合 `GET /config/providers` 中对应 `providerID/modelID` 的 `limit.context` 共同计算。
-- **Provider Config 加载**：`GET /config/providers` 的请求结果在本地缓存；若尚未加载或数据为空，点击环形进度时自动触发加载并显示 loading 状态；加载失败时在弹出的 sheet 中展示具体错误信息，而非仅提示 “Provider config not loaded”。
-- **无数据时**：展示灰色空环（不显示数值），点击仍可呼出详情 sheet，内容显示 "No usage data"。
-- **颜色策略**：占用率 < 70% 显示正常色；70-90% 显示警告色；> 90% 显示危险色（防止用户在 iOS 端盲目发送导致 token 超限截断）。
-- **点击交互**：点击环形进度条弹出详情 sheet（iPhone 与 iPad 均支持），展示以下详细信息：
-  - Session（title/id，支持复制）
+- **Data source**: computed from `info.tokens.total` in the assistant message returned by `GET /session/:id/message` (together with the input/output/reasoning/cache breakdowns), combined with `limit.context` for the matching `providerID/modelID` from `GET /config/providers`.
+- **Provider Config loading**: the result of `GET /config/providers` is cached locally; if it has not been loaded yet or the data is empty, tapping the ring triggers the load automatically and shows a loading state; on failure the sheet presents the specific error message instead of merely stating "Provider config not loaded".
+- **When there is no data**: a grey empty ring is shown (with no numeric value); tapping it still opens the detail sheet, whose content reads "No usage data".
+- **Color strategy**: usage below 70% shows the normal color; 70-90% shows the warning color; above 90% shows the danger color (to prevent users from blindly sending on iOS and blowing past the token limit, which truncates the output).
+- **Tap interaction**: tapping the ring opens a detail sheet (supported on both iPhone and iPad) showing the following details:
+  - Session (title/id, copyable)
   - provider/model
   - context limit
   - total tokens + usage %
   - input/output/reasoning/cache read/cache write
-  - total cost（若服务端返回了 message cost 则展示；若缺失则隐藏）
+  - total cost (shown if the server returned a message cost; hidden if missing)
 
-注：初期不展示 raw messages；关于 context breakdown（即 system/user/assistant/tool 各自占比），待服务端明确暴露对应字段或具备稳定推导方案后再行支持。
+Note: raw messages are not shown in the first version; as for the context breakdown (that is, the respective share of system/user/assistant/tool), support will be added once the server explicitly exposes the corresponding fields or a stable derivation method exists.
 
-- **AI 响应期间可见性**：无论当前处于何种状态（idle / busy / streaming），context ring 均保持常驻显示，不被 spinner 或其他临时控件替换。busy 状态统一由输入栏右侧的红色停止按钮表达，toolbar 不再额外注入 `ProgressView`。
+- **Visibility during AI responses**: whatever the current state (idle / busy / streaming), the context ring stays permanently visible and is never replaced by a spinner or another transient control. The busy state is uniformly expressed by the red stop button on the right of the input bar; the toolbar no longer injects an extra `ProgressView`.
 
-#### 4.2.2 消息流
+#### 4.2.2 Message Stream
 
-采用垂直滚动的消息列表，样式设计参考 OpenCode Web 客户端：**不采用左右对话气泡**，所有消息统一呈流式排布，人类消息用灰色背景与 AI 消息区分，保持整体紧凑的阅读节奏。
+A vertically scrolling message list whose styling references the OpenCode Web client: **no left/right chat bubbles**; all messages are laid out uniformly as a stream, with human messages distinguished from AI messages by a grey background, keeping a compact overall reading rhythm.
 
-每条消息包含：
+Each message contains:
 
-**用户消息**：灰色背景卡片，展示文本内容，并在底部以小字注明所选用的模型。
+**User message**: a grey-background card that shows the text content, with the selected model noted in small text at the bottom.
 
-**AI 消息**：白色或透明背景，支持按 Part 类型分别渲染：
-- `text` — 完整的 Markdown 渲染（支持代码块、链接、列表等格式）
-- `reasoning` — 折叠面板，标题显示 "Thinking..."，点击即可展开查看详细思考与推理过程
-- `tool` — 工具调用卡片，展示工具名称与当前执行状态（pending → running → completed/error）。在 **running 状态下默认展开**并显示加载指示（spinner）；在 **completed 状态下默认收起**，用户可点击展开查看元数据详情（如文件路径、命令输出等）
-- `tool`（todowrite）— 渲染为 Task List（todo）卡片：展示条目清单与完成进度（completed/total）；todo 的完整数据可从 tool 输入/metadata 获取，并通过 SSE `todo.updated` 事件实时更新。**仅在各 tool 卡片内部就地展示，不在 Chat 顶部常驻（方案 B）**
-- `step-start` / `step-finish` — 渲染为步骤分割线，展示 token 用量与调用成本
-- `patch` — 文件变更摘要卡片，列出修改的文件列表，点击可直接跳转至 Files Tab 的文件树并打开对应文件预览
-- `tool`（write/edit/apply_patch/read_file 等）— 若当前 part 包含文件路径（如 metadata.path、state.input.path、files 数组或 patchText 解析出的路径），点击卡片可弹出「在 File Tree 中打开」操作项，直接调起文件预览；若目标为图像文件且 tool output 支持解码，则直接内联显示缩略图并支持点击放大
+**AI message**: a white or transparent background, supporting rendering per Part type:
+- `text` — full Markdown rendering (supports code blocks, links, lists, and other formats)
+- `reasoning` — a collapsible panel titled "Thinking...", which expands on tap to reveal the detailed thinking and reasoning process
+- `tool` — a tool call card showing the tool name and its current execution state (pending → running → completed/error). In the **running state it is expanded by default** and shows a loading indicator (spinner); in the **completed state it is collapsed by default**, and the user can tap to expand and see the metadata details (such as file paths and command output)
+- `tool` (todowrite) — rendered as a Task List (todo) card: it shows the item list and the completion progress (completed/total); the full todo data can be obtained from the tool input/metadata and is updated in real time by the SSE `todo.updated` event. **It is displayed inline only inside each tool card, and is not permanently shown at the top of Chat (option B)**
+- `step-start` / `step-finish` — rendered as step dividers showing the token usage and the invocation cost
+- `patch` — a file change summary card listing the modified files; tapping it jumps directly to the file tree of the Files Tab and opens the corresponding file preview
+- `tool` (write/edit/apply_patch/read_file, etc.) — if the current part contains a file path (such as metadata.path, state.input.path, a files array, or a path parsed out of patchText), tapping the card offers an "Open in File Tree" action that brings up the file preview directly; if the target is an image file and the tool output supports decoding, a thumbnail is shown inline and can be tapped to zoom
 
-**大屏布局（iPad / Vision Pro）补充**：为充分利用横向屏幕空间，`tool` / `patch` / permission 卡片支持采用**三列网格**横向排列（空间不足时自动换行）；但 `text`（最终回复）仍保持整行通栏展示，以确保长文本的阅读连贯性。
+**Large-screen layout supplement (iPad / Vision Pro)**: to make full use of the horizontal screen space, `tool` / `patch` / permission cards support a **three-column grid** laid out horizontally (wrapping automatically when space runs out); `text` (the final reply), however, still spans the full row width, to preserve reading continuity for long text.
 
-**流式更新（Think Streaming）**：行为逻辑与官方 Web 客户端保持一致。当 SSE 推送 `message.part.updated` 且包含 `delta` 字段时，客户端对对应的 text 或 reasoning Part 执行增量追加，呈现打字机效果；若事件中不含 delta，则执行全量 reload。定位具体 Part 时使用 `messageID` + `partID` 复合标识。**注**：目前服务端 API 尚不支持 Tool output 的实时行级流式传输（如逐行输出终端内容），output 数据仅在 completed 状态时一次性返回。
+**Streaming updates (Think Streaming)**: the behavior is kept consistent with the official Web client. When SSE pushes `message.part.updated` containing a `delta` field, the client incrementally appends to the corresponding text or reasoning Part, producing a typewriter effect; if the event contains no delta, a full reload is performed. A specific Part is located with the composite identifier `messageID` + `partID`. **Note**: the server API does not yet support real-time line-level streaming of Tool output (such as printing terminal content line by line); the output data is only returned in one shot when the state becomes completed.
 
-**自动滚动规则**：仅当用户当前视图停留在消息流底部附近时，新到达的 streaming 文本、tool 卡片、permission card、question card 或 activity row 才会驱动视图继续自动下滚；若用户已向上滑动翻阅历史记录，则自动暂停滚动跟随，防止打断阅读。
+**Auto-scroll rules**: only when the user's current view is near the bottom of the message stream do newly arriving streaming text, tool cards, permission cards, question cards, or activity rows drive the view to keep scrolling down; if the user has already scrolled up to browse history, scroll-following pauses automatically so that reading is not interrupted.
 
-**历史消息分页加载**：为缩短弱网环境（如 SSH tunnel 或广域网连接）下的首屏加载耗时，默认仅拉取最近 **3 轮对话**（共 6 条 message：user 与 assistant 各 3 条）。聊天视图顶部提供“下拉加载更多历史消息”交互，用户每次下拉将向上追加拉取 3 轮历史记录。
+**Paginated loading of history**: to shorten the first-screen load time on weak networks (such as an SSH tunnel or a WAN connection), only the most recent **3 conversation turns** are fetched by default (6 messages in total: 3 user and 3 assistant). The top of the chat view offers a "pull down to load more history" interaction, and each pull appends 3 more turns of history.
 
-**Activity Row 一致性规则**：实际运行态的判定优先级高于 `session.status=idle` 可能出现的瞬时抖动。只要客户端仍存在处于 running 或 pending 状态的 tool，或正在接收 streaming 增量，Activity Row 必须维持 running 状态；仅在确认本轮 assistant 全部完成后，才切换至 completed。
+**Activity Row consistency rule**: the actual runtime state takes priority over the transient flicker that `session.status=idle` may produce. As long as the client still holds a tool in the running or pending state, or is receiving streaming deltas, the Activity Row must stay in the running state; only after it is confirmed that the whole assistant turn has completed does it switch to completed.
 
-**Session 状态指示器**：消息流顶部实时展示当前 session 的运行状态（idle / busy / error），状态数据来源于 `session.status` SSE 事件。处于 busy 状态时展示进度动画。
+**Session status indicator**: the top of the message stream shows the runtime state of the current session (idle / busy / error) in real time, with the data coming from the `session.status` SSE event. A progress animation is shown while busy.
 
-#### 4.2.3 权限通知
+#### 4.2.3 Permission Notifications
 
-在 OpenCode 的正常执行流程中极少主动申请权限，一旦触发 `permission.asked` 事件，通常说明存在异常情况。因此客户端采用**手动批准**模式：
+In OpenCode's normal execution flow, permission requests are rarely raised proactively; once a `permission.asked` event fires, it usually indicates something abnormal. The client therefore adopts a **manual approval** mode:
 
-- 实时监听 SSE 的 `permission.asked` 事件
-- 在消息流中就地插入权限请求卡片，明确展示待批准的操作内容（如“执行 `rm -rf node_modules`”）
-- 用户需手动点击「批准」或「拒绝」，客户端调用 `POST /session/:id/permissions/:permissionID` 提交决策
-- 客户端不提供任何形式的自动批准选项
+- Listen for the SSE `permission.asked` event in real time
+- Insert a permission request card inline in the message stream, clearly showing the operation awaiting approval (such as "execute `rm -rf node_modules`")
+- The user must manually tap "Approve" or "Deny"; the client submits the decision by calling `POST /session/:id/permissions/:permissionID`
+- The client offers no form of auto-approval
 
-#### 4.2.3.1 Question 卡片
+#### 4.2.3.1 Question Card
 
-当服务端通过 `question` tool 主动向用户发起提问时，Chat 消息流中直接插入 question card，避免 session 陷入无响应等待。
+When the server proactively asks the user a question through the `question` tool, a question card is inserted directly into the Chat message stream, so the session does not fall into an unresponsive wait.
 
-- 监听 SSE 事件：`question.asked`、`question.replied`、`question.rejected`
-- 初始化与重连时，通过 `GET /question` 拉取当前 session 的 pending questions
-- 支持用户选择单选/多选预设选项，或在输入框中输入自定义文本
-- 提交回答调用 `POST /question/{requestID}/reply`
-- 拒绝提问调用 `POST /question/{requestID}/reject`
+- Listen for the SSE events: `question.asked`, `question.replied`, `question.rejected`
+- On initialization and on reconnect, pull the pending questions of the current session through `GET /question`
+- Support selecting single-choice or multi-choice preset options, or typing custom text in the input field
+- Submitting an answer calls `POST /question/{requestID}/reply`
+- Rejecting a question calls `POST /question/{requestID}/reject`
 
-#### 4.2.4 Composer：voice rail + text review field
+#### 4.2.4 Composer: voice rail + text review field
 
-底部固定 composer 采用上下两行结构：上方为 voice rail，下方为 text review field。Session 相关操作（新建、重命名、列表、Compact）统一置于 Chat 顶部 toolbar，不侵入 composer 区域。
+The fixed composer at the bottom uses a two-row structure: the voice rail on top and the text review field below. Session-related actions (new, rename, list, Compact) are all placed in the top Chat toolbar and never intrude into the composer area.
 
-该结构直接服务于 Steer 产品定位：用户在移动端的核心习惯并非冗长的键盘打字，而是在阅读 AI 输出后，通过语音快速追加方向性指示。语音是主要输入模态，文本框则承担转写结果审阅、轻量微调以及打字兜底职责。因此 composer 没有将麦克风作为文本框内的次级按钮，而是将 voice rail 提升至第一行作为首要交互面板。
+This structure directly serves the Steer positioning: the user's core habit on mobile is not lengthy keyboard typing, but adding a quick directional instruction by voice after reading the AI's output. Voice is the primary input modality, while the text field carries the review of the transcription result, light touch-ups, and typing as a fallback. The composer therefore does not treat the microphone as a secondary button inside the text field; it promotes the voice rail to the first row as the primary interaction panel.
 
-**草稿持久化（Draft Persistence）**：未发送的输入内容按 sessionID 在本地持久化保存；切换至其他 session 后再返回，草稿内容完整恢复；消息成功发送后清空本地草稿。
+**Draft persistence**: unsent input is persisted locally per sessionID; after switching to another session and returning, the draft is fully restored; once the message is sent successfully the local draft is cleared.
 
-**Voice rail（Speech Recognition）**：voice rail 位于文本框上方，由左侧 transport 控制按钮、中央 waveform/status 显示区以及右侧轻量恢复操作区组成。点击 transport 开始录音时，系统创建 VoiceFlowKit realtime session，并通过 `AVAudioEngine` 采集 PCM16 mono 24kHz 音频流。录音过程中，中央 waveform 直接消费 `VoiceFlowMicrophone.audioLevel` 提供的 0..1 范围平滑麦克风音量（smoothed mic level），为用户提供直观的声音采集反馈。再次点击 transport 属于正常结束音频采集并进入转写阶段，与中止 agent 运行（agent abort）概念相互独立。
+**Voice rail (speech recognition)**: the voice rail sits above the text field and is made up of the transport control button on the left, the central waveform/status display area, and a lightweight recovery action area on the right. Tapping the transport control to start recording makes the system create a VoiceFlowKit realtime session and collect a PCM16 mono 24kHz audio stream through `AVAudioEngine`. While recording, the central waveform directly consumes the smoothed microphone level in the 0..1 range provided by `VoiceFlowMicrophone.audioLevel`, giving the user intuitive feedback on sound capture. Tapping the transport control again is a normal end of audio capture that enters the transcription phase, and is conceptually independent from aborting an agent run (agent abort).
 
-VoiceFlowKit 在向远端发送 live PCM 数据的同时，将相同的 PCM 音频流同步追加写入本地临时 `.pcm` 文件；若 heartbeat 检测或 live send 发现 WebSocket 连接中断，Kit 不会终止当前录音，而是自动重建 session 并从本地缓存重放完整的 PCM 数据，追齐当前录音进度后恢复实时传输。用户停止录音时，系统等待重传恢复完成后发送 `commit` / `stop` 指令，随后将最终识别出的 transcript 追加至下方的 text review field。
+While VoiceFlowKit sends live PCM data to the remote end, it also appends the same PCM audio stream synchronously to a local temporary `.pcm` file; if the heartbeat check or the live send detects a broken WebSocket connection, the Kit does not terminate the current recording but automatically rebuilds the session and replays the complete PCM data from the local cache, catching up with the current recording progress before resuming the real-time transmission. When the user stops recording, the system waits for the retransmission recovery to complete and then sends the `commit` / `stop` commands, after which the finally recognized transcript is appended to the text review field below.
 
-若转写过程出现等待超时或卡顿，voice rail 将展示 processing waveform 并提供明确的恢复入口（如 `Stop transcription wait`）。该操作调用 `abortPreservingAudio()` 终止当前的 WebSocket 与 finalize 等待流程，同时完整保留已录制的 PCM 音频；随后 rail 进入 preserved-audio 状态，左侧 transport 按钮转换为 `Retry this segment` 图标，调用 `transcribe(preservedAudio:)` 重新对该段音频发起识别；右侧动作转换为 `Discard audio`，用于放弃当前保留音频并重置回正常输入状态。这里的 retry 是对已保存音频文件的重新转写，不属于追加录音，也无需用户重新口述。若重试仍告失败，系统依然保留该段音频，用户可选择继续 retry 或点击 discard 退出恢复流程。
+If the transcription process hits a wait timeout or stalls, the voice rail shows a processing waveform and offers an explicit recovery entry point (such as `Stop transcription wait`). This action calls `abortPreservingAudio()` to terminate the current WebSocket and the finalize wait flow, while fully preserving the recorded PCM audio; the rail then enters the preserved-audio state, the transport button on the left turns into a `Retry this segment` icon that calls `transcribe(preservedAudio:)` to run recognition over that audio segment again, and the action on the right becomes `Discard audio`, used to drop the currently preserved audio and reset to the normal input state. Here retry means re-transcribing an already saved audio file — it is not an additional recording, and the user does not need to speak again. If the retry still fails, the system keeps that audio segment, and the user can either keep retrying or tap discard to leave the recovery flow.
 
-**Text review field**：下方文本框支持多行编辑，用于承接语音转写结果、人工修改微调以及纯键盘输入。录音过程中 placeholder 提示“转写会出现在这里”，避免与上方 voice rail 及 status row 中已显示的 Listening 状态产生视觉重复。当语音转写或 preserved-audio 重试流式返回 partial transcript 时，文本框自动滚至末尾，方便用户实时查看转写内容的渐进生成；而普通的手动键入与草稿恢复则不触发强制滚动。发送按钮固定于文本框右侧；即便当前 session 处于 busy 状态该按钮依然可用，因为服务端的 `prompt_async` 接口自带排队机制。
+**Text review field**: the lower text field supports multi-line editing and receives the speech transcription result, manual modifications and light touch-ups, and pure keyboard input. While recording, the placeholder reads "Transcription will appear here", to avoid visual duplication with the Listening state already shown in the voice rail and status row above. When the speech transcription or the preserved-audio retry streams back a partial transcript, the text field scrolls to the end automatically, so that the user can watch the transcript being generated in real time; ordinary manual typing and draft restoration, on the other hand, do not trigger forced scrolling. The send button is fixed to the right of the text field; it stays usable even when the current session is busy, because the server-side `prompt_async` endpoint has a built-in queueing mechanism.
 
-**Agent interrupt**：agent 的运行状态通过 composer 附近的低权重状态行进行提示（例如 `Agent running`）。`Interrupt agent` 作为低频中断操作收纳在 `⋯` 更多菜单中，触发时调用 `POST /session/:id/abort`；设计上不采用顶部红色醒目 banner，亦不与语音转写的恢复操作共用 stop 图标，以便用户清晰区分三种不同维度的状态：语音采集、转写等待以及 agent 运行。相关的 Token 与 Base URL 在 Settings → Speech Recognition 中进行配置，保存在 Keychain 中，不提交至 git。
+**Agent interrupt**: the running state of the agent is hinted at by a low-weight status line near the composer (such as `Agent running`). `Interrupt agent`, a low-frequency interruption action, is tucked into the `⋯` overflow menu and calls `POST /session/:id/abort` when triggered; by design there is no eye-catching red banner at the top, and it shares no stop icon with the speech transcription recovery actions, so that the user can clearly distinguish three different dimensions of state: speech capture, transcription waiting, and agent running. The related Token and Base URL are configured under Settings → Speech Recognition, are stored in the Keychain, and are not committed to git.
 
-**消息队列**：当 session 处于 busy 状态时，用户发送的新消息直接进入队列。OpenCode Server 的 `POST /session/:id/prompt_async` 在服务端已内建队列机制——busy 期间接收的消息会自动排队，待当前任务执行完成后依次处理。iOS 端直接调用 `prompt_async` 即可，无需在本地自行维护队列逻辑。若未来服务端 API 发生调整，可退化为本地队列管理。
+**Message queue**: when a session is busy, a newly sent message goes straight into the queue. The OpenCode Server's `POST /session/:id/prompt_async` already has a queueing mechanism built in on the server side — messages received while busy are queued automatically and processed one after another once the current task completes. The iOS side simply calls `prompt_async` and needs no local queue logic of its own. If the server API changes in the future, it can degrade into local queue management.
 
-**Enter 行为调研结论**：经调研，OpenCode Web 客户端在输入框为空时按 Enter 会调用 abort 终止当前运行；输入框有内容时按 Enter 则通过 prompt 发送消息（由服务端队列承接排队）。系统本身并不存在所谓的“智能 steer”机制，仅为简单的终止或排队。因此 iOS 端可提供明确的手动 abort 按钮，无需额外设计复杂的 steer 判定。
+**Enter behavior research conclusion**: research shows that the OpenCode Web client calls abort when Enter is pressed with an empty input field, terminating the current run; when the input field has content, Enter sends the message through prompt (with the server queue handling the queueing). The system itself has no so-called "smart steer" mechanism, only simple termination or queueing. The iOS side can therefore offer an explicit manual abort button, without needing to design any complex steer detection.
 
-额外操作（通过 Chat 顶部 toolbar 按钮调起，从左至右依次为）：
-- Session 列表、重命名、Compact、新建 Session（严格按此顺序排列）
-- Compact Session（调用 `POST /session/:id/summarize`，用于压缩历史上下文以降低 token 超限风险）（🔲 暂未实现）
+Additional actions (invoked through the buttons in the top Chat toolbar, from left to right):
+- Session list, rename, Compact, new Session (strictly in this order)
+- Compact Session (calls `POST /session/:id/summarize`, used to compress the historical context and reduce the risk of exceeding the token limit) (🔲 not implemented yet)
 
-#### 4.2.5 Session 管理
+#### 4.2.5 Session Management
 
-用户可从 Chat Tab 顶部左侧按钮进入 Session 列表（支持 slide-over 或 navigation push 两种呈现方式）。该页面**列出当前 workspace 下的全部 Session**，也是核心的功能验证通道：可用于验证网络连接、API 数据解析以及消息与状态渲染的正确性。
+The user can enter the Session list from the button at the top left of the Chat Tab (presented either as a slide-over or a navigation push). This page **lists every Session under the current workspace**, and is also the core functional verification channel: it can be used to verify the network connection, the API data parsing, and the correctness of the message and status rendering.
 
-在 iPhone 上，除了点击顶部 `Session 列表` 按钮外，还支持从屏幕左侧边缘向右滑动手势直接呼出 Session List。该手势并非新建导航分支，而是复用现有的列表入口，以降低单手握持操作时点击左上角按钮的成本。
+On iPhone, besides tapping the top `Session List` button, a right-swipe gesture from the left edge of the screen brings up the Session List directly. The gesture does not create a new navigation branch but reuses the existing list entry point, to lower the cost of tapping the top-left button when the phone is held one-handed.
 
-Session List 定位为当前工作集的管理控制台，而非单纯的历史归档列表。默认展示 Active sessions，并按更新时间倒序排列；Archived sessions 则作为列表内独立的折叠分区存在，用户无需进入 Settings 即可随时找回。无论是 iPhone 上的 Session sheet 还是 iPad / Vision Pro 上的左侧 sidebar，均统一采用 Active 与 Archived 双分区结构，两分区均支持独立展开与折叠。当前版本暂不提供 session search，避免本地基于 title 的过滤被用户误理解为全量历史搜索。
+The Session List is positioned as the management console for the current working set, rather than a mere historical archive list. Active sessions are shown by default, sorted by update time in descending order; Archived sessions exist as a separate collapsible section inside the list, so the user can retrieve them at any time without entering Settings. Both the Session sheet on iPhone and the left sidebar on iPad / Vision Pro uniformly use the dual Active and Archived section structure, and both sections support independent expansion and collapse. The current version does not offer session search, to avoid a local title-based filter being mistaken for a full history search.
 
-列表中每个条目包含：Session 标题、更新时间、`summary.files`（该 session 改动所涉及的文件数量）以及当前状态（idle/busy/retry）。针对 Active session 支持新建、切换、归档与删除；针对 Archived session 支持切换查看、恢复与删除。Archive / Restore / Delete 操作统一通过 swipe action 触发，按钮样式沿用现有规范：SF Symbol 图标居上、文本居下。Delete 操作固定位于 trailing swipe，采用红色破坏性样式；Archive / Restore 则固定位于 leading swipe，采用克制的电蓝色或中性色。所有 swipe action 均禁用 full swipe（全滑动直接触发），防止日常误触。Delete 操作不再弹出二次确认对话框——用户完成“滑动 + 点击按钮”的操作链路已具备充分明确的主观意图。
+Each entry in the list contains: the Session title, the update time, `summary.files` (the number of files touched by that session's changes), and the current state (idle/busy/retry). For Active sessions, create, switch, archive, and delete are supported; for Archived sessions, switch to view, restore, and delete are supported. The Archive / Restore / Delete actions are all triggered through swipe actions, following the existing button style: the SF Symbol icon on top and the text below. Delete is fixed to the trailing swipe and uses the red destructive style; Archive / Restore are fixed to the leading swipe and use a restrained electric blue or neutral color. All swipe actions disable full swipe (triggering directly on a full swipe), to prevent accidental activation in daily use. The Delete action no longer pops a secondary confirmation dialog — completing the "swipe + tap the button" action chain already conveys sufficient and explicit user intent.
 
-Archive 行为机制：点击 Archive 后，该 session 立即从 Active 分区移至 Archived 分区，不再占用主列表的视觉空间。若被归档的 session 存在子 session，客户端必须递归归档整个 subtree，且归档顺序为“先子后父”，防止父 session 隐藏后子 session 短暂跃升为 Active 根节点。Restore 行为机制：点击 Restore 后，session 重新移回 Active 分区；恢复 subtree 时顺序相反，即“先父后子”，避免子 session 在父节点仍处于归档状态时发生游离。若用户直接在 archived session 中继续发送消息，客户端应先自动恢复该 session 再执行发送，确保重新激活的任务回到当前工作集中。Pin 功能在当前阶段暂不实现。
+Archive behavior: after tapping Archive, the session immediately moves from the Active section to the Archived section and no longer takes up visual space in the main list. If the archived session has child sessions, the client must recursively archive the entire subtree, and the archiving order is "children first, parents last", so that a child session does not briefly surface as an Active root node after its parent is hidden. Restore behavior: after tapping Restore, the session moves back into the Active section; when restoring a subtree the order is reversed, "parents first, children last", so that a child session does not end up orphaned while its parent is still archived. If the user keeps sending messages directly in an archived session, the client should first auto-restore that session and then perform the send, ensuring that a reactivated task returns to the current working set. The Pin feature is not implemented at this stage.
 
-视觉与交互规范：列表文字默认采用中性灰色，避免触发 iOS 默认的链接蓝色。当前活跃的 Session 采用浅色背景高亮，并在左侧边缘内嵌一条 3pt 宽度的电蓝色 accent 色条（与用户消息、操作卡片统一采用相同的“左侧色条”视觉语言；色条与圆角选中背景融合并完全裁切在圆角区域内，不外溢，亦不与展开 chevron 或缩进层级产生冲突）。选中状态不再展示额外的 checkmark，避免用户将其误判为任务完成状态或多选模式。Archived rows 仍支持点击查看历史，但在视觉层级上弱于 Active rows：标题与时间采用对比度更低的中性色，且不渲染选中 accent 色条，避免形成当前正在活跃处理的视觉心理预期。
+Visual and interaction specification: list text uses a neutral grey by default, to avoid triggering the iOS default link blue. The currently active Session is highlighted with a light background, and embeds a 3pt-wide electric blue accent bar on its left edge (the same "left color bar" visual language used by user messages and action cards; the bar merges into the rounded selection background, is fully clipped inside the rounded region, does not overflow, and does not conflict with the expand chevron or the indentation levels). The selected state no longer shows an extra checkmark, so that users do not mistake it for a task-completed state or a multi-select mode. Archived rows remain tappable to view their history, but rank visually below Active rows: their title and time use lower-contrast neutral colors and they render no selection accent bar, so that no expectation of currently active processing is created.
 
-#### 4.2.6 Fork Session（会话分叉）
+#### 4.2.6 Fork Session (Session Branching)
 
-用户可从任意历史消息节点对当前对话执行 fork，生成一个包含该节点之前全部历史记录的全新 session。典型适用场景包括：对 AI 当前回复不满意，希望从特定节点推倒重来；或希望从同一前置条件出发探索不同的提示词方向。
+The user can fork the current conversation from any historical message node, producing a brand-new session that contains all the history preceding that node. Typical use cases include: being unsatisfied with the AI's current reply and wanting to start over from a specific node; or wanting to explore different prompt directions from the same precondition.
 
-**交互方式**：在每条用户消息底部的模型标签（如 `anthropic/claude-opus-4-6`）旁提供 "..." 更多按钮。点击后弹出菜单，选择 "Fork from here" 选项即可调用 `POST /session/{id}/fork`。服务端创建新 session 并复制选定消息之前的所有历史记录，客户端随后自动切换至新创建的 session 视图。
+**Interaction**: a "..." more button is provided next to the model label at the bottom of every user message (such as `anthropic/claude-opus-4-6`). Tapping it opens a menu, and choosing the "Fork from here" option calls `POST /session/{id}/fork`. The server creates the new session and copies all the history preceding the selected message, and the client then switches automatically to the newly created session view.
 
-**API**：调用 `POST /session/{sessionID}/fork`，请求 body 为 `{ "messageID": "..." }`（可选）。接口返回全新的 `Session` 对象。
+**API**: calls `POST /session/{sessionID}/fork`, with the request body `{ "messageID": "..." }` (optional). The endpoint returns a brand-new `Session` object.
 
-**实现说明**：采用 SwiftUI 的 `Menu` 组件（点击触发）而非 `.contextMenu`（依赖长按），以提升功能的可发现性。分叉后生成的 session 标题将自动命名为 "{原标题} (fork #N)"。
+**Implementation note**: uses the SwiftUI `Menu` component (tap-triggered) rather than `.contextMenu` (long-press dependent), to improve the discoverability of the feature. The title of the forked session is automatically named "{original title} (fork #N)".
 
-#### 4.2.7 Session Deep Link（跨入口定位会话）
+#### 4.2.7 Session Deep Link (Locating a Session Across Entry Points)
 
-客户端提供标准统一的只读导航链接协议：
+The client provides a standard, unified read-only navigation link protocol:
 
 ```text
 opencode://session/<session_id>
 ```
 
-该链接可由 Chat 中的 Agent Markdown 输出生成，也可来自 Apple Notes、邮件、网页或其他外部 App。用户点击链接后，客户端在当前连接的 Host 上校验目标 session 是否存在；校验通过后依次切换 project、session 并进入 Chat 页面；若校验失败则维持当前 session 不变，并在界面上提示全局错误信息。若 App 尚未启动或正处于网络重连过程中，系统先暂存导航请求，待当前 Host 恢复可用后再行解析。
+The link can be generated by an Agent's Markdown output in Chat, or come from Apple Notes, email, a web page, or another external app. After the user taps the link, the client verifies on the currently connected Host whether the target session exists; if the verification passes, it switches project and session in turn and enters the Chat page; if it fails, the current session is kept unchanged and a global error message is shown in the UI. If the App has not been launched yet or is in the middle of a network reconnection, the system parks the navigation request first and resolves it once the current Host becomes reachable again.
 
-Session 的全局检索依然由 Agent 与 workspace 的 semantic-search 能力承接，客户端本地不新增搜索独立页、embedding 索引或 archive 读取功能。Agent 在给出 3-5 个带有原文依据的候选结果后，将明确的操作渲染为 `[在 OpenCode 中打开](opencode://session/<session_id>)`；仅当 metadata 明确标记为 OpenCode 且包含合法 session ID 时，方可生成对应的 action link。
+Global retrieval of Sessions remains handled by the semantic-search capability of the Agent and the workspace; the client adds no dedicated search page, embedding index, or archive-reading feature locally. After the Agent presents 3-5 candidate results backed by source text, it renders the explicit action as `[Open in OpenCode](opencode://session/<session_id>)`; the corresponding action link may only be generated when the metadata is explicitly marked as OpenCode and contains a valid session ID.
 
-V1 版本的作用域严格限定在当前已配置的 Host 之内。链接本身不携带设备本地的 Host Profile UUID、server URL、认证凭证、query 参数或绝对文件路径，客户端亦不会自动轮询或跨 Host 切换。对于处于 OpenCode 软归档状态的 session，只要当前 server 依然可读即可正常打开；但仅保存在离线 SQLite 或本地 Markdown archive 中的远古历史记录不在自动恢复范围内。
+The scope of the V1 version is strictly limited to the currently configured Host. The link itself carries no device-local Host Profile UUID, server URL, credentials, query parameters, or absolute file paths, and the client never polls automatically or switches across Hosts. For a session in OpenCode's soft-archived state, it opens normally as long as the current server can still read it; but ancient history kept only in an offline SQLite database or a local Markdown archive is out of scope for automatic recovery.
 
-Deep link 属于低权限的纯导航动作，不充当指令执行通道。它不支持直接发送 prompt、批准权限请求、调用 tool、删除或归档 session，且在 Markdown 渲染完成后绝不自动触发跳转。V1 版本暂不支持 message 级别的定位参数；在 Chat 具备稳定可靠的精准滚动与高亮定位能力之前，所有附带 query、fragment 或多余 path 路径的链接均按非法链接拒绝处理。
+A deep link is a low-privilege, pure navigation action and never acts as a channel for executing instructions. It does not support sending a prompt directly, approving a permission request, invoking a tool, deleting or archiving a session, and it never triggers a jump automatically once the Markdown rendering has finished. The V1 version does not support message-level targeting parameters; until the Chat has stable and reliable precise scrolling and highlight positioning, every link carrying a query, a fragment, or extra path segments is rejected as an illegal link.
 
-### 4.3 Files Tab（文件浏览与 Diff）
+### 4.3 Files Tab (File Browsing and Diff)
 
-> Files Tab 在产品定位上属于**兜底入口**，并非主工作流。用户绝大多数文件查看行为均通过 Chat 窗口中的 tool/patch 卡片点击直接完成——在 Chat 消息流中看到 `edit_file` 或 `patch` 卡片时，点击文件路径即可直接调起预览。Files Tab 的存在价值在于满足全局排查诉求：当用户需要宏观浏览全部受修改文件，或需要检索未在 Chat 卡片中提及的文件时，提供可靠的访问通道。因此它不需要追求过于繁复的界面细节，但必须保证基础能力的绝对稳定。
+> In terms of product positioning the Files Tab is a **fallback entry point**, not the main workflow. The vast majority of the user's file-viewing behavior is completed by tapping tool/patch cards directly in the Chat window — when the user sees an `edit_file` or `patch` card in the Chat message stream, tapping the file path opens the preview directly. The value of the Files Tab lies in serving the global inspection need: when the user wants to browse all modified files at a high level, or to search for files that were not mentioned in the Chat cards, it provides a reliable access channel. It therefore does not need to chase overly elaborate interface detail, but it must guarantee the absolute stability of its basic capabilities.
 
-#### 4.3.1 文件树
+#### 4.3.1 File Tree
 
-在 iPhone 上以全屏展示，在 iPad 上作为左侧栏呈现。数据来源于 `GET /file?path=<path>`。
+Shown full screen on iPhone and as the left sidebar on iPad. The data comes from `GET /file?path=<path>`.
 
-文件树支持以递归树形结构展开与收起目录层级。每个树节点展示文件/目录名称及对应类型图标。存在 git 变更的文件附带明确的颜色标记（绿色代表新增、黄色代表修改、红色代表删除），数据来源于 `GET /file/status`。
+The file tree supports expanding and collapsing directory levels in a recursive tree structure. Each tree node shows the file/directory name and a corresponding type icon. Files with git changes carry an explicit color marker (green for added, yellow for modified, red for deleted), with the data coming from `GET /file/status`.
 
-顶部配备搜索框，支持通过文件名进行模糊搜索（调用 `GET /find/file?query=...`）。
+A search box is provided at the top, supporting fuzzy search by file name (calling `GET /find/file?query=...`).
 
-#### 4.3.2 文件内容查看
+#### 4.3.2 File Content Viewing
 
-点击文件树节点后进入文件内容详情页。数据来源于 `GET /file/content?path=...`。
+Tapping a node in the file tree opens the file content detail page. The data comes from `GET /file/content?path=...`.
 
-- **iPhone**：在 Files Tab 导航栈内 push 至内容详情页
-- **iPad 三栏**：点击文件后在中栏 Preview 内联呈现；在 Chat 中点击 tool/patch 中的文件路径同样直接刷新 Preview 区域（不弹出独立 sheet）
+- **iPhone**: push to the content detail page within the Files Tab navigation stack
+- **iPad three columns**: after tapping a file it is rendered inline in the Preview column in the middle; tapping a file path in a tool/patch card in Chat likewise refreshes the Preview area directly (no separate sheet)
 
-针对纯文本文件：提供基于等宽字体的代码查看器，展示行号并支持横向滚动。当前版本不做语法高亮，优先确保渲染稳定性与文本可读性。
+For plain-text files: a monospaced code viewer is provided, showing line numbers and supporting horizontal scrolling. The current version does not do syntax highlighting, prioritizing rendering stability and text readability.
 
-针对 Markdown 文件：支持在 Preview（富文本预览）与 Markdown source（原始源码）之间无缝切换。Preview 模式基于 MarkdownUI 渲染，针对超长文本行与超大体积文件会自动回退至原始文本模式，防止界面卡顿。
+For Markdown files: seamless switching between Preview (rich-text preview) and Markdown source (raw source) is supported. Preview mode is rendered with MarkdownUI, and for extremely long text lines and very large files it automatically falls back to the raw text mode to prevent the interface from stuttering.
 
-针对 Markdown 内部包含的图片引用，客户端需完整支持 **repo 内部的相对路径解析**，特别是类似 `![x](../assets/foo.png)` 的常见报告引用写法。图片加载不能单纯依赖 MarkdownUI 默认的网络图片加载器，而应由客户端结合当前 markdown 文件所在路径与 workspace 根目录，将其解析为合规的本地文件请求并渲染上屏。该能力在 Files 中直接打开的 `.md` 文件与 Chat 中展示的 AI 报告内保持一致表现。
+For image references contained inside Markdown, the client must fully support **relative-path resolution inside the repo**, especially the common report-reference form such as `![x](../assets/foo.png)`. Image loading cannot rely solely on MarkdownUI's default network image loader; instead, the client must combine the path of the current markdown file with the workspace root directory, resolve it into a valid local file request, and render it on screen. This capability behaves consistently both for `.md` files opened directly in Files and for AI reports shown in Chat.
 
-针对图片文件：支持 base64 解码并内联预览，默认初始比例为 fit-to-screen（整屏适配）；支持手势 pinch 缩放、drag 拖动、double-tap 双击放大，并集成系统级 share sheet。在系统相册权限允许的情况下，share sheet 应支持 `Save to Photos` 操作。
+For image files: base64 decoding and inline preview are supported, with the default initial scale being fit-to-screen; pinch-to-zoom, drag-to-pan, and double-tap-to-magnify gestures are supported, and the system share sheet is integrated. When system photo library permission is granted, the share sheet should support the `Save to Photos` action.
 
-#### 4.3.3 Diff 查看与文档预览
+#### 4.3.3 Diff Viewing and Document Preview
 
-**核心定位**：以**文档审查**为第一优先级。Markdown 渲染、文档 diff 与 Preview 预览属于核心必备能力。
+**Core positioning**: **document review** is the first priority. Markdown rendering, document diff, and Preview preview are core, mandatory capabilities.
 
-**Markdown 展示规范**：
-- 优先采用 **Preview 模式**：用户以富文本 Preview 为主阅读文档；若实现复杂度过高，可提供 Preview / Markdown 切换开关
-- **Changes 高亮**：需在 diff 中清晰高亮具体变更。若在 Preview 模式下实现富文本行内高亮存在难度，可在 Markdown 源码界面对 changes 进行高亮标示，用户可在 Preview 模式下对照查看
-- 最低支持版本为 iOS 17，无历史系统兼容负担
+**Markdown presentation specification**:
+- Prefer **Preview mode**: the user reads documents mainly as a rich-text Preview; if the implementation complexity proves too high, a Preview / Markdown toggle may be provided
+- **Changes highlighting**: the specific changes must be clearly highlighted in the diff. If inline rich-text highlighting is difficult in Preview mode, the changes can be marked in the Markdown source view, and the user can compare them in Preview mode
+- The minimum supported version is iOS 17, with no legacy system compatibility burden
 
-**两种入口形态**：
+**Two entry forms**:
 
-**Session Diff**：当前暂不在 iOS 客户端直接展示（因服务端 diff API 在特定边界场景下可能返回空数组）。
+**Session Diff**: currently not displayed directly in the iOS client (because the server diff API may return an empty array in certain boundary scenarios).
 
-**单文件 Diff**：在文件树中点击带有变更标记的文件时，若该文件存在未提交的变更（uncommitted changes），内容详情页将自动切换至 diff 模式展示。
+**Single-file Diff**: when tapping a file with a change marker in the file tree, if that file has uncommitted changes, the content detail page automatically switches to diff mode for display.
 
-Diff 渲染遵循统一的 unified diff 格式（类似 GitHub 风格）：绿色背景代表新增行，红色背景代表删除行。服务端向客户端返回完整的 `before` 与 `after` 文件内容，由客户端在本地执行 diff 比对与高亮渲染。考虑到手机屏幕宽度受限，默认仅提供 unified 模式，不提供 side-by-side 双栏对照。
+Diff rendering follows a unified diff format (GitHub-like): a green background marks added lines and a red background marks deleted lines. The server returns the complete `before` and `after` file contents to the client, which performs the diff comparison and the highlighted rendering locally. Given the limited width of phone screens, only the unified mode is provided by default, with no side-by-side two-column comparison.
 
-#### 4.3.5 Markdown Web Preview（HTML 卡片 / SVG 增强阅读）
+#### 4.3.5 Markdown Web Preview (HTML Cards / Enhanced SVG Reading)
 
-打开 `.md` 文档时，默认展示具备丰富视觉结构的排版效果：各类 HTML 状态卡片、内联 SVG 图表以及深色模式阅读均能正常呈现，工具栏支持一键切回纯文本 Native 视图或 Markdown 源码。底层技术细节详见 RFC §7.5。
+When a `.md` document is opened, the default is a layout with a rich visual structure: various HTML status cards, inline SVG charts, and dark-mode reading all render correctly, and the toolbar can switch back to the plain-text Native view or the Markdown source with one tap. See RFC §7.5 for the underlying technical details.
 
 <style>
 .wp-stat{display:inline-block;border-radius:999px;padding:1px 8px;font-size:.78rem;font-weight:650}
@@ -383,221 +383,221 @@ Diff 渲染遵循统一的 unified diff 格式（类似 GitHub 风格）：绿�
 .wp-stat.block{background:var(--block-bg,#e5e7eb);color:var(--block-fg,#374151)}
 </style>
 
-| 用户能体验到的 | 状态 |
+| What the user experiences | Status |
 |---|---|
-| 工具栏一键切 Web / Native / 源码，Web 是默认 | <span class="wp-stat ok">上线</span> |
-| HTML 状态卡 / 内联 SVG 正常显示 | <span class="wp-stat ok">上线</span> |
-| 文档里的相对图片能加载 | <span class="wp-stat ok">上线</span> |
-| 同一份文档 light / dark 模式都好读 | <span class="wp-stat ok">上线</span> |
-| 切文件立刻刷新内容，大文件先弹确认 | <span class="wp-stat ok">上线</span> |
-| `.html` 浏览 / Mermaid / 代码高亮 / 点图放大 | <span class="wp-stat block">下一轮</span> |
+| One-tap switch between Web / Native / source in the toolbar, with Web as the default | <span class="wp-stat ok">Shipped</span> |
+| HTML status cards / inline SVG display correctly | <span class="wp-stat ok">Shipped</span> |
+| Relative images inside the document can be loaded | <span class="wp-stat ok">Shipped</span> |
+| The same document reads well in light / dark mode | <span class="wp-stat ok">Shipped</span> |
+| Switching files refreshes the content immediately; large files ask for confirmation first | <span class="wp-stat ok">Shipped</span> |
+| `.html` browsing / Mermaid / code highlighting / tap-to-zoom images | <span class="wp-stat block">Next round</span> |
 
-详情与来源 — 决策过程见 [`WORKING.md`](WORKING.md)；完整子项目 PRD / RFC 保留在磁盘 `docs/archive/2026-06_markdown_web_preview_prd.md` / `2026-06_markdown_web_preview_rfc.md`，已从 git 跟踪移除。
+Details and sources — the decision process is documented in [`WORKING.md`](WORKING.md); the complete sub-project PRD / RFC are kept on disk at `docs/archive/2026-06_markdown_web_preview_prd.md` / `2026-06_markdown_web_preview_rfc.md`, and have been removed from git tracking.
 
 ### 4.4 Settings Tab
 
-#### 4.4.1 Host Profiles（多 OpenCode 环境）
+#### 4.4.1 Host Profiles (Multiple OpenCode Environments)
 
-Settings 顶部不再将 Server Address 与 SSH Tunnel 作为扁平的全局配置项，而是以当前活跃的 `Host` 统一呈现。此处的 Host 代表一个独立的 OpenCode 运行环境，既可以是直连的 LAN / Tailscale / HTTPS server，也可以是通过 SSH gateway 代理访问的隔离 OpenCode 容器。Tailscale、VPN 与局域网对 App 均为透明网络，统归为 Direct transport。
+The top of Settings no longer presents Server Address and SSH Tunnel as flat global configuration items; instead they are presented uniformly under the currently active `Host`. A Host here represents an independent OpenCode runtime environment, which can be a directly connected LAN / Tailscale / HTTPS server, or an isolated OpenCode container reached through an SSH gateway proxy. Tailscale, VPN, and the LAN are all transparent networks for the App and are grouped together as Direct transport.
 
-**设计目标**：确保用户在 5 秒内明确当前连接的 OpenCode 环境及其底层传输通道（Direct 或 SSH Tunnel），并能便捷切换到其他 host，避免误触修改底层网络配置。
+**Design goal**: ensure that within 5 seconds the user can tell which OpenCode environment they are connected to and which underlying transport channel it uses (Direct or SSH Tunnel), and can conveniently switch to another host, avoiding accidental modification of the underlying network configuration.
 
-**Host 列表管理**：
+**Host list management**:
 
-- Settings 顶部展示 Current Host 摘要卡片：包含 profile 名称、transport 类型、地址摘要、实时连接状态与 Test 测试按钮。
-- Current Host 卡片内置轻量级连接诊断。连接建立期间展示所处阶段；连接失败时呈现具备明确操作指引的排查文案，而非抛出未经处理的原生 Swift error。
-- 点击卡片进入 Hosts 管理页面，完整列出所有已配置的 profiles；当前激活的 profile 在左侧使用 accent 色条与 checkmark 进行高亮标识。
-- 列表每行展示 profile 名称、transport 摘要以及最近连接状态（如 `example.com:8006 -> :19001`、`Direct HTTPS + Basic Auth`、`Last used yesterday`）。若该 host 尚无成功连接记录，则明确标注 `Never connected`，禁止将 epoch 时间戳格式化为无意义的长相对时间。
-- 点击任意列表行进入 Host Detail 详情页。切换 host 属于详情页内的显式 `Use This Host` 主动作，避免用户因单纯查看配置信息而发生误切换。
-- 提供 Add Host、Host Detail、Edit、Duplicate 以及 Delete 操作。在删除当前处于激活状态的 host 前，必须强制用户先切换至其他 host 或进行二次弹窗确认。
-- Device Public Key 作为设备维度的通用凭证置于 Hosts 页面底部；该公钥仅供 SSH Tunnel 类型的 host 使用，Direct 类型的 host 无需该项。
+- The top of Settings shows a Current Host summary card: profile name, transport type, address summary, real-time connection status, and a Test button.
+- The Current Host card embeds lightweight connection diagnostics. While the connection is being established it shows the current stage; on failure it presents troubleshooting copy with clear action guidance, instead of throwing an unhandled native Swift error.
+- Tapping the card enters the Hosts management page, which fully lists all the configured profiles; the currently active profile is highlighted on the left with an accent bar and a checkmark.
+- Each row of the list shows the profile name, a transport summary, and the most recent connection status (such as `example.com:8006 -> :19001`, `Direct HTTPS + Basic Auth`, `Last used yesterday`). If that host has no successful connection record yet, it is clearly labeled `Never connected`; formatting an epoch timestamp into a meaningless long relative time is forbidden.
+- Tapping any row of the list enters the Host Detail page. Switching hosts is an explicit `Use This Host` primary action inside the detail page, so that the user does not switch by mistake merely while looking at the configuration.
+- Add Host, Host Detail, Edit, Duplicate, and Delete actions are provided. Before deleting the currently active host, the user must be forced to switch to another host first, or to confirm in a second dialog.
+- The Device Public Key, a device-level general credential, is placed at the bottom of the Hosts page; this public key is used only by SSH Tunnel hosts, while Direct hosts do not need it.
 
-**Host Detail（详情页面）**：
+**Host Detail (detail page)**:
 
-- 展示 profile 名称、transport 类型、连接地址摘要、实时连接诊断信息以及最近一次连接尝试时间。
-- Direct profile 展示 OpenCode URL 以及是否配置了 Basic Auth username。
-- SSH Tunnel profile 展示 Gateway Host、SSH Port、SSH Username、Assigned Remote Port、本地映射的 OpenCode URL `127.0.0.1:4096` 以及已信任的 host fingerprint（若存在）。
-- 若当前查看的并非活跃 host，页面提供 `Use This Host` 主操作；同时详情页配备 `Test Connection`、`Edit` 与 `Copy Host Config JSON` 快捷功能。
-- SSH Tunnel profile 详情页提供 `Copy This Device Public Key` 入口。私钥部分严格保存在本机的 Keychain 中，不支持任何形式的导出。
+- Shows the profile name, the transport type, a summary of the connection address, real-time connection diagnostics, and the time of the most recent connection attempt.
+- A Direct profile shows the OpenCode URL and whether a Basic Auth username has been configured.
+- An SSH Tunnel profile shows the Gateway Host, SSH Port, SSH Username, Assigned Remote Port, the locally mapped OpenCode URL `127.0.0.1:4096`, and the trusted host fingerprint (if any).
+- If the host being viewed is not the active one, the page offers the `Use This Host` primary action; the detail page also provides the `Test Connection`, `Edit`, and `Copy Host Config JSON` shortcuts.
+- The detail page of an SSH Tunnel profile provides a `Copy This Device Public Key` entry point. The private key is kept strictly in the local Keychain and does not support any form of export.
 
-**Add Host 添加流程**：
+**Add Host flow**:
 
-1. 首选推荐 `Import Host Config` 导入入口。用户可直接粘贴管理员分发的标准 setup JSON 配置，防止手动输入时填错 host、port、username 或 remotePort。
-2. 手动创建时需先明确选择 `Direct` 或 `SSH Tunnel` 传输类型。
-3. Direct 表单仅需填写 Name、OpenCode URL 以及可选的 Basic Auth 鉴权信息。
-4. SSH Tunnel 表单需录入 Name、SSH Gateway Host、SSH Port、SSH Username 以及 Assigned Remote Port。OpenCode URL 字段对用户锁定不可编辑，保存后统一由 App 通过本地 `127.0.0.1:4096` 代理隧道建立连接。
-5. SSH Tunnel 表单必须显式提供 `Copy This Device Public Key` 按钮，并附带明确的安全指引：“请将公钥提供给 server 管理员，严禁向外分享 private key”。
-6. Test Connection 根据当前配置的 transport 执行链路校验：Direct 模式直接向远端发起 `/global/health` 探活请求；SSH 模式先建立 SSH 隧道，随后向本地 OpenCode 代理端口发起 health 校验。
-7. 点击 `Save` 仅代表本地 profile 保存成功；只有通过 `Test Connection` 才代表网络连接校验通过。在 UI 设计上必须将“保存配置”与“连接就绪”明确分离开来。
+1. The preferred entry point is `Import Host Config`. The user can paste the standard setup JSON config distributed by the administrator, preventing mistakes in the host, port, username, or remotePort during manual entry.
+2. When creating manually, the `Direct` or `SSH Tunnel` transport type must be chosen explicitly first.
+3. The Direct form only requires Name, OpenCode URL, and optional Basic Auth credentials.
+4. The SSH Tunnel form requires Name, SSH Gateway Host, SSH Port, SSH Username, and Assigned Remote Port. The OpenCode URL field is locked and not editable for the user; after saving, the App always connects through the local `127.0.0.1:4096` proxy tunnel.
+5. The SSH Tunnel form must explicitly provide a `Copy This Device Public Key` button, together with clear security guidance: "Give the public key to the server administrator; never share the private key with anyone".
+6. Test Connection performs a chain validation according to the currently configured transport: in Direct mode it issues a `/global/health` liveness request straight to the remote end; in SSH mode it first establishes the SSH tunnel and then runs the health check against the local OpenCode proxy port.
+7. Tapping `Save` only means the local profile was saved successfully; only passing `Test Connection` means the network connection has been validated. The UI design must clearly separate "saving the configuration" from "the connection being ready".
 
-**切换行为机制**：
+**Switching behavior**:
 
-- 切换 host 时，系统主动断开当前已建立的 SSH tunnel 与 SSE 长连接，随后加载并应用目标 profile。
-- 切换完成后重置当前 session 的选中状态；session 与 project 的状态数据在逻辑上归属于具体的 host 维度，后续版本可扩展支持按 host 记忆上次选中的 project/session。
-- 若目标 host 启用了 SSH Tunnel，App 可尝试自动建立隧道连接；若连接失败仅更新当前连接状态，不弹出打断性的阻塞式 alert 弹窗。
-- Basic Auth 认证凭据按 profile 独立隔离存储在 Keychain 中；SSH private key 默认在设备维度全局共用同一密钥对。
+- When switching hosts, the system proactively tears down the established SSH tunnel and the SSE long connection, and then loads and applies the target profile.
+- After the switch, the selection state of the current session is reset; session and project state data logically belongs to a specific host, and later versions can extend this to remember the last selected project/session per host.
+- If the target host has SSH Tunnel enabled, the App may attempt to establish the tunnel automatically; if the connection fails, only the current connection status is updated, with no interrupting blocking alert dialog.
+- Basic Auth credentials are stored in the Keychain isolated per profile; the SSH private key is by default shared globally at the device level as a single key pair.
 
 #### 4.4.2 Direct Transport
 
-Direct 模式适用于 App 能直接与 OpenCode 实例通信的网络场景：如本地局域网、Tailscale / VPN 虚拟专网或公网 HTTPS 服务器。
+Direct mode applies to the network scenarios where the App can communicate directly with an OpenCode instance: a local LAN, a Tailscale / VPN virtual private network, or a public HTTPS server.
 
-**配置项清单**：
+**Configuration item list**:
 
-| 字段 | 说明 | 默认值 |
-|------|------|--------|
-| Name | profile 名称 | 从 host 推断或用户填写 |
-| OpenCode URL | `ip:port` 或 `http(s)://host:port` | - |
-| Username | Basic Auth 用户名，可选 | - |
-| Password | Basic Auth 密码，可选，存入 Keychain | - |
+| Field | Description | Default |
+|------|------|---------|
+| Name | Profile name | Inferred from the host, or filled in by the user |
+| OpenCode URL | `ip:port` or `http(s)://host:port` | - |
+| Username | Basic Auth username, optional | - |
+| Password | Basic Auth password, optional, stored in the Keychain | - |
 
-**协议安全提示**：当 Direct 模式配置为 HTTP 协议且目标地址不属于 localhost、局域网私有网段或 Tailscale MagicDNS（`*.ts.net`）时，界面展示非阻塞的警告提示，建议用户升级为 HTTPS。该提示仅针对 Direct 模式生效；在 SSH Tunnel 模式下，本地回环地址 `http://127.0.0.1:4096` 属于设计预期，不弹出 HTTPS 协议警告。
+**Protocol security notice**: when Direct mode is configured with the HTTP protocol and the target address is not localhost, a LAN private range, or Tailscale MagicDNS (`*.ts.net`), the UI shows a non-blocking warning suggesting that the user upgrade to HTTPS. This notice applies to Direct mode only; under SSH Tunnel mode the local loopback address `http://127.0.0.1:4096` is expected by design and no HTTPS protocol warning is shown.
 
-#### 4.4.3 SSH Tunnel Transport（远程访问）
+#### 4.4.3 SSH Tunnel Transport (Remote Access)
 
-适用于通过 SSH gateway 访问部署在内网或隔离容器中的托管 OpenCode Server。网络通信拓扑如下：
+This applies to reaching a hosted OpenCode Server deployed inside an intranet or an isolated container through an SSH gateway. The network communication topology is as follows:
 
 ```
 iOS App → SSH Gateway (:8006) → Assigned Remote Port (:19001) → OpenCode (127.0.0.1:4096)
 ```
 
-前置准备条件：
-- 管理员已在服务端完成独立 OpenCode 实例部署并分配了对应的 remote port
-- 用户已将 iOS 设备的公钥提供给管理员配置；私钥严格保存在本机 Keychain 中
+Prerequisite conditions:
+- The administrator has completed the deployment of an independent OpenCode instance on the server side and assigned the corresponding remote port
+- The user has provided the iOS device's public key to the administrator for configuration; the private key is kept strictly in the local Keychain
 
-**配置项清单**：
+**Configuration item list**:
 
-| 字段 | 说明 | 默认值 |
-|------|------|--------|
-| Enable SSH Tunnel | 开关 | Off |
-| Gateway Host | SSH gateway 地址 | - |
-| SSH Port | SSH 端口 | 8006 |
-| Username | SSH 用户名 | opencode |
-| Assigned Remote Port | 管理员分配的 remote port | 19001 |
+| Field | Description | Default |
+|------|------|---------|
+| Enable SSH Tunnel | Toggle | Off |
+| Gateway Host | SSH gateway address | - |
+| SSH Port | SSH port | 8006 |
+| Username | SSH username | opencode |
+| Assigned Remote Port | The remote port assigned by the administrator | 19001 |
 
-**密钥管理规范**：
+**Key management specification**:
 
-- App 在首次使用时自动生成 Ed25519 密钥对
-- 私钥安全存放在 iOS Keychain（设置访问控制属性为 `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`）
-- 密钥对为长期设备身份：仅在首次使用（Keychain 条目确实缺失）或用户显式轮换时生成；Keychain 暂不可读（如设备锁定期间）时报错提示解锁设备重试，不静默重新生成
-- 公钥展示在 Settings 界面中，支持一键复制到剪贴板
-- 提供密钥轮换入口（支持重新生成全新密钥对）
+- The App automatically generates an Ed25519 key pair on first use
+- The private key is stored securely in the iOS Keychain (with the access control attribute set to `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`)
+- The key pair is a long-term device identity: it is generated only on first use (when the Keychain entry is genuinely missing) or when the user explicitly rotates it; when the Keychain is temporarily unreadable (for example while the device is locked), an error asks the user to unlock the device and retry, rather than silently regenerating
+- The public key is shown in the Settings interface, with one-tap copy to the clipboard
+- A key rotation entry point is provided (supporting the regeneration of a brand-new key pair)
 
-**首次配置流程**：
+**First-time setup flow**:
 
-1. 进入 Settings → SSH Tunnel
-2. App 自动生成本地密钥对
-3. 复制生成的公钥并发送给 OpenCode host 管理员
-4. 管理员在服务端完成授权后，返回 gateway host、SSH 端口、用户名及 assigned remote port 参数
-5. 在 App 中逐项录入上述参数，并开启 SSH Tunnel 功能开关
-6. 将 Server Address 设置为 `127.0.0.1:4096`（通过本地隧道转发），并点击上方的 `Test Connection` 进行连通性验证
+1. Go to Settings → SSH Tunnel
+2. The App automatically generates the local key pair
+3. Copy the generated public key and send it to the OpenCode host administrator
+4. After the administrator completes the authorization on the server side, they return the gateway host, SSH port, username, and assigned remote port parameters
+5. Enter the above parameters one by one in the App, and turn on the SSH Tunnel feature switch
+6. Set Server Address to `127.0.0.1:4096` (forwarded through the local tunnel), and tap the `Test Connection` button above to verify the connectivity
 
-**连接状态展示**：
+**Connection status display**:
 
-- 实时显示四种状态：Connected / Connecting / Disconnected / Error。
-- SSH Tunnel 的连接诊断需具备链路拆解能力，至少能明确区分 SSH gateway 连通性、SSH auth 鉴权、本地 tunnel 代理通道以及 OpenCode health check 四个阶段。
-- 发生异常时给出明确的失败原因与排障建议，例如公钥未授权时提示用户复制当前设备 public key 发送给管理员；Basic Auth 校验失败时提示检查用户名与密码配置。
+- Four states are displayed in real time: Connected / Connecting / Disconnected / Error.
+- The connection diagnostics of the SSH Tunnel need chain-decomposition capability, clearly distinguishing at least four stages: SSH gateway connectivity, SSH auth authentication, the local tunnel proxy channel, and the OpenCode health check.
+- When something goes wrong, a clear failure cause and troubleshooting advice are given, for example telling the user to copy the current device public key and send it to the administrator when the public key is not authorized, or to check the username and password configuration when the Basic Auth validation fails.
 
-**安全要求**：
+**Security requirements**:
 
-- 仅支持基于公私钥（key-based）的 SSH 认证，不开放密码认证
-- 首次连接采用 TOFU（Trust On First Use）策略自动信任并保存服务器的 host fingerprint，后续连接执行严格指纹校验；UI 界面提供 fingerprint 查看与 reset trusted host 重置功能
+- Only key-based SSH authentication is supported; password authentication is not enabled
+- The first connection uses a TOFU (Trust On First Use) strategy to automatically trust and store the server's host fingerprint, and subsequent connections perform a strict fingerprint check; the UI provides fingerprint viewing and a reset trusted host function
 
 #### 4.4.4 Model Presets
 
-**当前实现机制**：内置固定预设模型列表（GLM-5.1、GPT-5.4、GPT-5.3 Codex、DeepSeek），暂不支持导入与排序。发送消息时在请求 body 中携带 `model: { providerID, modelID }` 结构。
+**Current implementation**: a built-in fixed list of preset models (GLM-5.1, GPT-5.4, GPT-5.3 Codex, DeepSeek); importing and ordering are not supported yet. When sending a message, the request body carries the `model: { providerID, modelID }` structure.
 
 #### 4.4.5 Project (Workspace)
 
-用于指定当前需要浏览的 OpenCode 项目上下文。OpenCode Server 原生支持多项目管理，每个项目拥有独立的 session 数据集。iOS 客户端通过 `GET /session?directory=<worktree>` 按项目目录筛选对应的 sessions。
+Used to specify the OpenCode project context that currently needs to be browsed. The OpenCode Server natively supports multi-project management, with each project owning an independent session dataset. The iOS client filters the corresponding sessions by project directory through `GET /session?directory=<worktree>`.
 
-**选择已有项目**：
-- 调用 `GET /project` 获取服务端已知的所有项目列表
-- 使用 Picker 组件呈现项目，选项显示名称默认截取 worktree 路径的末级目录名（如 `knowledge_working`、`agentic_trading`）
-- 用户选中的项目持久化存储在 UserDefaults 中
+**Selecting an existing project**:
+- Call `GET /project` to fetch the list of all projects known to the server
+- Render the projects with a Picker component; the option display name defaults to the last-level directory name of the worktree path (such as `knowledge_working`, `agentic_trading`)
+- The project selected by the user is persistently stored in UserDefaults
 
-**自定义路径支持**：
-- 提供「Custom path」选项，支持用户手动输入任意 worktree 绝对路径
-- 适用于服务端存在 session 记录但未被自动收录进 project 列表的边缘目录场景
-- 若输入路径有误，接口 `/session?directory=xxx` 将返回 0 个 session，用户可直接感知
+**Custom path support**:
+- A "Custom path" option is provided, supporting the user typing in any absolute worktree path manually
+- It applies to edge-case directories where the server has session records but they were not automatically collected into the project list
+- If the entered path is wrong, the `/session?directory=xxx` endpoint returns 0 sessions, which the user perceives directly
 
-**默认项目行为**：若用户未显式选择项目，调用 `GET /session` 时不传 `directory` 参数，此时默认沿用服务端当前打开的项目（与 Web 端逻辑保持一致）。选定具体项目后，客户端调用 `GET /session?directory=xxx&limit=100` 获取对应数据。
+**Default project behavior**: if the user has not explicitly selected a project, no `directory` parameter is passed when calling `GET /session`, and the project currently open on the server is used by default (consistent with the logic of the Web client). Once a specific project is selected, the client calls `GET /session?directory=xxx&limit=100` to fetch the corresponding data.
 
-**创建 Session 限制**：新建 session 仅在选择 Server default 时允许操作。因服务端的 `POST /session` 接口不支持传入 directory 参数，新创建的 session 始终绑定在 server 当前打开的 project 下。当用户手动指定了具体 project 时，新建按钮将自动置灰并附带 info 提示图标，告知用户需通过命令行启动 OpenCode 并指定不同的工作目录后再行创建。
+**Session creation restriction**: creating a new session is allowed only when Server default is selected. Because the server's `POST /session` endpoint does not support passing a directory parameter, a newly created session is always bound to the project currently open on the server. When the user has manually specified a concrete project, the new button is automatically greyed out and carries an info hint icon, telling the user that they need to launch OpenCode from the command line with a different working directory before creating one.
 
-#### 4.4.6 外观
+#### 4.4.6 Appearance
 
-- **主题跟随系统**（Light/Dark/Auto）：依据 iOS 系统的明暗 theme 设置自动切换对应的展示风格
+- **Theme follows the system** (Light/Dark/Auto): automatically switches the presentation style according to the light/dark theme setting of the iOS system
 #### 4.4.7 About
 
-- 展示当前 App 版本号
-- 展示当前连接的 OpenCode Server 版本（取自 `GET /global/health` 响应中的 `version` 字段）
+- Shows the current App version number
+- Shows the version of the currently connected OpenCode Server (taken from the `version` field in the `GET /global/health` response)
 
-### 4.5 Car Mode（Experimental）
+### 4.5 Car Mode (Experimental)
 
-Car Mode 是专为 iPhone 设计的前台语音交互模式。在不便阅读冗长对话或打字的驾驶场景下，用户仅需单次点击即可完成“口述指令 → 自动提交 → 收听精简结论”的闭环。该功能属于 OpenCode iOS Client 的内建特性，不维护独立的车载 App，亦不属于独立的 CarPlay App。
+Car Mode is a foreground voice interaction mode designed specifically for the iPhone. In driving scenarios where reading long conversations or typing is inconvenient, a single tap is enough to complete the loop of "dictate the instruction → auto-submit → listen to a condensed conclusion". This feature is a built-in capability of the OpenCode iOS Client: no separate in-car App is maintained, and it is not a standalone CarPlay App either.
 
-#### 4.5.1 产品范围
+#### 4.5.1 Product Scope
 
-- Car Mode 默认处于关闭状态，仅在 Settings → Experimental Features 中提供显式开启入口。
-- 开启该功能后，iPhone 底部的 Tab 切换顺序为 Chat / Files / Car / Settings；关闭后恢复为 Chat / Files / Settings。
-- 在 iPad 与 Apple Vision Pro 上不展示 Car Tab 及其配置开关（包括处于 iPad compact window 模式下）。
-- 用户点击大尺寸主按钮即启动录音，再次点击即可结束音频采集并自动触发发送，流程完全跳过普通 Chat 模式的 composer 确认环节。
-- AI 的回复内容被严格约束为简短、可直接朗读的 structured speech 格式；系统调用 Apple TTS 引擎完成语音播报后自动重置回 idle 待机状态。
-- 允许触发的客户端 action 包含 `open_navigation` 与 V0 版本的 `health_quantification.export_all`。其中 Maps 导航由 iOS 本地组装目标 URL；Health 数据导出则通过本地权限校验、受限 App handoff 以及原 session callback 协作完成，产品交互契约详见 [`features/client_capabilities/prd.md`](features/client_capabilities/prd.md)。
+- Car Mode is off by default, with an explicit opt-in entry point only in Settings → Experimental Features.
+- Once enabled, the tab order at the bottom of the iPhone becomes Chat / Files / Car / Settings; once disabled it returns to Chat / Files / Settings.
+- On iPad and Apple Vision Pro, the Car Tab and its configuration switch are not shown (including in iPad compact window mode).
+- Tapping the large primary button starts the recording; tapping again ends the audio capture and automatically triggers the send, completely skipping the composer confirmation step of normal Chat mode.
+- The AI's reply is strictly constrained to a short, directly readable structured speech format; after the system calls the Apple TTS engine to speak it, it automatically resets to the idle standby state.
+- The client actions that are allowed to be triggered include `open_navigation` and the V0 `health_quantification.export_all`. Maps navigation assembles the target URL locally on iOS; Health data export is completed through local permission checks, a restricted App handoff, and coordination with the original session callback. See [`features/client_capabilities/prd.md`](features/client_capabilities/prd.md) for the product interaction contract.
 
-Car Mode 并不承诺在系统切换至 Maps 或其他 App 后仍能维持后台持续录音、保活 SSE 连接或继续执行 TTS 朗读。一旦 App 进入后台，立即停止当前的前台交互逻辑，但持久化保留 Car session；待用户重新返回 App 后可继续在原上下文中交互。
+Car Mode does not promise to keep recording in the background, to keep the SSE connection alive, or to continue TTS playback after the system switches to Maps or another App. As soon as the App enters the background, the current foreground interaction logic stops immediately, but the Car session is persistently retained; once the user returns to the App, they can continue interacting in the original context.
 
-#### 4.5.2 独立 Session 与可见性
+#### 4.5.2 Dedicated Session and Visibility
 
-Car Mode 不复用普通 Chat 当前选中的对话上下文。每个 `(host profile, workspace)` 维度独立维护一个专属、持久化的 Car session，并在本地记录最近处理的 assistant message ID、待确认事项（pending confirmation）以及最后活跃时间戳。
+Car Mode does not reuse the conversation context currently selected in normal Chat. Each `(host profile, workspace)` dimension independently maintains its own dedicated, persistent Car session, and locally records the most recently processed assistant message ID, the pending confirmations, and the last active timestamp.
 
-- 首次发起交互时，自动创建标题为 `Car Mode` 的专用 session。
-- 后续每次发送前均会校验该 session 是否依然有效；若收到 404 错误则清除旧的本地映射并自动创建全新 session。
-- 若用户在普通 Session 列表中手动归档了当前 Car session，客户端在下一次通过 Car 模式发起请求前，会自动向该 session 写入兼容性恢复标记 `time.archived = -1`，随后继续向原 session 提交消息。由于 iOS 客户端是依据 `archived > 0` 来判断归档状态的，因此该 session 将自动重新显现在 iOS 的 Active 列表中。
-- 上述恢复逻辑仅确保在 iOS 客户端内的可见性。OpenCode Web 端将 active 严格定义为 `archived === undefined`，因此可能依然无法展示标记为 `-1` 的 session；Car Mode 明确不对服务端引入非标 patch，亦不对原 session 进行 fork 或复制。
-- 支持用户手动开启全新的 Car session；但单纯切换 Tab、调起外部 Maps 或短期切出 App 均不得触发自动新建 session。
+- On the first interaction, a dedicated session titled `Car Mode` is created automatically.
+- Before every subsequent send, the client verifies whether that session is still valid; if a 404 error is received, the stale local mapping is cleared and a brand-new session is created automatically.
+- If the user manually archived the current Car session in the normal Session list, then before the next request made through Car mode the client automatically writes a compatibility recovery marker `time.archived = -1` into that session, and then continues to submit messages to the original session. Since the iOS client determines the archived state by `archived > 0`, that session automatically reappears in the iOS Active list.
+- The recovery logic above only ensures visibility inside the iOS client. The OpenCode Web client strictly defines active as `archived === undefined`, so it may still fail to display a session marked as `-1`; Car Mode explicitly introduces no non-standard patch on the server side, and neither forks nor copies the original session.
+- The user can manually start a brand-new Car session; but merely switching tabs, invoking external Maps, or briefly leaving the App must not trigger the automatic creation of a session.
 
-停车后，用户可随时在普通 Chat 列表中打开 Car session，查看完整的消息记录与工具调用明细。当 structured assistant 响应中不包含 text part 时，Chat 视图会自动将 `assistant.structured.speech` 作为可读的 fallback 内容进行展示。
+While parked, the user can open the Car session at any time from the normal Chat list and review the complete message history and the tool call details. When a structured assistant response contains no text part, the Chat view automatically displays `assistant.structured.speech` as readable fallback content.
 
-#### 4.5.3 回复、确认与现实世界动作
+#### 4.5.3 Replies, Confirmations, and Real-World Actions
 
-每轮交互均会固定附带 Car 专用的 system prompt 与 JSON Schema 约束。AI 的语音回复遵循“结论先行”原则，严禁包含 Markdown 格式、URL 链接、代码块或工具调用的中间流水，单次播报的目标时长控制在 8-12 秒，最长不得超过 15 秒。执行状态严格收敛为三种：`completed`、`needs_confirmation` 与 `failed`。
+Every turn carries a fixed Car-specific system prompt and JSON Schema constraint. The AI's spoken reply follows the "conclusion first" principle and must never contain Markdown formatting, URL links, code blocks, or the intermediate stream of a tool call; the target duration of a single playback is kept at 8-12 seconds and must never exceed 15 seconds. The execution state is strictly narrowed down to three: `completed`, `needs_confirmation`, and `failed`.
 
-| 类型 | 示例 | 默认行为 |
+| Type | Example | Default behavior |
 |---|---|---|
-| Read | 车库门关了吗；开车多久；有什么新邮件 | 直接执行并朗读短结论 |
-| Prepare | 摘要邮件；起草消息 | 直接准备，明确尚未发送 |
-| Explicit server commit | 打开车库门；把刚才原因发给联系人 | 用户参数明确时执行，随后读回结果 |
-| Proposed server commit | Agent 主动建议发送或控制设备 | 返回 `needs_confirmation`，下一轮确认后执行 |
-| Client handoff | 导航到明确目的地；同步过期的 Health 数据 | 返回 typed action，由 iOS 打开受限目标 App |
-| Ambiguous | 多个联系人、门或目的地 | 最多追问一次，仍不明确则取消 |
+| Read | Is the garage door closed; how long is the drive; any new email | Execute directly and read out a short conclusion |
+| Prepare | Summarize an email; draft a message | Prepare directly, explicitly stating that it has not been sent |
+| Explicit server commit | Open the garage door; send the reason just now to a contact | Execute when the user's parameters are explicit, then read back the result |
+| Proposed server commit | The Agent proactively suggests sending something or controlling a device | Return `needs_confirmation`, and execute after the confirmation in the next turn |
+| Client handoff | Navigate to a definite destination; sync outdated Health data | Return a typed action, and let iOS open the restricted target App |
+| Ambiguous | Multiple contacts, doors, or destinations | Ask at most once more; if it is still unclear, cancel |
 
-必须严格遵循：仅有来自用户消息的显式授权方可触发具有现实世界副作用的操作。在邮件、网页正文、搜索结果以及工具输出中出现的指令只能作为被动数据处理，严禁据此直接授权发送消息、控制智能设备或触发客户端 action。V1 版本严禁开放任意破坏性的 shell 执行、代码提交、线上发布、转账付款或不受限的多步现实世界操作。
+The following must be strictly observed: only explicit authorization coming from a user message may trigger operations with real-world side effects. Instructions appearing in emails, web page bodies, search results, and tool output can only be treated as passive data, and must never be used to directly authorize sending a message, controlling a smart device, or triggering a client action. The V1 version strictly forbids arbitrary destructive shell execution, code commits, production releases, transfers or payments, and unrestricted multi-step real-world operations.
 
-Smart Home、邮件、iMessage 以及 route-duration 等具体能力，仍需正式注册为系统级白名单 skills 或 typed tools，并完成真实的 E2E 全链路打通；通用的 `read + bash` 方式仅允许在原型探索（spike）阶段使用，不能作为正式产品的安全权限边界。
+Concrete capabilities such as Smart Home, email, iMessage, and route-duration still have to be formally registered as system-level allowlisted skills or typed tools, and to be fully wired up end to end with real E2E coverage; the generic `read + bash` approach is only allowed during the prototype exploration (spike) phase and cannot serve as the security permission boundary of the shipping product.
 
-#### 4.5.4 状态与失败恢复
+#### 4.5.4 State and Failure Recovery
 
-主界面保留一个核心的视觉操作按钮，同时直观呈现当前状态、最近识别的 transcript、最近播报的 speech 以及错误提示。完整的状态流转机制如下：
+The main screen keeps one core visual action button, while clearly presenting the current state, the most recently recognized transcript, the most recently played speech, and any error message. The complete state transition flow is as follows:
 
 ```text
 idle → recording → finalizing → waitingReply
      → speaking / awaitingConfirmation / failed → idle
 ```
 
-仅在最终确认的 final transcript 识别成功后方可自动触发消息发送；partial transcript（中间过渡结果）或识别失败均严禁触发现实世界的任何动作。在 `waitingReply` 等待响应阶段禁止重复提交请求，但允许用户执行取消并向服务端发送 abort 指令。TTS 语音播报与 Maps 导航动作必须基于 completed assistant message ID 执行精确去重。
+The message send may only be triggered automatically after the final transcript has been successfully recognized; a partial transcript (an intermediate transitional result) or a recognition failure must never trigger any real-world action. During the `waitingReply` wait-for-response stage, resubmitting requests is forbidden, but the user is allowed to cancel and send an abort command to the server. TTS playback and Maps navigation actions must be precisely deduplicated based on the completed assistant message ID.
 
-#### 4.5.5 分期与非目标
+#### 4.5.5 Phasing and Non-Goals
 
-前台 Car Mode 的核心链路均已实现并落地：包括实验功能开关、iPhone 专属 UI、独立 session 隔离、VoiceFlow 自动提交、structured reply 解析、Apple TTS 语音播报、typed Maps 导航唤起、Health export callback 回调以及普通 Chat 中的历史记录回退展示。
+The core foreground Car Mode chain has been implemented and landed: the experimental feature switch, the iPhone-specific UI, the dedicated session isolation, VoiceFlow auto-submission, structured reply parsing, Apple TTS speech playback, typed Maps navigation invocation, the Health export callback, and the fallback display of the history in normal Chat.
 
-后续规划主要聚焦于两条演进路线：一是将 Smart Home、邮件、iMessage 与 route-duration 等高频能力正式产品化为稳定的 capability boundary；二是将现有的同步结构化请求全面重构为 `prompt_async + SSE + message reload` 异步模型，以支持更稳健的前后台状态恢复与 exactly-once 幂等动作执行。需要明确的是，即便后续完成了异步恢复机制，亦不代表支持在后台持续进行语音对话。
+The follow-up planning focuses mainly on two evolution tracks: first, formally productizing high-frequency capabilities such as Smart Home, email, iMessage, and route-duration into a stable capability boundary; second, comprehensively refactoring the existing synchronous structured request into the `prompt_async + SSE + message reload` asynchronous model, to support more robust foreground/background state recovery and exactly-once idempotent action execution. It should be clear that even after the asynchronous recovery mechanism is completed, it does not mean that voice conversations can continue in the background.
 
-开发原生的 CarPlay App、在 Maps 前台运行期间实现免按键持续对话、支持任意 URL action 跳转以及开放式的现实世界自动化操作，均明确不属于当前版本的产品范围。
+Developing a native CarPlay App, achieving hands-free continuous conversation while Maps is in the foreground, supporting arbitrary URL action jumps, and open-ended real-world automation operations are all explicitly out of the product scope of the current version.
 
-## 5. 数据流与状态管理
+## 5. Data Flow and State Management
 
-### 5.1 核心状态模型
+### 5.1 Core State Model
 
 ```swift
 @Observable class AppState {
@@ -640,101 +640,101 @@ idle → recording → finalizing → waitingReply
 }
 ```
 
-数据迁移策略：在第一版实现中，可保留现有的 `serverURL`、Basic Auth 以及 `SSHTunnelManager.config` 等字段作为当前活跃 profile 的展开缓存，但数据持久化的单一事实来源（source of truth）必须统一收敛至 `hostProfiles`。在切换 profile 时，由选中的 profile 将数据写回这些运行时字段，从而避免一次性深层重构危及 APIClient、SSE 以及 SSH tunnel 模块的运行稳定性。
+Data migration strategy: in the first implementation, the existing fields such as `serverURL`, Basic Auth, and `SSHTunnelManager.config` may be retained as an expanded cache of the currently active profile, but the single source of truth for data persistence must uniformly converge on `hostProfiles`. When the profile is switched, the selected profile writes the data back into these runtime fields, thereby avoiding a one-off deep refactor that would endanger the runtime stability of the APIClient, SSE, and SSH tunnel modules.
 
-### 5.2 SSE 事件处理
+### 5.2 SSE Event Handling
 
-收到 SSE 事件后，根据其 `type` 字段分发至对应业务逻辑进行处理：
+After an SSE event is received, it is dispatched to the corresponding business logic according to its `type` field:
 
-| 事件 | 处理逻辑 |
+| Event | Handling logic |
 |------|----------|
-| `session.created` | 追加到 sessions 列表 |
-| `session.updated` | 更新对应 session 的属性 |
-| `session.status` | 更新 sessionStatuses 字典 |
-| `session.diff` | 更新 sessionDiffs（若 SSE 推送；否则由 `GET /session/:id/diff` 拉取） |
-| `message.updated` | 更新或插入 message |
-| `message.part.updated` | 更新对应 part；如果有 delta，追加到 text part 的文本末尾 |
-| `message.part.removed` | 从 parts 中移除 |
-| `permission.asked` | 显示权限请求卡片，等待用户手动批准 |
-| `file.edited` | 触发 file status 刷新 |
-| `session.error` | 显示错误 toast |
+| `session.created` | Append to the sessions list |
+| `session.updated` | Update the attributes of the corresponding session |
+| `session.status` | Update the sessionStatuses dictionary |
+| `session.diff` | Update sessionDiffs (if pushed by SSE; otherwise pulled via `GET /session/:id/diff`) |
+| `message.updated` | Update or insert the message |
+| `message.part.updated` | Update the corresponding part; if there is a delta, append it to the end of the text part's text |
+| `message.part.removed` | Remove it from parts |
+| `permission.asked` | Show the permission request card and wait for the user to approve manually |
+| `file.edited` | Trigger a file status refresh |
+| `session.error` | Show an error toast |
 
-### 5.3 连接恢复策略
+### 5.3 Connection Recovery Strategy
 
 ```
-App 进入前台
-  ├── 调用 GET /global/health 确认 server 存活
-  ├── 调用 GET /session 拉取 session 列表
-  ├── 调用 GET /session/:id/message?limit=6 拉取当前 session 最近 3 轮消息
-  ├── 调用 GET /session/status 拉取所有 session 状态
-  └── 建立 SSE 连接到 GET /global/event
-      └── 后续增量更新由 SSE 驱动
+App enters the foreground
+  ├── Call GET /global/health to confirm the server is alive
+  ├── Call GET /session to pull the session list
+  ├── Call GET /session/:id/message?limit=6 to pull the most recent 3 turns of the current session
+  ├── Call GET /session/status to pull all the session states
+  └── Establish the SSE connection to GET /global/event
+      └── Subsequent incremental updates are driven by SSE
 ```
 
-采用“全量状态拉取 + 增量事件订阅”的组合模式，确保即便 SSE 连接在 App 切入后台期间被系统中断，重新回到前台时也不会发生状态丢失或数据不一致。
+A combined "full state pull + incremental event subscription" model is adopted, ensuring that even if the SSE connection is interrupted by the system while the App is in the background, no state is lost and no data inconsistency occurs when returning to the foreground.
 
-## 6. API 依赖清单
+## 6. API Dependency List
 
-以下是 iOS Client 需要调用的 OpenCode API 的完整列表：
+The following is the complete list of the OpenCode APIs that the iOS Client needs to call:
 
-### 6.1 必需 API
+### 6.1 Required APIs
 
-| 方法 | 路径 | 用途 |
+| Method | Path | Purpose |
 |------|------|------|
-| GET | `/global/health` | 连接测试、获取 server 版本 |
-| GET | `/global/event` | SSE 事件流 |
-| GET | `/session` | Session 列表（支持 `directory`、`limit` 参数按项目过滤） |
-| POST | `/session` | 创建 Session |
-| GET | `/session/:id` | Session 详情 |
-| DELETE | `/session/:id` | 删除 Session |
-| GET | `/session/:id/message` | 消息列表（支持 `limit`，默认先拉最近 6 条） |
-| POST | `/session/:id/prompt_async` | 发送消息（异步） |
-| POST | `/session/:id/abort` | 中止运行 |
+| GET | `/global/health` | Connection test, fetch the server version |
+| GET | `/global/event` | SSE event stream |
+| GET | `/session` | Session list (supports the `directory` and `limit` parameters to filter by project) |
+| POST | `/session` | Create a Session |
+| GET | `/session/:id` | Session details |
+| DELETE | `/session/:id` | Delete a Session |
+| GET | `/session/:id/message` | Message list (supports `limit`; by default pulls the most recent 6) |
+| POST | `/session/:id/prompt_async` | Send a message (asynchronous) |
+| POST | `/session/:id/abort` | Abort the run |
 | GET | `/session/:id/diff` | Session diff |
-| GET | `/session/status` | 所有 Session 状态 |
-| POST | `/session/:id/permissions/:pid` | 响应权限请求 |
-| GET | `/question` | 拉取 pending questions |
-| POST | `/question/:id/reply` | 回答 question |
-| POST | `/question/:id/reject` | 拒绝 question |
-| GET | `/file?path=...` | 文件列表 |
-| GET | `/file/content?path=...` | 文件内容 |
-| GET | `/file/status` | 文件 git 状态 |
-| GET | `/find/file?query=...` | 文件搜索 |
-| GET | `/config/providers` | 可用 Provider 和模型列表 |
-| GET | `/agent` | 可用 Agent 列表 |
-| GET | `/project` | 项目列表 |
-| GET | `/project/current` | 当前项目 |
+| GET | `/session/status` | All Session states |
+| POST | `/session/:id/permissions/:pid` | Respond to a permission request |
+| GET | `/question` | Pull the pending questions |
+| POST | `/question/:id/reply` | Answer a question |
+| POST | `/question/:id/reject` | Reject a question |
+| GET | `/file?path=...` | File list |
+| GET | `/file/content?path=...` | File content |
+| GET | `/file/status` | File git status |
+| GET | `/find/file?query=...` | File search |
+| GET | `/config/providers` | List of available Providers and models |
+| GET | `/agent` | List of available Agents |
+| GET | `/project` | Project list |
+| GET | `/project/current` | Current project |
 
-### 6.2 可选 API（后续增强）
+### 6.2 Optional APIs (Future Enhancements)
 
-| 方法 | 路径 | 用途 |
+| Method | Path | Purpose |
 |------|------|------|
-| POST | `/session/:id/summarize` | Compact session（🔲 暂未实现） |
+| POST | `/session/:id/summarize` | Compact session (🔲 not implemented yet) |
 | POST | `/session/:id/fork` | Fork session |
-| GET | `/session/:id/todo` | 查看 AI 的 todo 列表 |
-| GET | `/find?pattern=...` | 全文搜索 |
-| GET | `/mcp` | MCP 服务状态 |
-| GET | `/lsp` | LSP 状态 |
-| PATCH | `/config` | 修改配置 |
+| GET | `/session/:id/todo` | View the AI's todo list |
+| GET | `/find?pattern=...` | Full-text search |
+| GET | `/mcp` | MCP service status |
+| GET | `/lsp` | LSP status |
+| PATCH | `/config` | Modify the configuration |
 
-## 7. UI 线框描述
+## 7. UI Wireframe Descriptions
 
 ### 7.1 Chat Tab — iPhone
 
 ```
 ┌─────────────────────────────────┐
-│ ☰ Sessions    Session Title   ⋯ │  ← Navigation bar
+│ ☰ Sessions    Session Title  ⋯ │  ← Navigation bar
 ├─────────────────────────────────┤
-│ [Claude Opus] [Sonnet 4.6] [G..│  ← 模型切换条（横向滚动）
+│ [Claude Opus] [Sonnet 4.6] [G.. │  ← Model switcher bar (horizontal scrolling)
 ├─────────────────────────────────┤
 │                                 │
 │  ┌───────────────────────────┐  │
-│  │ Refactor the auth module  │  │  ← 用户消息
+│  │ Refactor the auth module  │  │  ← user message
 │  │              Claude Opus  │  │
 │  └───────────────────────────┘  │
 │                                 │
 │  ┌───────────────────────────┐  │
-│  │ ▸ Thinking... (折叠)      │  │  ← reasoning part
+│  │ ▸ Thinking... (collapsed) │  │  ← reasoning part
 │  │                           │  │
 │  │ I'll start by analyzing   │  │  ← text part (streaming)
 │  │ the current auth flow...  │  │
@@ -749,12 +749,12 @@ App 进入前台
 │  │ │   src/auth/handler.ts │ │  │
 │  │ └───────────────────────┘ │  │
 │  │                           │  │
-│  │ ⚠️ Permission required:   │  │  ← 权限请求（需手动批准）
-│  │   shell: npm test [Approve]│  │
+│  │ ⚠️ Permission required:   │  │  ← permission request (manual approval required)
+│  │  shell: npm test [Approve]│  │
 │  └───────────────────────────┘  │
 │                                 │
 ├─────────────────────────────────┤
-│ │ Type a message...    │ ➤ 🎤 │  ← 输入框（发送 + 麦克风）
+│ │ Type a message...    │ ➤ 🎤   │  ← input field (send + microphone)
 └─────────────────────────────────┘
 ```
 
@@ -770,18 +770,18 @@ App 进入前台
 ├─────────────────────────────────┤
 │ ▼ src/                          │
 │   ▼ auth/                       │
-│     ● handler.ts        +12 -5  │  ← modified (黄点)
+│     ● handler.ts        +12 -5  │  ← modified (yellow dot)
 │     ○ types.ts                  │
 │   ▶ api/                        │
 │   ▶ utils/                      │
 │ ▼ tests/                        │
-│   ● auth.test.ts        +45 -0  │  ← new file (绿点)
+│   ● auth.test.ts        +45 -0  │  ← new file (green dot)
 │ ○ package.json                  │
 │ ○ tsconfig.json                 │
 └─────────────────────────────────┘
 ```
 
-点击文件后 push 到文件详情页：
+Tapping a file pushes to the file detail page:
 
 ```
 ┌─────────────────────────────────┐
@@ -790,12 +790,12 @@ App 进入前台
 │  1 │ import { Router } from ... │
 │  2 │ import { verify } from ... │
 │  3 │                            │
-│  4+│ export async function      │  ← 新增行（绿色背景）
+│  4+│ export async function      │  ← added line (green background)
 │  5+│   authenticateUser(        │
 │  6+│   req: Request             │
 │  7 │ ) {                        │
-│  8-│   const token = req.head.. │  ← 删除行（红色背景）
-│  9+│   const token = extractT.. │  ← 新增行
+│  8-│   const token = req.head.. │  ← deleted line (red background)
+│  9+│   const token = extractT.. │  ← added line
 │ 10 │   ...                      │
 └─────────────────────────────────┘
 ```
@@ -837,134 +837,134 @@ App 进入前台
 └─────────────────────────────────┘
 ```
 
-## 8. 开发分期
+## 8. Development Phases
 
-### Phase 1 — 最小可用版本（MVP）
+### Phase 1 — Minimum Viable Version (MVP)
 
-**目标**：成功连接 server、正常发送消息，并能实时接收 AI 的流式响应。
+**Goal**: successfully connect to the server, send messages normally, and receive the AI's streaming responses in real time.
 
-| 功能 | 说明 |
+| Feature | Description |
 |------|------|
-| Server 连接 | 手动输入 IP:Port，Basic Auth |
-| SSE 事件流 | 连接、断开、重连、前后台切换 |
-| Session 基础 | 列表、创建、切换（删除暂未实现） |
-| 消息发送 | 文本输入、发送（使用 `prompt_async`）、查看响应；busy 时消息自动入队 |
-| 流式渲染 | text part 的实时打字机效果 |
-| 模型切换 | 预设模型列表、发送时指定模型 |
+| Server connection | Manual IP:Port entry, Basic Auth |
+| SSE event stream | Connect, disconnect, reconnect, foreground/background switching |
+| Basic session support | List, create, switch (delete not implemented yet) |
+| Message sending | Text input, sending (using `prompt_async`), viewing the response; messages are queued automatically while busy |
+| Streaming rendering | Real-time typewriter effect for the text part |
+| Model switching | Preset model list, specifying the model when sending |
 
-**预估工作量**：2-3 周（基于具备 SwiftUI 开发经验的前提）
+**Estimated effort**: 2-3 weeks (assuming prior SwiftUI development experience)
 
-### Phase 2 — 完整交互
+### Phase 2 — Full Interaction
 
-**目标**：实现对 AI 执行全流程的有效监控与审查能力。
+**Goal**: deliver effective monitoring and review capability over the AI's entire execution flow.
 
-| 功能 | 说明 |
+| Feature | Description |
 |------|------|
-| 消息 Part 渲染 | reasoning、tool、step、patch 等所有 Part 类型 |
-| 权限手动批准 | 监听 permission.asked，显示请求卡片，用户手动批准 |
-| Abort / Compact | 中止运行、压缩 session |
-| Markdown 渲染 | AI 消息中的 Markdown 完整渲染 |
-| 主题切换 | 跟随系统 Light/Dark |
-| 代码块高亮 | 消息中代码块的语法高亮 |
-| **Think Streaming** | delta 增量更新（打字机效果）、Tool 完成后默认收起 |
+| Message Part rendering | All Part types: reasoning, tool, step, patch, etc. |
+| Manual permission approval | Listen for permission.asked, show the request card, the user approves manually |
+| Abort / Compact | Abort the run, compact the session |
+| Markdown rendering | Full Markdown rendering in AI messages |
+| Theme switching | Follows the system Light/Dark theme |
+| Code block highlighting | Syntax highlighting for code blocks in messages |
+| **Think Streaming** | Delta incremental updates (typewriter effect), Tool collapsed by default after completion |
 
-**预估工作量**：2 周
+**Estimated effort**: 2 weeks
 
-### Phase 3 — 文件浏览、文档审查与 iPad/Vision Pro 布局
+### Phase 3 — File Browsing, Document Review, and the iPad / Vision Pro Layout
 
-**目标**：补齐完整的文件浏览与**文档审查**能力，并针对 iPad 与 Vision Pro 完成大屏三栏布局适配。
+**Goal**: complete the full file browsing and **document review** capabilities, and finish the large-screen three-column layout adaptation for iPad and Vision Pro.
 
-| 功能 | 说明 |
+| Feature | Description |
 |------|------|
-| 文件树 | 目录展开/收起、git 状态标记 |
-| 文件内容 | 行号、等宽字体（语法高亮暂不实现） |
-| 文件搜索 | 模糊搜索文件名 |
-| Markdown 预览 | Preview 模式为主，支持 Markdown/Preview 切换 |
-| 文档 Diff | 高亮 changes（优先 Preview 内高亮，否则 Markdown 内高亮） |
-| Session Diff | 当前 session 的变更文件列表和 diff 视图 |
-| 单文件 Diff | 文件的 uncommitted changes |
-| **Think Streaming** | delta 增量更新（打字机效果） |
-| **iPad / Vision Pro 布局** | 无 Tab Bar；三栏：左 Workspace（Files+Sessions）、中 Preview、右 Chat；Settings 作为第一行 toolbar 按钮 |
+| File tree | Directory expand/collapse, git status markers |
+| File content | Line numbers, monospaced font (syntax highlighting not implemented yet) |
+| File search | Fuzzy search by file name |
+| Markdown preview | Preview mode first, supporting Markdown/Preview switching |
+| Document Diff | Highlight the changes (prefer highlighting inside Preview, otherwise inside Markdown) |
+| Session Diff | The changed file list and diff view of the current session |
+| Single-file Diff | The uncommitted changes of a file |
+| **Think Streaming** | Delta incremental updates (typewriter effect) |
+| **iPad / Vision Pro layout** | No Tab Bar; three columns: Workspace (Files+Sessions) on the left, Preview in the middle, Chat on the right; Settings as a button in the first toolbar row |
 
-**预估工作量**：2-3 周
+**Estimated effort**: 2-3 weeks
 
-### Phase 4 — 打磨与增强（暂不实现，按优先级排序）
+### Phase 4 — Polish and Enhancements (Not Implemented Yet, Ordered by Priority)
 
-| 功能 | 说明 |
+| Feature | Description |
 |------|------|
-| **推送通知 / Live Activity** | 当 AI 暂停等待人类决策时（question / permission / 运行完成），通过 APNs 或 Live Activity 主动发起通知，消除人机异步空转。这是完善 Steer 闭环的核心工程能力 |
-| **Session 辨识度增强** | 优化活跃与非活跃 Session 的视觉区分度，降低用户在长列表中定位目标会话的认知负担 |
-| mDNS 自动发现 | 局域网内自动发现 OpenCode server |
-| Widget | 提供 iOS 桌面组件，实时显示当前 session 状态 |
-| Haptic 反馈 | 在关键操作节点引入触觉震动反馈 |
-| Spotlight 集成 | 支持通过系统 Spotlight 快速检索最近 session |
+| **Push notification / Live Activity** | When the AI pauses to wait for a human decision (question / permission / run completed), proactively raise a notification through APNs or a Live Activity, eliminating the human–machine asynchronous idling. This is the core engineering capability for completing the Steer loop |
+| **Improved Session distinguishability** | Optimize the visual distinction between active and inactive Sessions, reducing the cognitive burden of locating the target session in a long list |
+| mDNS auto-discovery | Automatically discover OpenCode servers inside the LAN |
+| Widget | Provide an iOS home-screen widget that shows the current session state in real time |
+| Haptic feedback | Introduce haptic vibration feedback at key interaction points |
+| Spotlight integration | Support quick retrieval of recent sessions through the system Spotlight |
 
-## 9. 已知限制与风险
+## 9. Known Limitations and Risks
 
-**网络依赖**：App 完全依赖与 OpenCode Server 的网络连接。若 Server 不可达（如网络中断或 Server 进程未启动），App 将无法正常工作。目前支持局域网直连与 SSH tunnel 远程访问两种模式；在弱网环境下，通过“拉取最近 3 轮 + 下拉分页加载”策略降低首屏等待耗时。
+**Network dependency**: the App depends entirely on the network connection to the OpenCode Server. If the Server is unreachable (for example, due to a network outage or because the Server process is not running), the App cannot work properly. Two modes are currently supported: direct LAN access and SSH tunnel remote access; in weak network environments, the "pull the most recent 3 turns + pull-down paginated loading" strategy reduces the first-screen waiting time.
 
-**SSE 在 iOS 上的行为**：当 App 进入后台时，iOS 系统会积极回收网络资源并断开长连接。因此必须设计健壮的重连机制与前台状态恢复逻辑，且不建议在后台强行维持 SSE 活跃。
+**SSE behavior on iOS**: when the App enters the background, the iOS system aggressively reclaims network resources and drops the long connection. A robust reconnection mechanism and foreground state recovery logic must therefore be designed, and keeping SSE alive in the background is not recommended.
 
-**屏幕尺寸**：在 iPhone 的窄屏空间下，代码与 diff 内容的横向排版与可读性面临客观挑战。需要细致优化横向滚动、字体缩放等交互细节。相对而言，iPad 大屏能提供更优的视觉呈现。
+**Screen size**: in the narrow space of an iPhone, the horizontal layout and readability of code and diff content face objective challenges. Interaction details such as horizontal scrolling and font scaling need careful optimization. Relatively speaking, the larger iPad screen provides a better visual presentation.
 
-**Server API 稳定性**：目前 OpenCode 的 HTTP API 尚未提供严格的版本化承诺（如未引入 `/v1/` 等版本前缀）。后续 Server 版本的演进可能引入 breaking changes。建议 iOS 客户端对 API 响应实施防御性解析策略，遇到未知字段时静默忽略而非直接 crash。
+**Server API stability**: OpenCode's HTTP API does not currently provide a strict versioning commitment (for example, no `/v1/`-style version prefix has been introduced). The evolution of later Server versions may introduce breaking changes. The iOS client is advised to parse API responses defensively, silently ignoring unknown fields instead of crashing outright.
 
-**安全策略**：初期 App 主要应用于受信任的本地局域网环境，整体安全风险可控。若后续开放公网直连访问，需全面引入 TLS 加密与 token-based 鉴权等加固方案。当前采用的 Basic Auth over HTTP 仅适用于局域网环境，不应直接暴露在公网中。**ATS 策略例外**：局域网（私有 IP 段、localhost、.local）与 Tailscale MagicDNS（`*.ts.net`）允许使用 HTTP；其余公网 WAN 请求强制要求 HTTPS。Info.plist 中的 `NSExceptionDomains` 已对 `ts.net` 进行相应豁免配置。
+**Security policy**: in its early stages the App is mainly used in trusted local LAN environments, so the overall security risk is manageable. If direct public-internet access is opened up later, hardening such as TLS encryption and token-based authentication must be introduced comprehensively. The Basic Auth over HTTP currently used applies only to LAN environments and must not be exposed directly to the public internet. **ATS policy exceptions**: HTTP is allowed for the LAN (private IP ranges, localhost, .local) and Tailscale MagicDNS (`*.ts.net`); all other public WAN requests strictly require HTTPS. The `NSExceptionDomains` in Info.plist has already been configured with the corresponding exemption for `ts.net`.
 
-**人机异步空转（Notification 缺失）**：当 AI 因触发 `question` tool、permission 权限申请或等待人类审查而挂起时，若用户已离开 App（iOS 切入后台），目前缺乏主动通知手段。这会导致两端陷入相互等待的“空转”状态——AI 在等待人类指令，而人类并不知晓需要做出决策。该问题的本质属于 iOS 系统的工程能力限制，而非单纯的 UX 交互设计范畴：需要引入 Push Notification（APNs）或 Live Activity 突破后台限制以主动唤醒用户。虽然该功能在 Phase 4 中暂标为“暂不实现”，但应作为高优先级的工程增强项——它直接关乎 Steer 统领范式的闭环效率。
+**Human–machine asynchronous idling (missing notifications)**: when the AI suspends because it triggers the `question` tool, requests a permission, or waits for human review, and the user has already left the App (iOS in the background), there is currently no way to notify proactively. This leaves both sides in a mutually waiting "idle spin" state — the AI waits for a human instruction while the human does not know that a decision is needed. The essence of this problem is an iOS system engineering limitation rather than a matter of pure UX interaction design: push notification (APNs) or Live Activity must be introduced to break through the background restrictions and actively wake the user. Although this capability is marked as "not implemented yet" in Phase 4, it should be treated as a high-priority engineering enhancement — it directly determines the closed-loop efficiency of the Steer paradigm.
 
-## 10. 已决事项
+## 10. Resolved Decisions
 
-1. **消息发送 API**：选定使用 `POST /session/:id/prompt_async`。通过服务端源码调研确认：同步（sync）与异步（async）接口底层均调用同一个 `SessionPrompt.prompt()` 逻辑，异步模式仅不阻塞等待最终响应；两者的消息创建、任务处理及 SSE 事件推送行为完全一致。鉴于 iOS 客户端统一配合 SSE 获取实时结果，采用 async 异步模式更为合理。
+1. **Message sending API**: `POST /session/:id/prompt_async` is chosen. Research on the server source code confirms that the synchronous (sync) and asynchronous (async) interfaces both call the same underlying `SessionPrompt.prompt()` logic; the async mode simply does not block while waiting for the final response; the two behave identically in message creation, task processing, and SSE event pushing. Given that the iOS client uniformly relies on SSE to obtain real-time results, the async asynchronous mode is the more reasonable choice.
 
-2. **大型 Session**：暂不作特殊处理。当前设计预期单 session 消息量不会超过百条。
+2. **Large Sessions**: no special handling for now. The current design expects that the number of messages in a single session will not exceed a hundred.
 
-3. **推送通知**：当前阶段暂不实现，但已识别为高优先级工程增强项——当 AI 挂起等待人类决策时（如 question / permission / 执行完成），需依托 APNs 或 Live Activity 绕过 iOS 后台限制主动触达用户，从而消除人机异步等待。
+3. **Push notification**: not implemented at this stage, but already identified as a high-priority engineering enhancement — when the AI suspends to wait for a human decision (such as question / permission / run completed), APNs or Live Activity must be used to bypass the iOS background restrictions and reach the user proactively, thereby eliminating the human–machine asynchronous waiting.
 
-4. **多项目支持**：当前阶段暂不展开实现。
+4. **Multi-project support**: not implemented at this stage.
 
-5. **默认 Server**：默认地址采用 `127.0.0.1:4096`。默认不启用身份认证，但客户端需完整实现 Basic Auth 鉴权支持以供按需配置。
+5. **Default Server**: the default address is `127.0.0.1:4096`. Authentication is disabled by default, but the client must fully implement Basic Auth authentication support so that it can be configured as needed.
 
-## 11. 实现起步指南
+## 11. Getting Started Guide
 
-### 11.1 项目创建
+### 11.1 Project Setup
 
-当前代码仓库已包含可直接打开的完整 Xcode 工程。对于新接入的开发者，推荐采用以下两种起步方式：
+The current repository already contains a complete Xcode project that can be opened directly. For developers joining the project, the following two starting approaches are recommended:
 
-1. 通过 README 中提供的 TestFlight 链接直接安装预编译版本进行体验
-2. clone 本地仓库后直接打开 `OpenCodeClient/OpenCodeClient.xcodeproj` 进行本地构建与调试
+1. Install the prebuilt version directly through the TestFlight link provided in the README to try it out
+2. Clone the local repository and open `OpenCodeClient/OpenCodeClient.xcodeproj` directly for local building and debugging
 
-### 11.2 依赖与结构
+### 11.2 Dependencies and Structure
 
-- **网络层**：采用 `URLSession` 原生实现 REST 请求与 SSE 事件流，无需引入 Alamofire 等第三方网络库
-- **状态管理**：采用 iOS 17+ 原生的 `@Observable` 配合 SwiftUI 实现响应式状态绑定
-- **Markdown**：集成开源库 [MarkdownUI](https://github.com/gonzalezreal/MarkdownUI)
-- **主题**：通过 `@Environment(\.colorScheme)` 监听并跟随系统主题切换
-- **SSH Tunnel**：集成 Citadel 库实现 SSH 隧道能力
+- **Networking**: REST requests and the SSE event stream are implemented natively with `URLSession`, with no need to introduce third-party networking libraries such as Alamofire
+- **State management**: iOS 17+'s native `@Observable` is used together with SwiftUI to implement reactive state binding
+- **Markdown**: integrates the open-source library [MarkdownUI](https://github.com/gonzalezreal/MarkdownUI)
+- **Theme**: observed through `@Environment(\.colorScheme)` and following the system theme
+- **SSH Tunnel**: integrates the Citadel library to implement the SSH tunnel capability
 
-当前客户端代码采用按职责分层的清晰目录架构：
+The current client code follows a clear directory architecture layered by responsibility:
 
-- `Views/`：包含 Chat、Files、Settings 以及 Split View 等各模块 UI 视图
-- `Controllers/`：承载 permission 与 question 等交互事件的逻辑控制器
-- `Services/`：封装 API 通信、SSE 事件流、SSH 隧道、语音录音与转写等核心服务
-- `Stores/`：管理 Session、Message、File、Todo 等核心业务状态
-- `Models/`：定义 Session、Message、Project、Question、ModelPreset 等数据结构
-- `Support/`：收纳本地化多语言与通用支持组件
-- `Utils/`：提供 Keychain 存储、PathNormalizer 路径处理、LayoutConstants 布局常量等基础工具库
+- `Views/`: contains the UI views of modules such as Chat, Files, Settings, and Split View
+- `Controllers/`: hosts the logic controllers for interaction events such as permission and question
+- `Services/`: encapsulates the core services such as API communication, the SSE event stream, SSH tunnels, voice recording and transcription
+- `Stores/`: manages the core business state such as Session, Message, File, and Todo
+- `Models/`: defines data structures such as Session, Message, Project, Question, and ModelPreset
+- `Support/`: collects the localization resources and the general support components
+- `Utils/`: provides basic utility libraries such as Keychain storage, PathNormalizer path handling, and the LayoutConstants layout constants
 
-### 11.3 建议的实现顺序
+### 11.3 Recommended Implementation Order
 
-1. **Phase 1**：跑通 Server 连接、SSE 事件流、Session 管理、消息发送与基础流式渲染
-2. **Phase 2**：实现完整的消息 Part 渲染、权限手动审批、主题切换以及基于 `prompt_async` 的消息排队机制
-3. **Phase 3**：完成文件树、Markdown 预览、文档 Diff 比对以及变更高亮渲染
+1. **Phase 1**: get the Server connection, the SSE event stream, Session management, message sending, and basic streaming rendering working
+2. **Phase 2**: implement full message Part rendering, manual permission approval, theme switching, and the message queueing mechanism based on `prompt_async`
+3. **Phase 3**: complete the file tree, the Markdown preview, the document Diff comparison, and the change highlighting rendering
 
-### 11.4 与 OpenCode Server 的对接
+### 11.4 Integration with the OpenCode Server
 
-默认 Server 连接地址为 `127.0.0.1:4096`（无认证）。若服务端开启了 `OPENCODE_SERVER_PASSWORD` 等鉴权环境变量，在客户端 Settings 中填入对应的 Username 与 Password 即可。局域网直连场景下可直接配置为服务端的局域网 IP 地址；远程访问场景则可通过 SSH tunnel 代理转发至本地的 `127.0.0.1:4096` 端口。
+The default Server connection address is `127.0.0.1:4096` (no authentication). If the server has enabled authentication environment variables such as `OPENCODE_SERVER_PASSWORD`, just fill in the corresponding Username and Password in the client Settings. In the direct LAN scenario it can be configured directly with the LAN IP address of the server; in the remote access scenario it can be forwarded through an SSH tunnel proxy to the local `127.0.0.1:4096` port.
 
 ---
 
-## 附录 A — OpenCode Server 关键数据结构参考
+## Appendix A — Reference for the Key OpenCode Server Data Structures
 
 ### Session
 
@@ -1006,7 +1006,7 @@ App 进入前台
 }
 ```
 
-### Part (核心类型)
+### Part (core types)
 
 ```typescript
 // Text

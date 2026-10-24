@@ -1,75 +1,75 @@
-# Background Subagent 任务通知渲染设计草案
+# Background Subagent Task Notification Rendering Design Draft
 
-## 结论
+## Conclusion
 
-后台 subagent 完成时，服务端向父会话注入一条 **synthetic user message**，内容是 `<task id=... state="completed">` XML 信封，内含 summary 与结果正文。iOS 客户端目前没有解码 TextPart 的 `synthetic` 字段，这类消息被渲染成蓝色用户气泡里的原始 XML，是最刺眼的渲染破绽之一。
+When a background subagent completes, the server injects a **synthetic user message** into the parent session, whose content is an XML envelope of the form `<task id=... state="completed">`, containing the summary and the result body. The iOS client currently does not decode the `synthetic` field of TextPart, so such messages are rendered as raw XML inside the blue user bubble — one of the most glaring rendering flaws.
 
-这个 UI element 应该是一张 **TaskNotificationCard**——消息流里的"subagent 任务回执"卡片：首屏是状态图标 + 状态标签 + 任务标题，结果正文在卡内用 markdown 渲染，展开后可一键打开 subagent 会话审计全过程。它不是用户气泡（系统注入，不是用户说的话），也不是 tool card（tool card 表示"一次调用"，这张卡表示"一个异步工作交付了结果"）。
+This UI element should be a **TaskNotificationCard** — a "subagent task receipt" card in the message stream: the first screen shows a status icon + status label + task title, the result body is rendered as markdown inside the card, and once expanded it can open the subagent session with one tap to audit the whole process. It is not a user bubble (it is system-injected, not something the user said), and it is not a tool card either (a tool card represents "one call", while this card represents "one asynchronous job delivered a result").
 
-识别用双门：part 带 `synthetic: true` **且**文本可解析为 `<task>` 信封 → 渲染卡片；解析失败安全回退现状。
+Identification uses a two-gate rule: the part carries `synthetic: true` **and** the text can be parsed as a `<task>` envelope → render the card; on parse failure, safely fall back to the current behavior.
 
-范围严格限定 task 回执。服务端其他 synthetic 注入点（plan mode 指令、compaction 续跑、MCP resource 等）明确 out of scope，不触碰用户气泡的渲染逻辑；它们列在附录，仅作观察记录。
+The scope is strictly limited to task receipts. The server's other synthetic injection points (plan mode instructions, compaction continuation, MCP resources, etc.) are explicitly out of scope, and the user bubble rendering logic is left untouched; they are listed in the appendix as observation records only.
 
-## 成功标准
+## Success Criteria
 
-1. 后台任务完成后，会话里出现状态清晰的回执卡片（绿色完成 / 红色失败），首屏看到任务名与状态，不泄漏任何原始 XML。
-2. tap 卡片展开，可读完整 subagent 结果 markdown（含 workspace 链接解析与图片）；超长结果有既有 12k 预览保护。
-3. 展开后 tap 按钮可打开 subagent 会话，复用既有 selectSession 路径。
-4. 解析失败或旧版本服务端（payload 无 `synthetic` 字段）时，行为安全回退到现状：不吞内容、不崩。
+1. After a background task completes, a clearly-stated receipt card appears in the session (green for complete / red for failure); the task name and status are visible on the first screen, and no raw XML leaks through.
+2. Tapping the card expands it, revealing the complete subagent result markdown (including workspace link resolution and images); overly long results are protected by the existing 12k preview limit.
+3. After expanding, tapping the button opens the subagent session, reusing the existing selectSession path.
+4. When parsing fails or the server is an older version (the payload has no `synthetic` field), the behavior safely falls back to the current state: no content swallowed, no crash.
 
-## 数据通路（证据）
+## Data Path (Evidence)
 
-### 服务端生成方式
+### Server Generation
 
-`opencode-official/packages/opencode/src/tool/task.ts`：
+`opencode-official/packages/opencode/src/tool/task.ts`:
 
-- `renderOutput()` 生成固定 XML 信封：
+- `renderOutput()` generates a fixed XML envelope:
   ```
   <task id="{childSessionID}" state="completed|error|running">
-  <summary>Background task completed: {description}</summary>   # error 时为 failed
-  <task_result> 或 <task_error>
-  {subagent 最后一条 text part 的 markdown}
+  <summary>Background task completed: {description}</summary>   # "failed" when error
+  <task_result> or <task_error>
+  {markdown of the subagent's last text part}
   </task_result>
   </task>
   ```
-- 后台任务完成/失败时，`injectBackgroundResult` 通过 `ops.prompt` 向**父会话**注入一条 user 消息，text part 带 `synthetic: true`。
-- 启动后台任务时，父消息里的 `task` tool part 携带 `state.metadata = { parentSessionId, sessionId, model, background: true, jobId }`，output 是 `state="running"` 的信封（本设计不处理，见附录）。
-- `TextPart.synthetic` 在 V1 API schema 中是 optional boolean（`packages/schema/src/v1/session.ts:108`）。
+- When a background task completes or fails, `injectBackgroundResult` injects a user message into the **parent session** via `ops.prompt`, with the text part carrying `synthetic: true`.
+- When a background task starts, the `task` tool part in the parent message carries `state.metadata = { parentSessionId, sessionId, model, background: true, jobId }`, and the output is an envelope with `state="running"` (not handled by this design; see the appendix).
+- `TextPart.synthetic` is an optional boolean in the V1 API schema (`packages/schema/src/v1/session.ts:108`).
 
-live 验证（2026-09-27，本机 4096 server，`GET /session/:id/message`）：
+Live verification (2026-09-27, local server on port 4096, `GET /session/:id/message`):
 
-- 回执是 **user-role** 消息，单个 text part
-- part payload 实际带 `synthetic: true`
-- 正文为完整 `<task>` 信封；该 part 无 `time` 字段
+- The receipt is a **user-role** message with a single text part
+- The part payload actually carries `synthetic: true`
+- The body is a complete `<task>` envelope; that part has no `time` field
 
-### 客户端现状
+### Current Client State
 
-- `Models/Message.swift` 的 `Part` 结构没有解码 `synthetic`。
-- `MessageRowView.userMessageView` 把所有 user 消息的 text part 渲染进蓝色用户气泡（`DesignColors.Brand.primary` 填充 + 左侧 4pt 竖条）；XML 文本经 `hasMarkdownSyntax` 判定后走 MarkdownUI，按原始 HTML 样文本展示。
-- `task` tool part 落在 "N tool calls" 折叠行里，output 是 "Background task started..." 样板文本（本设计不处理）。
+- The `Part` struct in `Models/Message.swift` does not decode `synthetic`.
+- `MessageRowView.userMessageView` renders the text parts of all user messages into the blue user bubble (`DesignColors.Brand.primary` fill + a 4pt vertical bar on the left); the XML text is judged by `hasMarkdownSyntax` and then goes through MarkdownUI, displayed as raw HTML-like text.
+- The `task` tool part lands in the collapsed "N tool calls" row, and its output is the boilerplate text "Background task started..." (not handled by this design).
 
-## 变更清单
+## Change List
 
-### 1. 模型层：解码 `synthetic`
+### 1. Model layer: decoding `synthetic`
 
-`Part` 增加：
+`Part` gains:
 
 ```swift
 let synthetic: Bool?
 ```
 
-`decodeIfPresent` 语义，缺省视为 `false`；`Part.isSyntheticText` 便利属性（`type == "text" && synthetic == true`）。服务端不带该字段时行为与现状完全一致。
+`decodeIfPresent` semantics, with the default treated as `false`; a `Part.isSyntheticText` convenience property (`type == "text" && synthetic == true`). When the server does not include the field, the behavior is exactly the same as today.
 
-### 2. 解析层：`TaskNotificationParser`
+### 2. Parsing layer: `TaskNotificationParser`
 
-纯函数，与 `ToolCardClassifier` 同风格（可单测、无 View 依赖）：
+A pure function, in the same style as `ToolCardClassifier` (unit-testable, with no View dependency):
 
 ```swift
 struct TaskNotification {
     let sessionID: String        // <task id>
     let state: TaskState         // completed | error | running
     let summary: String?
-    let resultText: String       // <task_result>/<task_error> 内文
+    let resultText: String       // content inside <task_result>/<task_error>
     var isFailed: Bool { state == .error }
 }
 
@@ -78,78 +78,78 @@ enum TaskNotificationParser {
 }
 ```
 
-解析规则：定位最外层 `<task ...>` 开标签（开头允许前导空白）与 `</task>` 收尾，`id` / `state` 从开标签属性取；正文取 `<task_result>` 或 `<task_error>` 区间内文。全程用 range 定位而非全局 regex，保证结果正文里出现嵌套尖括号（如 subagent 自己输出的 XML 片段）时不误切。任一步缺失返回 `nil`。
+Parsing rules: locate the outermost `<task ...>` opening tag (leading whitespace is allowed at the start) and the `</task>` closing tag; `id` / `state` are taken from the opening tag's attributes; the body is the content inside the `<task_result>` or `<task_error>` range. Ranges are used throughout instead of a global regex, so that nested angle brackets inside the result body (such as XML fragments emitted by the subagent itself) never cause a wrong cut. If any step is missing, return `nil`.
 
-### 3. 渲染层：`TaskNotificationCardView`
+### 3. Rendering layer: `TaskNotificationCardView`
 
-放在 `Views/Chat/`。`MessageRowView` 对 user 消息的处理改为：
+Placed in `Views/Chat/`. The handling of user messages in `MessageRowView` changes to:
 
-- 非 synthetic text part → 照常进用户气泡（渲染逻辑零改动）；
-- synthetic text part 且 `TaskNotificationParser` 解析成功 → `TaskNotificationCardView`；
-- 其余情况（含 synthetic 但解析失败、非 synthetic）→ 现状渲染，安全回退。
+- Non-synthetic text part → goes into the user bubble as usual (with zero changes to the rendering logic);
+- Synthetic text part whose `TaskNotificationParser` parse succeeds → `TaskNotificationCardView`;
+- All other cases (including synthetic but failed parsing, and non-synthetic) → rendered as today, with a safe fallback.
 
-`copyableText(for:)` 同步调整：解析成功的回执消息复制结果正文而非 XML；用户气泡的复制内容不受影响（本设计不改用户气泡逻辑）。
+`copyableText(for:)` is adjusted accordingly: for a receipt message that parses successfully, the result body is copied instead of the XML; the copy content of the user bubble is unaffected (this design does not change the user bubble logic).
 
-## UI 规范（TaskNotificationCard）
+## UI Specification (TaskNotificationCard)
 
-### 视觉
+### Visuals
 
-- 卡片底面：`DesignColors.Neutral.text.opacity(DesignColors.surfaceFill(for:))`，与 ToolPartView 一致；圆角 `DesignCorners.medium`，内边距 `DesignSpacing.cardPadding`。
-- 头部行（首屏信息，不可折叠）：
-  - 状态图标：completed → `checkmark.seal.fill` + `DesignColors.Semantic.success`；error → `xmark.seal.fill` + `DesignColors.Semantic.error`。
-  - 状态标签：L10n 本地化（`taskNotificationCompleted` / `taskNotificationFailed`），从 `state` 生成，**不**把 summary 里的英文前缀 "Background task completed:" 原样展示；前缀剥离后剩下的 description 作任务标题。
-  - 任务标题：一行截断。
-  - 右侧：展开 chevron（DisclosureGroup 自带，tint brand primary）。
-- 展开内容：`resultText` 走既有 `markdownText` 路径（workspace 链接解析、图片解析、`textSelection(.enabled)`），超长由 `LargeMessagePreview`（>12k 截断 + 提示）保护；空结果显示占位 caption "No output"。
-- 默认展开状态：**默认折叠**（2026-09-27 用户决定，取代原"≤500 字符展开"设计）——主 agent 随后的消息通常携带消化后的结论，卡片正文是参考材料，用户 tap 展开。iOS/Android 两端同步生效。
-- `accessibilityIdentifier("task-notification-card")`；跳转按钮 `accessibilityIdentifier("task-notification-open-session")`；UI 测试按这两个锚定。
+- Card background: `DesignColors.Neutral.text.opacity(DesignColors.surfaceFill(for:))`, consistent with ToolPartView; corner radius `DesignCorners.medium`, padding `DesignSpacing.cardPadding`.
+- Header row (first-screen information, not collapsible):
+  - Status icon: completed → `checkmark.seal.fill` + `DesignColors.Semantic.success`; error → `xmark.seal.fill` + `DesignColors.Semantic.error`.
+  - Status label: localized through L10n (`taskNotificationCompleted` / `taskNotificationFailed`), generated from `state`, and the English prefix "Background task completed:" inside the summary is **not** displayed as-is; the description remaining after stripping the prefix becomes the task title.
+  - Task title: truncated to one line.
+  - Right side: expansion chevron (built into DisclosureGroup, tinted brand primary).
+- Expanded content: `resultText` goes through the existing `markdownText` path (workspace link resolution, image resolution, `textSelection(.enabled)`), and overly long content is protected by `LargeMessagePreview` (>12k truncation + a hint); an empty result shows the placeholder caption "No output".
+- Default expanded state: **collapsed by default** (decided by the user on 2026-09-27, replacing the original "expand when ≤500 characters" design) — the main agent's subsequent message usually carries the digested conclusion, while the card body is reference material that the user taps to expand. The same behavior applies on both iOS and Android.
+- `accessibilityIdentifier("task-notification-card")`; the navigation button uses `accessibilityIdentifier("task-notification-open-session")`; UI tests anchor on these two.
 
-### 交互
+### Interaction
 
-- **主动作 = 展开/折叠**：tap 整卡（头部 + 内容区）切换展开状态，与 ToolPartView / ThinkingCard 一致。不把"tap 跳转"作主动作：读结果是高频意图且展开可逆、零成本；跳转切换当前会话上下文，是低频审计动作。高频动作绑主手势。
-- **跳转 = 展开区内的带标签按钮**：展开内容底部一个按钮，文案 "打开子代理会话"（L10n `taskNotificationOpenSession`），brand primary 色、`DesignTypography.micro`。按钮命中区域优先于卡片 toggle 手势（SwiftUI Button 在可点容器内天然优先，与 ToolPartView label 内文件打开按钮同机制）。
-- **折叠态不设跳转入口**：跳转需先展开再 tap 按钮，两次 tap。低频动作可接受；头部保持安静（不放无标签 icon 按钮），维持首屏信息密度。
-- **跳转行为**：`selectSession(subagentSessionID)` + 必要时切换 project directory（session_finder "Continue in This Session" 同款路径）；目标会话已删除时走既有错误路径（`state.sendError`），卡片本身不受影响。
-- 消息行操作菜单：synthetic 回执消息不显示 Edit-from-here（不是用户轮次），Fork 保留。
+- **Primary action = expand/collapse**: tapping the whole card (header + content area) toggles the expanded state, consistent with ToolPartView / ThinkingCard. "Tap to navigate" is not made the primary action: reading the result is a high-frequency intent and expanding is reversible and free; navigation switches the current session context and is a low-frequency audit action. The high-frequency action owns the primary gesture.
+- **Navigation = a labeled button inside the expanded area**: a button at the bottom of the expanded content with the copy "Open Subagent Session" (L10n `taskNotificationOpenSession`), in brand primary color and `DesignTypography.micro`. The button's hit area takes priority over the card's toggle gesture (a SwiftUI Button naturally takes priority inside a tappable container, the same mechanism as the file-open button inside the ToolPartView label).
+- **No navigation entry in the collapsed state**: navigating requires expanding first and then tapping the button, i.e. two taps. This is acceptable for a low-frequency action; the header stays quiet (no unlabeled icon button), maintaining the information density of the first screen.
+- **Navigation behavior**: `selectSession(subagentSessionID)` plus switching the project directory when necessary (the same path as session_finder's "Continue in This Session"); when the target session has been deleted, the existing error path (`state.sendError`) is used and the card itself is unaffected.
+- Message row action menu: a synthetic receipt message does not show Edit-from-here (it is not a user turn), while Fork is kept.
 
-## 边界情况
+## Edge Cases
 
-- **流式截断**：SSE 中途 part 是不完整 XML（无 `</task>`）→ parser 返回 nil → 暂按现状渲染；part 更新为完整后重渲染为卡片。part id 稳定，替换渲染无状态残留。
-- **旧服务端**：payload 无 `synthetic` → 解码为 nil → 非 synthetic → 行为与现状一致（用户气泡 + 原始文本），不静默吞内容。
-- **用户手动粘贴信封样文本**：无 `synthetic` 标记 → 双门不成立 → 按用户消息正常渲染，不被劫持成卡片。
-- **多个后台任务**：每个通知是独立消息 → 独立卡片，天然支持。
-- **结果内含嵌套 XML**：range 定位最外层信封（见解析规则），单测覆盖。
-- **error 状态**：`<task_error>` 标签 + `state="error"`，红色图标，正文同样 markdown 渲染。
-- **summary 缺失**：标题回退显示 task 会话 ID 短形式。
+- **Streaming truncation**: mid-stream the part is incomplete XML (no `</task>`) → the parser returns nil → render as today for now; once the part is updated to the complete version, it re-renders as a card. The part id is stable, and the replacement render leaves no state residue.
+- **Old server**: the payload has no `synthetic` → decodes to nil → not synthetic → behavior identical to today (user bubble + raw text), with no content silently swallowed.
+- **User manually pastes envelope-like text**: no `synthetic` marker → the two-gate rule does not hold → rendered normally as a user message, not hijacked into a card.
+- **Multiple background tasks**: each notification is an independent message → an independent card, supported naturally.
+- **Nested XML inside the result**: ranges locate the outermost envelope (see the parsing rules), covered by unit tests.
+- **error state**: the `<task_error>` tag + `state="error"`, a red icon, and the body rendered as markdown as well.
+- **Missing summary**: the title falls back to a short form of the task session ID.
 
-## 实现范围
+## Implementation Scope
 
-单一阶段：
+A single phase:
 
-1. `Part.synthetic` 解码（`decodeIfPresent`）。
-2. `TaskNotificationParser` + 单测。
-3. `TaskNotificationCardView`：completed/error 两态、展开/折叠（默认折叠）、markdown 渲染、跳转按钮。
-4. `MessageRowView` 分流 + `copyableText` 修正。
-5. L10n keys：`taskNotificationCompleted` / `taskNotificationFailed` / `taskNotificationOpenSession` / `taskNotificationNoOutput`。
+1. `Part.synthetic` decoding (`decodeIfPresent`).
+2. `TaskNotificationParser` + unit tests.
+3. `TaskNotificationCardView`: the completed/error states, expand/collapse (collapsed by default), markdown rendering, and the navigation button.
+4. `MessageRowView` routing + the `copyableText` fix.
+5. L10n keys: `taskNotificationCompleted` / `taskNotificationFailed` / `taskNotificationOpenSession` / `taskNotificationNoOutput`.
 
-明确不做（本阶段）：`task` tool part 的 running 指示与 metadata 解码、用户气泡内其他 synthetic 内容的隐藏或样式化处理。
+Explicitly out of scope (this phase): the running indicator and metadata decoding for the `task` tool part, and hiding or restyling other synthetic content inside the user bubble.
 
-## 测试计划
+## Test Plan
 
-- `TaskNotificationParserTests`（unit）：completed / error / running / 无 summary / 截断（无收尾标签）/ 非 task 文本 → nil / 结果内嵌套尖括号 / 空结果 / 前后空白。
-- `MessageRowView` 渲染单测：synthetic + 信封消息 → 卡片（a11y id 断言）；同文本无 synthetic → 用户气泡（回退路径）；`copyableText` 对回执消息返回结果正文。
-- UI（Tier 4）：tap 卡片展开显示 markdown；展开后 tap 跳转按钮成功切换至 subagent 会话（以子会话 title "…(@general subagent)" 或消息内容断言）。
-- 构建与测试按 AGENTS.md 约定串行执行（build → test）。
+- `TaskNotificationParserTests` (unit): completed / error / running / no summary / truncation (no closing tag) / non-task text → nil / nested angle brackets inside the result / empty result / leading and trailing whitespace.
+- `MessageRowView` rendering unit tests: a synthetic message with an envelope → the card (asserting the a11y id); the same text without synthetic → the user bubble (fallback path); `copyableText` returns the result body for a receipt message.
+- UI (Tier 4): tapping the card expands it and shows the markdown; after expanding, tapping the navigation button successfully switches to the subagent session (asserted via the child session title "…(@general subagent)" or the message content).
+- Builds and tests run sequentially per the AGENTS.md convention (build → test).
 
-## 附录：观察到的其他 synthetic 注入点（out of scope）
+## Appendix: Other Observed synthetic Injection Points (out of scope)
 
-`packages/opencode/src` 中其余 `synthetic: true` 生成点。本设计不处理；若日后成为渲染缺陷，用同一模式处理（已解码的 `synthetic` 字段 + type-specific 渲染），不另行发明机制。
+The remaining `synthetic: true` generation points in `packages/opencode/src`. This design does not handle them; if they later become a rendering defect, handle them with the same pattern (the already-decoded `synthetic` field + type-specific rendering) instead of inventing a separate mechanism.
 
-| 位置 | 内容 | 形态 |
+| Location | Content | Form |
 |---|---|---|
-| `session/reminders.ts:34/45/64` | plan mode 指令（PROMPT_PLAN / BUILD_SWITCH / PLAN_MODE） | 追加到用户最后一条消息 |
-| `session/compaction.ts:541` | "Continue if you have next steps..."（带 `metadata.compaction_continue`） | 独立 synthetic user 消息 |
-| `tool/plan.ts:68` | "The plan at X has been approved, execute the plan" | 独立 synthetic user 消息 |
-| `session/prompt.ts:447` | "Summarize the task tool output above and continue" | 独立 synthetic user 消息 |
-| `session/prompt.ts:485` | "The following tool was executed by the user" + tool part | 样板文本 + tool part |
-| `session/prompt.ts:711+` | "Reading MCP resource: X (uri)" / resource 正文 / omitted 提示 | 追加到用户消息 |
+| `session/reminders.ts:34/45/64` | plan mode instructions (PROMPT_PLAN / BUILD_SWITCH / PLAN_MODE) | appended to the user's last message |
+| `session/compaction.ts:541` | "Continue if you have next steps..." (carries `metadata.compaction_continue`) | standalone synthetic user message |
+| `tool/plan.ts:68` | "The plan at X has been approved, execute the plan" | standalone synthetic user message |
+| `session/prompt.ts:447` | "Summarize the task tool output above and continue" | standalone synthetic user message |
+| `session/prompt.ts:485` | "The following tool was executed by the user" + tool part | boilerplate text + tool part |
+| `session/prompt.ts:711+` | "Reading MCP resource: X (uri)" / resource body / omitted hint | appended to the user message |

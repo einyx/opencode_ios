@@ -1,122 +1,122 @@
-# Session Finder 设计草案
+# Session Finder Design Draft
 
-## 结论
+## Conclusion
 
-将其定位为现有 Sessions 入口内部的“智能查找”模式，而非新增独立的 Tab，亦非在已拉取的局部列表上做简单的标题模糊过滤。
+Position it as a "smart find" mode inside the existing Sessions entry point, rather than as a new standalone Tab, and rather than as a simple title fuzzy filter applied to the already fetched partial list.
 
-用户输入一句对历史会话的模糊记忆描述，系统返回 3–8 个携带原文证据的匹配候选。用户在预览确认目标后，一键切回原 Session 继续输入。在架构权衡上，搜索响应稍慢是可以接受的，但结果必须明确告知用户搜索范围、召回依据，以及该 Session 当前是否处于可继续交互的状态。
+The user types a vague recollection of a past session, and the system returns 3–8 matching candidates carrying evidence from the original text. After the user confirms the target in a preview, one tap returns to the original Session to continue typing. In terms of architectural trade-offs, a slightly slower search response is acceptable, but the result must clearly tell the user the search scope, the basis of the recall, and whether that Session is currently in a state where interaction can continue.
 
-在原型阶段，优先利用临时的 OpenCode Utility Session 编排现有的 Markdown 归档与语义检索（semantic-search）；客户端仅负责消费标准稳定的结构化结果。待交互体验（UX）验证闭环后，再将 Utility Session 无缝替换为专职的 Search Bridge 服务，保持界面展示与结果数据契约完全不变。
+During the prototype phase, prioritize orchestrating the existing Markdown archive and semantic search (semantic-search) through a temporary OpenCode Utility Session; the client is only responsible for consuming stable, structured results. Once the interactive experience (UX) validation loop has closed, replace the Utility Session seamlessly with a dedicated Search Bridge service, keeping the UI presentation and the result data contract completely unchanged.
 
-## 成功标准
+## Success Criteria
 
-用户无需精确记忆会话标题、创建日期或所属 Project，仅凭模糊的记忆片段发起描述，即可在单次检索流程中完成三项核心诉求：
+Without precisely remembering the session title, creation date, or owning Project, the user can describe a vague memory fragment and complete three core goals within a single retrieval flow:
 
-1. 获取少量高置信度的候选列表，无需在几十个历史标题中费力翻找。
-2. 借助原文引用片段快速核对并锁定真正的目标 Session。
-3. 清晰知晓该 Session 是支持直接无缝继续提问，还是仅保留了只读历史备份。
+1. Get a small list of high-confidence candidates, without the pain of digging through dozens of historical titles.
+2. Quickly verify and lock onto the real target Session with the help of quoted excerpts from the original text.
+3. Clearly know whether that Session supports direct and seamless follow-up questions, or whether only a read-only historical backup is retained.
 
-首期版本以 Top 5 候选列表中包含目标 Session 作为核心质量指标。搜索耗时作为次要考量，但检索全过程必须提供可信的阶段性进度反馈，严禁长时间仅展示空白 Spinner。
+For the first release, the core quality metric is that the Top 5 candidate list contains the target Session. Search duration is a secondary consideration, but the entire retrieval process must provide credible staged progress feedback; showing nothing but a blank Spinner for a long time is strictly forbidden.
 
-## 入口与主流程
+## Entry Point and Main Flow
 
 ### iPhone
 
-完整保留 Chat 工具栏现有的 Sessions 切换按钮与屏幕左边缘滑动呼出手势。在展开的 Sessions 抽屉（Sheet）顶部新增系统搜索框，其占位提示语（placeholder）设为 `描述你记得的内容`。
+Fully preserve the existing Sessions toggle button in the Chat toolbar and the swipe-from-the-left-edge gesture. Add a system search field at the top of the expanded Sessions drawer (Sheet), with its placeholder text set to `Describe what you remember`.
 
-当搜索框为空时，界面继续呈现原有的 Active / Archived 会话列表。当用户在键盘上点击 Search 触发检索后，系统平滑切入智能查找模式：
+When the search field is empty, the interface continues to show the original Active / Archived session list. When the user taps Search on the keyboard to trigger retrieval, the system smoothly switches into smart find mode:
 
 ```text
 Sessions
-┌──────────────────────────────┐
-│ 讨论过 iPad 中文输入提前发送  │
-└──────────────────────────────┘
+┌──────────────────────────────────────┐
+│ Discussed iPad Chinese IME           │
+└──────────────────────────────────────┘
 
 Searching conversations...
 Checking indexed history and live sessions
 
 Possible matches
-┌──────────────────────────────┐
-│ iOS composer input fix       │
-│ opencode_ios_client · Jun 18 │
-│ You: “中文输入法还在选字时...” │
-│                       Preview │
-└──────────────────────────────┘
+┌──────────────────────────────────────┐
+│ iOS composer input fix               │
+│ opencode_ios_client · Jun 18         │
+│ You: "Chinese IME still picking..."  │
+│                              Preview │
+└──────────────────────────────────────┘
 ```
 
-点击任一候选卡片将进入详情预览页，绝不直接粗暴替换当前正在进行的 Chat。预览页面集中呈现：
+Clicking any candidate card enters a detail preview page and never crudely replaces the currently ongoing Chat. The preview page presents in one place:
 
-- 命中消息上下文前后各一轮对话。
-- 该 Session 最后停顿的一轮交互。
-- 所属 Project、发生日期以及当前的可继续状态。
-- 底部常驻固定的主操作按钮 `Continue in This Session`。
+- One round of conversation before and after the matched message context.
+- The last round of interaction where that Session paused.
+- The owning Project, the date it happened, and the current continuation state.
+- A permanently pinned primary action button `Continue in This Session` at the bottom.
 
-若该会话属于 OpenCode 的软归档 Session，主按钮文案相应调整为 `Restore and Continue`。用户点击确认后，调用既有的 `selectSession` 逻辑，关闭抽屉并切回 Chat 主界面同时聚焦输入框；不自动触发语音录制，亦不自动提交消息。
+If the session belongs to an OpenCode soft-archived Session, the primary button label is adjusted accordingly to `Restore and Continue`. After the user clicks to confirm, the existing `selectSession` logic is invoked, the drawer is closed, and the Chat main interface is returned to with the input field focused; it does not automatically start voice recording and does not automatically submit a message.
 
-常规 Sessions 列表依然维持“点击即切换”的直接交互。额外的二次确认机制仅作用于带有概率属性的语义搜索结果，不会增加日常会话切换的摩擦。
+The regular Sessions list still keeps the direct "click to switch" interaction. The extra second-confirmation mechanism only applies to semantic search results, which have probabilistic properties, and does not add friction to daily session switching.
 
 ### iPad
 
-搜索框常驻于 Sessions 侧边栏左栏顶部。左栏仅展示紧凑型候选列表；当用户点选某一候选后，中栏视图临时由 Files 切换为 Session Preview 预览，右栏则始终保留用户当前正在交互的 Chat 界面。只有当用户在预览中明确点击 `Continue in This Session` 时，右栏的活跃会话才会正式发生切换。
+The search field is permanently located at the top of the left column of the Sessions sidebar. The left column only shows a compact candidate list; when the user picks a candidate, the middle column view temporarily switches from Files to the Session Preview, while the right column always retains the Chat interface the user is currently interacting with. Only when the user explicitly clicks `Continue in This Session` in the preview does the active session in the right column actually switch.
 
-在 Compact 紧凑宽度模式下的 iPad 自动沿用 iPhone 的抽屉交互逻辑，不生硬依赖设备型号强制分栏。
+In Compact width mode, an iPad automatically reuses the iPhone drawer interaction logic instead of rigidly forcing a split view based on the device model.
 
-## 搜索范围
+## Search Scope
 
-默认检索范围严格界定为：当前连接的 Host、覆盖所有关联 Project、且包含处于 OpenCode 软归档状态的 Session。
+The default retrieval scope is strictly defined as: the currently connected Host, covering all associated Projects, and including Sessions that are in OpenCode's soft-archived state.
 
-默认不支持跨 Host 检索。不同 Host 对应着独立的连接通道、认证凭证与 Session 命名空间；若将不同 Host 的结果混杂在一起，极易造成“搜出了匹配项但在当前环境无法打开”的假成功陷阱。搜索框正下方展示一行低视觉干扰的 Scope 范围说明，例如：
+Cross-Host retrieval is not supported by default. Different Hosts correspond to independent connection channels, authentication credentials, and Session namespaces; mixing results from different Hosts would easily create the false-success trap of "a match was found but it cannot be opened in the current environment". A single low-visibility Scope description line is displayed right below the search field, for example:
 
 ```text
 Home Mac · All Projects · Includes Archived
 ```
 
-当检索命中的 Session 属于其他 Project 时，用户确认继续后，客户端将自动把当前 Project 切换至该 Session 对应的 `directory`，确保 Sessions、Files 与 Chat 视图时刻处于统一的 Workspace 上下文之中。
+When a matched Session belongs to another Project, after the user confirms continuing, the client automatically switches the current Project to the `directory` corresponding to that Session, ensuring that the Sessions, Files, and Chat views always stay in a unified Workspace context.
 
-在设计上必须清晰界定两种不同属性的 Archive：
+The design must clearly distinguish two Archives with different properties:
 
-- OpenCode 软归档：数据依然完整保留在服务端的 Main DB 中，支持即时恢复并继续交互。
-- 离线历史归档：数据已被迁移至独立的 Archive DB 或仅以 Markdown 文本形式留存，当前运行的服务端无法对其执行追加操作。
+- OpenCode soft archive: the data is still fully retained in the server's Main DB, and supports instant restore and continued interaction.
+- Offline history archive: the data has been migrated to a separate Archive DB or is only retained as Markdown text, and the currently running server cannot perform append operations on it.
 
-在用户界面上切忌将二者混为一谈统称为 Archived。对于离线历史，统一标记为 `Read-only copy`，避免与系统既有的 Archive/Restore 状态造成心智混淆。
+The user interface must never conflate the two by generically calling both of them Archived. For offline history, uniformly mark them as `Read-only copy` to avoid mental confusion with the system's existing Archive/Restore states.
 
-## 候选卡
+## Candidate Cards
 
-候选卡片仅展示辅助用户识别与决策的关键信息：
+Candidate cards only show the key information that helps the user identify and decide:
 
-- Session 标题，最多渲染两行。
-- Project 简短名称，省略冗长的绝对路径。
-- 绝对发生日期；针对久远的历史会话，仅展示相对时间不足以建立清晰的时间锚点。
-- 2–3 行关键命中原文摘录，并显式标注角色为 `You` 还是 `Assistant`。
-- 特殊状态标签：`Archived`、`Read-only copy`、`Child session`；常规的 Idle 状态不作冗余展示。
-- 可选的一行状态提示 `Last stopped at`，用于帮助用户分辨“仅仅命中了早期的相关讨论”还是“适合直接从结尾接续上下文”。
+- Session title, rendered at most two lines.
+- Short Project name, omitting long absolute paths.
+- Absolute date when it happened; for distant historical sessions, showing only relative time is not enough to establish a clear temporal anchor.
+- 2–3 lines of the key matched excerpt from the original text, explicitly labeled with the role as `You` or `Assistant`.
+- Special status tags: `Archived`, `Read-only copy`, `Child session`; the regular Idle state is not redundantly displayed.
+- An optional one-line status hint `Last stopped at`, helping the user distinguish between "it merely matched an early related discussion" and "it is suitable to continue the context directly from the end".
 
-界面坚决不展示如 0.83 等抽象的相似度数值。此类打分对用户缺乏明确的操作指导意义，反而容易制造伪精确的认知误导。AI 生成的提炼摘要只能作为辅助参考，绝不能替代真实的原文引用证据。
+The interface firmly refuses to display abstract similarity numbers such as 0.83. Such scores lack clear operational guidance for the user and tend instead to create misleading false precision. AI-generated distilled summaries can only serve as auxiliary reference and must never replace real evidence quoted from the original text.
 
-检索结果统一按 Session 维度聚合呈现，不按切片（Chunk）散乱罗列。当多个 Chunk 命中同一个 Session 时，优先保留辨识度最高的一段原文，并将多点命中作为内部提升排名的置信度信号。当命中子会话（Child Session）时，默认优先归纳到父 Session 维度展示，并标注命中来源为 Child，防止单一复杂工作流的碎片霸占候选列表。
+Retrieval results are uniformly aggregated and presented at the Session level, not scattered as a list of slices (Chunks). When multiple Chunks match the same Session, the excerpt with the highest distinctiveness is kept, and multi-point matches are used as an internal confidence signal for ranking. When a child session (Child Session) is matched, the default is to aggregate up to the parent Session level for display and to label the match source as Child, so that the fragments of a single complex workflow do not monopolize the candidate list.
 
-## 搜索与排序
+## Search and Ranking
 
-V0 阶段核心需要的是语义检索能力（semantic retrieval），暂不需要引入高开销的生成式 LLM 重排序（rerank）。
+What the V0 stage needs at its core is semantic retrieval capability, not the introduction of a high-overhead generative LLM rerank.
 
-推荐的轻量排序流水线设计：
+Recommended lightweight ranking pipeline design:
 
-1. 从现有的 Markdown 语义索引库中召回 Top 20–30 个候选 Chunks。
-2. 补充从 Live DB 中检索出的会话标题精确匹配项及最近活跃 Session。
-3. 按照 `(host namespace, session_id)` 元组进行去重与 Session 维度聚合。
-4. 综合以最高语义相似度得分、多切片重复命中数以及关键词精确命中为主排序权重，时间衰减（recency）仅作为弱修正因子。
-5. 校验候选 Session 当前归属于 Main DB、Archive DB 还是仅存 Markdown 文件。
-6. 最终输出 Top 5 候选，在整体置信度偏低时最多动态放宽至 8 个。
+1. Recall the Top 20–30 candidate Chunks from the existing Markdown semantic index.
+2. Supplement with exact-match session titles retrieved from the Live DB, plus the most recently active Sessions.
+3. Deduplicate and aggregate at the Session level by the `(host namespace, session_id)` tuple.
+4. Rank primarily by a blend of the highest semantic similarity score, the number of repeated multi-slice matches, and exact keyword hits, with time decay (recency) used only as a weak correction factor.
+5. Verify whether the candidate Session currently belongs to the Main DB, the Archive DB, or exists only as a Markdown file.
+6. Output the final Top 5 candidates, dynamically relaxed to at most 8 when the overall confidence is low.
 
-仅当后续离线评测数据明确证明混合检索（Hybrid Retrieval）给出的 Top-3/Top-5 准确率不足时，才考虑对前 20 个候选引入专职 Reranker 模型。且 Reranker 必须支持超时自动降级机制，绝不能成为阻塞首屏渲染的强依赖，更严禁对召回的原文片段进行篡改。
+Only if subsequent offline evaluation data clearly proves that the Top-3/Top-5 accuracy of hybrid retrieval (Hybrid Retrieval) is insufficient should a dedicated Reranker model be introduced for the top 20 candidates. And the Reranker must support an automatic timeout-based degradation mechanism; it must never become a hard dependency that blocks first-screen rendering, and it is strictly forbidden to tamper with the recalled original text excerpts.
 
-## V0 执行架构
+## V0 Execution Architecture
 
-### 为什么先用 utility session
+### Why Start with a Utility Session
 
-现有 OpenCode 服务端的 `search` 接口仅能按 Session Title 进行字面过滤；而 iOS 客户端内存中仅维护一个逐步向前加载的局部窗口。两者的现状均无法真正支撑起全量历史内容的深度搜索。与此相对，Workspace 环境下已经具备了每日导出的 Markdown 归档、命令行语义检索工具（semantic-search CLI）以及具备工具调用能力的 OpenCode Agent。
+The existing `search` interface of the OpenCode server can only do literal filtering by Session Title; while the iOS client only maintains a partial window in memory that loads progressively forward. Neither current state can truly support deep search across the full history content. In contrast, the Workspace environment already has the daily exported Markdown archives, a command-line semantic search tool (semantic-search CLI), and an OpenCode Agent with tool-calling capabilities.
 
-因此，原型阶段可设计如下轻量执行链路：
+Therefore, during the prototype phase the following lightweight execution chain can be designed:
 
 ```text
 iOS query
@@ -127,15 +127,15 @@ iOS query
   -> render candidates
 ```
 
-Utility Session 强制采用 JSON Schema 约束其输出格式。客户端严禁通过解析模型自由文本来猜测提取 Session ID。当流程异常失败时，保留该 Utility Session 用于排查诊断；下一次发起检索时统一新建干净会话，避免历史多轮上下文干扰排序精度。
+The Utility Session is forced to use a JSON Schema to constrain its output format. The client is strictly forbidden from guessing and extracting the Session ID by parsing free-form model text. When the flow fails abnormally, the Utility Session is retained for troubleshooting and diagnostics; the next retrieval always creates a clean new session, avoiding historical multi-turn context interfering with ranking precision.
 
-该方案的核心优势在于客户端改动极小，能以最低成本快速验证用户使用自然语言检索旧会话的真实频次与价值。其代价是端到端延迟稍高、每次搜索会消耗一次 Agent 交互轮次，且依赖服务端所在的 Workspace 具备访问 Session 归档与语义检索工具的权限。
+The core advantage of this approach is that the client-side change is extremely small, and the real frequency and value of users retrieving old sessions with natural language can be validated quickly at the lowest cost. Its cost is a slightly higher end-to-end latency, one Agent interaction round per search, and a dependency on the Workspace where the server lives having permission to access the Session archive and the semantic search tool.
 
-### 稳定结果 contract
+### Stable Result Contract
 
 ```json
 {
-  "query": "讨论过 iPad 中文输入提前发送",
+  "query": "Discussed iPad Chinese IME sending before commit",
   "scope": {
     "host_namespace": "current-host",
     "projects": "all",
@@ -151,7 +151,7 @@ Utility Session 强制采用 JSON Schema 约束其输出格式。客户端严禁
       "updated_at": 1784102400000,
       "matched_message_id": "msg_example",
       "matched_role": "user",
-      "excerpt": "中文输入法还在选字时...",
+      "excerpt": "The Chinese IME was still selecting characters...",
       "availability": "live",
       "is_soft_archived": false,
       "parent_session_id": null
@@ -160,75 +160,75 @@ Utility Session 强制采用 JSON Schema 约束其输出格式。客户端严禁
 }
 ```
 
-`availability` 字段至少支持以下枚举状态：
+The `availability` field must support at least the following enum states:
 
-- `live`：当前服务端可直接加载并支持消息追加。
-- `offline_db`：存在于离线的 Archive DB 中，V0 阶段仅支持只读查看。
-- `markdown_only`：仅留存有导出的 Markdown 文本，V0 阶段仅支持只读查看。
-- `missing`：索引命中但底层原始数据已无法解析定位，不作为正常候选卡片渲染。
+- `live`: the current server can load it directly and supports appending messages.
+- `offline_db`: it exists in the offline Archive DB, and in the V0 stage it supports read-only viewing only.
+- `markdown_only`: only the exported Markdown text is retained, and in the V0 stage it supports read-only viewing only.
+- `missing`: the index matched it but the underlying original data can no longer be resolved or located, so it is not rendered as a normal candidate card.
 
-在数据模型设计上，唯一主键绝不能仅依赖 `session_id`，而必须由 `(source, host_namespace, session_id)` 三元组复合构成。否则后续接入多 Host 或异构 Session 源时，将直接丧失全局唯一定位能力。
+In the data model design, the unique primary key must never rely on `session_id` alone; it must be composed as the composite triple `(source, host_namespace, session_id)`. Otherwise, when multi-Host or heterogeneous Session sources are added later, the ability to locate things globally and uniquely will be lost outright.
 
-### 正式 bridge
+### Formal Bridge
 
-在完成 UX 闭环验证后，可将 Utility Session 平滑演进为专职的 Companion Search 端点：
+After the UX loop validation is complete, the Utility Session can smoothly evolve into a dedicated Companion Search endpoint:
 
 ```http
 GET /session-search?q=...&host=...&project=all&limit=5
 GET /session-search/opencode/{session_id}/preview
 ```
 
-Bridge 服务端统一接管索引构建、DB 可用性解析（availability resolve）以及 Preview 渲染，iOS 客户端的数据契约保持零改动。严禁让移动端直接越级访问服务端的 SQLite 数据库文件、Markdown 绝对物理路径或底层 Embedding 缓存。
+The Bridge server uniformly takes over index construction, DB availability resolution (availability resolve), and Preview rendering, while the iOS client's data contract stays completely unchanged. It is strictly forbidden to let the mobile client directly reach across levels to access the server's SQLite database files, absolute physical Markdown paths, or the underlying Embedding cache.
 
-## 加载、弱匹配与失败
+## Loading, Weak Matches, and Failures
 
-搜索操作必须由用户显式触发提交，绝不应在用户每次按键输入时都触发昂贵的语义查询。
+Search operations must be explicitly triggered and submitted by the user; an expensive semantic query must never be triggered on every keystroke.
 
-- 400ms 内完成响应：直接平滑呈现搜索结果，不闪烁加载动画。
-- 耗时超过 400ms：展示 `Searching conversations...` 状态。
-- 耗时超过 2s：追加提示文案 `Checking older indexed sessions...`。
-- 用户修改描述并重新提交：保留上一次的结果列表但降低其视觉透明度，同时展示刷新状态，避免界面频繁闪烁空白。
+- Response completed within 400ms: present the search results directly and smoothly, without a flickering loading animation.
+- Takes longer than 400ms: show the `Searching conversations...` state.
+- Takes longer than 2s: append the hint text `Checking older indexed sessions...`.
+- The user edits the description and resubmits: keep the previous result list but lower its visual opacity, while showing the refreshing state, to avoid the interface frequently flickering into blankness.
 
-当命中置信度较低（弱匹配）时展示友好提示：
+When the match confidence is low (weak match), show a friendly hint:
 
 ```text
 No strong match found. These sessions may be related.
 ```
 
-对于真正的零结果场景，界面必须明确说明检索的 Host 范围与索引时间水位，并提供三条清晰的兜底出口：修改搜索描述、按时间倒序翻阅全部 Sessions、或切换至其他 Host。对于网络异常、索引尚未就绪与检索无结果三类场景必须严格区分状态呈现，不能笼统使用一句 `No results` 掩盖问题。
+For a genuine zero-result scenario, the interface must clearly state the Host scope and the index time watermark of the retrieval, and provide three clear fallback exits: modify the search description, browse all Sessions in reverse chronological order, or switch to another Host. The three scenarios of network error, index not yet ready, and no retrieval results must be strictly distinguished in their state presentation; they must not be lumped together under a single `No results` that hides the problem.
 
-## 直接继续与只读历史
+## Direct Continuation and Read-Only History
 
-V0 阶段的核心目标是辅助用户快速找回会话并继续对话，因此 `live` 状态的结果始终享有最高展示优先级。`offline_db` 与 `markdown_only` 状态的结果则归纳到独立的 `Older read-only matches` 区域展示，仅允许用户查阅历史，界面上不提供易引起误解的 Continue 操作入口。
+The core goal of the V0 stage is to help the user quickly find a session and continue the conversation, so results in the `live` state always enjoy the highest display priority. Results in the `offline_db` and `markdown_only` states are instead aggregated into a separate `Older read-only matches` area, where users are only allowed to browse the history; the interface does not provide a Continue entry point that would easily cause misunderstanding.
 
-若后续需要支持将离线归档的会话重新唤醒，必须建立明确的 `Restore to OpenCode` 数据流转规范：将完整的 Session Subtree、关联 Messages 与 Parts 数据从 Archive DB 完整校验并写回 Main DB，确认无误后方可允许继续追加。目前底层数据工具链仅具备 Main -> Archive 单向的安全迁移流程（plan/apply），尚未提供现成的反向恢复命令；且在 OpenCode 活跃运行并写入 DB 的过程中进行底层文件覆写极易引发数据损坏。因此该能力暂不纳入首期原型范围。
+If offline archived sessions later need to be woken up again, an explicit `Restore to OpenCode` data flow specification must be established: the complete Session Subtree, associated Messages and Parts data must be fully validated from the Archive DB and written back to the Main DB, and only after confirming correctness may continued appending be allowed. At present, the underlying data toolchain only has a safe one-way Main -> Archive migration flow (plan/apply) and provides no ready-made reverse restore command; moreover, overwriting the underlying files while OpenCode is actively running and writing to the DB easily causes data corruption. Therefore this capability is not included in the scope of the first prototype.
 
-## 不采用的方案
+## Approaches Not Adopted
 
-- 不做“仅过滤当前客户端已加载的会话标题”。由于列表初始仅拉取局部的有限窗口，此类 UI 极易给用户造成“已在全量历史中完成搜索”的错误假象。
-- 不由 AI 自动打开唯一命中的会话。历史会话检索天然带有歧义性，必须交由用户查看原文证据后自主确认。
-- 不在用户点击搜索候选后立即静默替换当前 Chat。检索本身属于概率性决策，而当前的活跃会话属于宝贵的持久化工作上下文。
-- 不在每次发起搜索前全量重新导出全部会话。优先复用每日定时构建的语义索引；仅在索引明显滞后时提供手动的显式刷新入口。
-- 不让 iOS 客户端直接读取服务端的 SQLite 或 Markdown 文件。移动端严格依托标准化的 Search 与 Preview 数据契约进行通信。
+- Do not "only filter the session titles already loaded by the client". Since the list initially only fetches a limited local window, such UI easily gives the user the false impression that "the search has been completed across the full history".
+- Do not let the AI automatically open a uniquely matched session. Retrieving historical sessions is inherently ambiguous and must be confirmed by the user after reviewing the original evidence.
+- Do not silently replace the current Chat immediately after the user clicks a search candidate. The retrieval itself is a probabilistic decision, while the current active session is a valuable persisted work context.
+- Do not fully re-export all sessions before every search. Reuse the daily scheduled semantic index first; only provide an explicit manual refresh entry point when the index is clearly lagging.
+- Do not let the iOS client read the server's SQLite or Markdown files directly. The mobile client strictly relies on the standardized Search and Preview data contracts for communication.
 
-## 现有代码接点
+## Existing Code Touchpoints
 
-- iPhone Sessions sheet 和点击切换：`OpenCodeClient/OpenCodeClient/Views/SessionListView.swift:25-135`。
-- iPad Sessions 左栏：`OpenCodeClient/OpenCodeClient/ContentView.swift:890-1042`。
-- 现有 session 切换及消息加载：`OpenCodeClient/OpenCodeClient/AppState+Sessions.swift:221-257`。
-- 当前 session list 只按 directory + limit 请求：`OpenCodeClient/OpenCodeClient/Services/APIClient.swift:99-112`。
-- `Session` 当前没有 excerpt 或 availability：`OpenCodeClient/OpenCodeClient/Models/Session.swift:8-40`。
-- 现有设计已经明确拒绝把本地 title filter 画成搜索：`docs/design.md:209-217`、`docs/OpenCode_iOS_Client_RFC.md:526-537`。
+- iPhone Sessions sheet and click-to-switch: `OpenCodeClient/OpenCodeClient/Views/SessionListView.swift:25-135`.
+- iPad Sessions left column: `OpenCodeClient/OpenCodeClient/ContentView.swift:890-1042`.
+- Existing session switching and message loading: `OpenCodeClient/OpenCodeClient/AppState+Sessions.swift:221-257`.
+- The current session list only requests by directory + limit: `OpenCodeClient/OpenCodeClient/Services/APIClient.swift:99-112`.
+- `Session` currently has no excerpt or availability: `OpenCodeClient/OpenCodeClient/Models/Session.swift:8-40`.
+- The existing design has already explicitly rejected drawing a local title filter as a search: `docs/design.md:209-217`, `docs/OpenCode_iOS_Client_RFC.md:526-537`.
 
-## 原型范围
+## Prototype Scope
 
-首期原型严格聚焦于 iPhone 端，并收敛以下功能边界：
+The first prototype strictly focuses on the iPhone side and converges on the following functional boundaries:
 
-1. 检索范围限定为当前 Host、包含全部关联 Project、且覆盖软归档会话。
-2. 仅支持显式提交自然语言 Query 发起检索。
-3. 返回 Top 5 候选列表，并呈现对应的原文摘录片段。
-4. 交互上支持 Preview 后确认继续；软归档会话先执行 Restore 唤醒再继续对话。
-5. 离线 DB 与 Markdown 归档结果仅支持纯文本只读浏览。
-6. 基于 Utility Session 与结构化 JSON Schema 实现，暂不引入 LLM Rerank。
+1. The retrieval scope is limited to the current Host, includes all associated Projects, and covers soft-archived sessions.
+2. Only an explicitly submitted natural language Query starts a retrieval.
+3. A Top 5 candidate list is returned, with the corresponding original text excerpts shown.
+4. The interaction supports Preview then confirmation to continue; soft-archived sessions first perform a Restore wakeup before continuing the conversation.
+5. Offline DB and Markdown archive results support plain-text read-only browsing only.
+6. It is implemented on the basis of the Utility Session and a structured JSON Schema, without introducing an LLM Rerank for now.
 
-本原型验证的核心不在于 Semantic-Search 底层技术选型的终极形态，而在于验证“描述模糊记忆 -> 查验原文证据 -> 一键接续原会话”这一交互闭环，能否真正显著降低用户找回并复用历史会话的心智负担。
+The core of what this prototype validates is not the ultimate form of the Semantic-Search underlying technology selection, but whether the interaction loop of "describe a vague memory -> inspect the original evidence -> resume the original session with one tap" can truly significantly reduce the mental burden of users finding and reusing past sessions.

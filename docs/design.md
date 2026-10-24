@@ -1,304 +1,304 @@
-# OpenCode iOS Client 设计 Spec — 冷静科技感（Quiet Tech）
+# OpenCode iOS Client Design Spec — Quiet Tech
 
-本文件是 OpenCode iOS Client 视觉重做的实施 spec，而非评审记录。本文取代了先前的"诊断 + 多方向建议"草稿（诊断结论依然有效，附于文末"诊断回顾"中），核心目标在于：将视觉方向明确收敛为名为 **Quiet Tech** 的设计语言，并拆解为可直接指导 SwiftUI 代码实现的具体规范。
+This document is the implementation spec for the visual overhaul of the OpenCode iOS Client, not a review record. It supersedes the earlier "diagnosis + multi-direction recommendations" draft (the diagnostic conclusions remain valid and are appended at the end under "Diagnostic Retrospective"). The core goal is to converge the visual direction into a single design language named **Quiet Tech** and to break it down into concrete specifications that can directly guide SwiftUI implementation.
 
-设计方向定义：看齐 Raycast、Vercel 与 Arc 这类现代开发者工具——以深色为主调、低饱和度，依托精准的间距与细微描边而非繁复装饰来呈现高级质感。整体风格保持克制内敛，质感来自规范的一致性与恰到好处的留白节奏。
+Design direction definition: look to modern developer tools such as Raycast, Vercel and Arc — a dark-first base tone with low saturation, relying on precise spacing and hairline strokes rather than elaborate decoration to convey a premium feel. The overall style stays restrained and understated; the quality comes from the consistency of the specification and a just-right whitespace rhythm.
 
-本 spec 与姊妹项目 VoiceFlow 的 `docs/design.md`（暖琥珀/深墨）遵循同一套设计方法论：单一识别色、颜色不承担层级划分、无边框优先、极轻动效。两款应用共享家族式设计语言，而 OpenCode 在基调上更偏冷峻、更强调工具属性。
+This spec follows the same design methodology as the sister project VoiceFlow's `docs/design.md` (warm amber / deep ink): a single recognition color, colors do not carry hierarchy, borderless first, and ultra-light motion. The two apps share a family-style design language, while OpenCode leans colder in tone and puts more emphasis on its tooling nature.
 
-## 设计原则
+## Design Principles
 
-1. **深色是主场，浅色是平替。** OpenCode 的目标用户是开发者，深色模式是默认的审美基调。设计上优先将深色模式打磨完善，浅色模式则基于同一套 token 完成映射，而非本末倒置。
-2. **单一品牌色：电蓝 `#3B82F6`。** 发送、选中、链接使用品牌蓝，其余常规元素以中性灰阶呈现。Session 单灯是明确的语义例外：列表与 composer 共用黄（待处理）、红（未确认失败）、绿（执行未结束）、蓝（停止后的未读更新）。绿色使用专用 running token，不复用 success；详见下方分诊规则。
-3. **语义靠形态和位置，不靠颜色堆叠。** 现状的核心痛点在于"同屏内多种颜色套用同一形状"（tool、patch 与 permission 卡片均为圆角矩形配合浅底与描边，仅靠色彩区分）。新方案通过**卡片形态**区分功能类别，颜色仅在极少数关键位置作为点缀。
-4. **颜色不建立层级，字号和留白建立层级。** 在统一的文字色彩下，依靠字号、字重与间距来明确主次关系。次级灰阶仅用于真正的次级信息（如时间戳、文件路径与 placeholder）。
-5. **无边框优先。** 信息展示类容器移除描边，仅保留极浅底色或纯粹依靠留白进行视觉分组；仅在需要用户交互响应的卡片上，才在左侧使用一条强调色条作为操作引导。描边在 iOS 中通常暗示表单输入域，应避免在 chat 消息流中泛滥。
-6. **极轻、极快的动效。** 状态过渡采用 spring（response 0.3–0.35, damping 0.8）或 250–300ms ease-out，优先使用 opacity crossfade 而非大幅度位移。动效作为提升质感的轻量手段，坚决杜绝 bouncing 弹跳与炫技式的 splash 动画。
-7. **小屏保功能，大屏给留白。** 详见后文"两套布局策略"。在同一套 token 与品牌语言下，iPhone 采用单栏紧凑排布以确保操作效率，iPad 与 visionOS 则采用三栏舒展布局，展现不同尺寸下的空间质感。
-8. **稳定按钮不换位。** 用户对于 composer 中的发送与麦克风按钮具有强烈的肌肉记忆。发送与麦克风按钮必须始终固定在各自纵向排列的底部槽位；stop 或 retry 等临时操作按钮只允许出现在其上方，绝不能挤占或位移常驻主按钮。
+1. **Dark is the main stage, light is the understudy.** OpenCode's target users are developers, so dark mode is the default aesthetic baseline. The design prioritizes polishing dark mode; light mode is mapped from the same token set rather than the other way around.
+2. **Single brand color: electric blue `#3B82F6`.** Sending, selection, and links use the brand blue; everything else renders on a neutral gray scale. The Session single-indicator light is an explicit semantic exception: the list and the composer share yellow (pending), red (unacknowledged failure), green (execution not finished), and blue (unread updates after stop). Green uses a dedicated running token and does not reuse success; see the triage rules below.
+3. **Semantics come from shape and position, not from piling on colors.** The core pain point today is "the same shape wearing multiple colors on one screen" (tool, patch, and permission cards are all rounded rectangles with a light fill and a stroke, distinguished only by color). The new scheme distinguishes functional categories through **card shape** and uses color only as an accent in a very few key places.
+4. **Colors do not build hierarchy; font size and whitespace do.** Under unified text color, the primary/secondary relationship is expressed through size, weight, and spacing. Secondary grays are used only for genuinely secondary information (timestamps, file paths, and placeholders).
+5. **Borderless first.** Informational containers drop strokes and keep only a very light fill or rely purely on whitespace for visual grouping; only cards that require a user response get an accent stripe on the leading edge as an action cue. Strokes in iOS usually imply form input fields, so they should be avoided in the chat message stream.
+6. **Ultra-light, ultra-fast motion.** State transitions use a spring (response 0.3–0.35, damping 0.8) or a 250–300ms ease-out, preferring opacity crossfade over large positional moves. Motion is a lightweight means of raising quality; bouncing springs and show-off splash animations are firmly ruled out.
+7. **Small screens keep functionality, large screens get whitespace.** See "Two Layout Strategies" below. Under the same token set and brand language, iPhone uses a compact single-column layout to preserve operational efficiency, while iPad and visionOS use a relaxed three-column layout that expresses spatial quality at different sizes.
+8. **Stable buttons never change position.** Users have strong muscle memory for the send and mic buttons in the composer. The send and mic buttons must always stay fixed in their respective bottom slots of the vertical stack; transient action buttons such as stop or retry may only appear above them, and must never squeeze out or displace the permanent primary buttons.
 
-## 双模色板
+## Dual-Mode Palette
 
-两套模式共享同一套语义 token 定义，仅切换底色与文字的映射关系。代码实现上，`DesignTokens` 通过 `Color(light:dark:)` 进行双值封装，View 层统一引用语义命名，避免编写 ad-hoc 的 `.opacity()` 或直接调用系统灰色。
+Both modes share the same set of semantic token definitions and only switch the mapping between base and text colors. In code, `DesignTokens` wraps dual values with `Color(light:dark:)`, and the View layer consistently references semantic names, avoiding ad-hoc `.opacity()` calls or direct use of system grays.
 
-### 深色模式（主场）
+### Dark Mode (Main Stage)
 
-| Token | Hex | 用途 |
+| Token | Hex | Usage |
 |---|---|---|
-| `bg.primary` | `#0B0C0E` | 主背景，近黑且带有极轻微冷调偏移 |
-| `bg.secondary` | `#141619` | 次级背景：sidebar、sheet 与 settings 分组 |
-| `surface` | `#1A1D21` | 信息卡片背景（tool/patch 输出区域） |
-| `text.primary` | `#ECEDEE` | 主文字、AI 回复正文 |
-| `text.secondary` | `#9BA1A6` | 次级信息：时间戳、状态、tool 名称 |
-| `text.tertiary` | `#5A6066` | placeholder、disabled 态、代码路径 |
-| `divider` | `#23272B` | 极细分隔线（1px，用于 sidebar/settings 行间） |
-| `accent` | `#3B82F6` | 唯一品牌识别色：发送、选中态、链接、用户消息指示条 |
-| `accent.muted` | `#3B82F614` | accent 8% alpha，用户消息背景与选中行背景 |
-| `gold` | `#D9A621` | Session 单灯中表示待处理权限/问题；其他历史组件按其专用规范 |
+| `bg.primary` | `#0B0C0E` | Main background, near-black with a very slight cool cast |
+| `bg.secondary` | `#141619` | Secondary background: sidebar, sheet, and settings groups |
+| `surface` | `#1A1D21` | Information card background (tool/patch output areas) |
+| `text.primary` | `#ECEDEE` | Primary text, AI reply body |
+| `text.secondary` | `#9BA1A6` | Secondary information: timestamps, status, tool names |
+| `text.tertiary` | `#5A6066` | Placeholder, disabled state, code paths |
+| `divider` | `#23272B` | Hairline divider (1px, between sidebar/settings rows) |
+| `accent` | `#3B82F6` | The only brand recognition color: sending, selection, links, user message indicator bar |
+| `accent.muted` | `#3B82F614` | accent at 8% alpha, user message background and selected row background |
+| `gold` | `#D9A621` | In the Session single indicator, a pending permission/issue; other historical components follow their own dedicated specs |
 
-### 浅色模式（平替）
+### Light Mode (Understudy)
 
-| Token | Hex | 用途 |
+| Token | Hex | Usage |
 |---|---|---|
-| `bg.primary` | `#FBFBFC` | 主背景，近白且带有极轻微冷调偏移 |
-| `bg.secondary` | `#F4F5F6` | 次级背景 |
-| `surface` | `#F0F1F3` | 信息卡片背景 |
-| `text.primary` | `#1A1D21` | 主文字（深墨色，非纯黑） |
-| `text.secondary` | `#6B7177` | 次级文字 |
-| `text.tertiary` | `#9BA1A6` | placeholder、disabled 态 |
-| `divider` | `#E6E8EA` | 极细分隔线 |
-| `accent` | `#2563EB` | 保持同色相，浅色底上调深一档以确保对比度 |
-| `accent.muted` | `#2563EB14` | accent 8% alpha |
-| `gold` | `#B8860B` | 浅色底上适配的加深金色 |
+| `bg.primary` | `#FBFBFC` | Main background, near-white with a very slight cool cast |
+| `bg.secondary` | `#F4F5F6` | Secondary background |
+| `surface` | `#F0F1F3` | Information card background |
+| `text.primary` | `#1A1D21` | Primary text (deep ink, not pure black) |
+| `text.secondary` | `#6B7177` | Secondary text |
+| `text.tertiary` | `#9BA1A6` | Placeholder, disabled state |
+| `divider` | `#E6E8EA` | Hairline divider |
+| `accent` | `#2563EB` | Same hue, darkened one step on the light base to ensure contrast |
+| `accent.muted` | `#2563EB14` | accent at 8% alpha |
+| `gold` | `#B8860B` | Darkened gold adapted to the light base |
 
-### 状态颜色语义（取代"红绿橙圆点"）
+### Status Color Semantics (Replacing "Red/Green/Orange Dots")
 
-现状采用红/绿/橙表达 error/success/warning，违背了单一识别色原则。新方案弱化色彩参与，转由形态结构与文本明确表达：
+Today red/green/orange express error/success/warning, which violates the single-recognition-color principle. The new scheme weakens the role of color and instead states each status explicitly through shape, structure, and text:
 
-| 状态 | 表达方式 |
+| Status | Expression |
 |---|---|
-| AI 空闲 / 就绪 | 无彩色修饰，纯文字呈现 |
-| Session 执行未结束 | 列表与 composer 的专用绿色点：浅色 `#167C45` / 深色 `#4CBF82`，6→9pt，2.6 秒 opacity 0.40–1.0；Reduce Motion 常亮 |
-| 成功 / 完成 | 采用 `text.secondary` 样式的 checkmark 搭配文字说明，不使用绿色 |
-| 错误 | 采用 `accent`（蓝）承载警示并配合明确文本，不使用红色背景块（红色仅保留给删除 session 确认按钮等破坏性操作） |
-| 警告 | 采用 `gold` 文字配合说明，不使用橙色背景块 |
+| AI idle / ready | No color treatment, plain text |
+| Session execution not finished | The dedicated green dot for the list and composer: light `#167C45` / dark `#4CBF82`, 6→9pt, 2.6s opacity 0.40–1.0; stays solid under Reduce Motion |
+| Success / completion | A checkmark styled with `text.secondary` plus a text explanation, no green |
+| Error | Uses `accent` (blue) to carry the warning together with explicit text, no red background block (red is reserved for destructive operations such as the delete-session confirmation button) |
+| Warning | Uses `gold` text with an explanation, no orange background block |
 
-在任何时刻，整个屏幕最多仅允许出现一处彩色（accent 或 gold），其余区域均保持灰阶呈现。这是贯彻"冷静"风格的硬性约束。
+At any moment, the entire screen may contain at most one colored element (accent or gold); everything else stays on the gray scale. This is a hard constraint that enforces the "calm" style.
 
-**例外：Session 列表与 composer 的单灯分诊语义。** 每行至多一灯，优先级为归档无灯、需要你=金、未确认失败=红、自身或已知后代执行未结束=绿、已知子树停止且有未读=蓝、否则无灯。当前 session 只豁免蓝。红蓝按来源 session 自己的查看时间确认，再向祖先聚合；查看父不代替查看子。状态失联或未确认时不亮绿/蓝，保留金红并以中性小字显示“状态待同步”。副文字始终中性，执行计数只放列表，composer 不重复执行文案。点列沿用 12→18pt，金红 8→12pt，绿蓝 6→9pt；折叠触控区与层级不变。完整合同见 [Session 单灯 mini PRD / RFC](features/session_row_indicator/design.md)。
+**Exception: single-indicator triage semantics for the Session list and the composer.** Each row shows at most one light, with the priority: archived = no light, needs you = gold, unacknowledged failure = red, self or a known descendant execution not finished = green, known subtree stopped with unread = blue, otherwise no light. The current session is exempt from blue only. Red and blue are confirmed against the source session's own viewed time and then aggregated upward to ancestors; viewing a parent does not substitute for viewing a child. When the status is unreachable or unacknowledged, green/blue are not lit; gold/red are retained and the neutral small caption `状态待同步` ("Status awaiting sync") is shown. The sub-caption is always neutral, execution counts go only in the list, and the composer does not repeat the execution text. The dot column keeps 12→18pt, gold/red 8→12pt, green/blue 6→9pt; the collapsed touch area and the hierarchy are unchanged. See the full contract in the [Session single-indicator mini PRD / RFC](features/session_row_indicator/design.md).
 
-灯列位于标题和副文字组成的完整 VStack 外，与整块文字垂直居中，不使用绝对 y 偏移。平台光学尺寸可不同（iOS 默认 6/8pt，Android 默认 5/6dp），语义、整块居中与 2.6 秒 0.40–1.0 呼吸一致。绿色低谷可能低于 3:1，因此状态文字和读屏不能省略；Reduce Motion 维持 100% 常亮。
+The light column sits outside the complete VStack formed by the title and the sub-caption, vertically centered against the whole text block, with no absolute y offset. Platform optical sizes may differ (iOS default 6/8pt, Android default 5/6dp), while the semantics, block centering, and the 2.6s 0.40–1.0 breathing remain identical. The green low point may fall below 3:1, so the status text and the screen-reader output must not be omitted; Reduce Motion keeps it at 100% solid.
 
-正常自身执行不再重复显示 Execution active / Running。分支图标加数字只放会话列表，黄红覆盖绿时也保留；数字为已知 active 后代计数，0 不显示，读屏使用完整本地化说明。composer 不新增后代计数，保留统一灯、重试/待同步/必要语音文字与原有后台任务导航。浅色绿色以用户真机偏好统一为 `#167C45`。
+Normal self-execution no longer repeats "Execution active" / "Running". The branch icon with a number appears only in the session list and is kept even when yellow/red overrides green; the number is the count of known active descendants, 0 is not shown, and screen readers use a fully localized description. The composer adds no descendant count; it keeps the unified light, the retry/pending-sync/necessary voice text, and the existing background task navigation. In light mode the green is unified to `#167C45` according to the user's physical-device preference.
 
-## 字体
+## Typography
 
-统一采用系统 SF 字体并显式指定 design 变体。不引入第三方字体，以确保更优的中文回退表现、更小的安装包体积以及与系统 UI 的无缝融合。
+Use the system SF font throughout and explicitly specify the design variant. No third-party fonts, to guarantee better CJK fallback rendering, a smaller install size, and seamless integration with the system UI.
 
-- **Display** — Session 标题与空状态主文案：SF Pro Display Semibold 22pt，`text.primary`。仅在极少数场景出现。
-- **Body** — AI 回复正文（承载用户 90% 的阅读时长）：SF Pro Text Regular 16pt，行距 1.45，`text.primary`。
-- **Body Prominent** — 用户消息：SF Pro Text Medium 16pt。通过字重差异而非颜色来区分 AI 回复。
-- **Meta** — 时间戳、状态信息、tool 名称及 agent/model 标签：SF Pro Text Regular 13pt，`text.secondary`。
-- **Micro Mono** — 代码片段、文件路径与 tool 输入输出：SF Mono Regular 12pt，`text.tertiary`。仅在展开详情区域展示。
+- **Display** — Session titles and empty-state hero copy: SF Pro Display Semibold 22pt, `text.primary`. Appears only in a very small number of scenarios.
+- **Body** — AI reply body (carries 90% of the user's reading time): SF Pro Text Regular 16pt, line height 1.45, `text.primary`.
+- **Body Prominent** — User messages: SF Pro Text Medium 16pt. Distinguished from AI replies by weight difference rather than by color.
+- **Meta** — Timestamps, status information, tool names, and agent/model labels: SF Pro Text Regular 13pt, `text.secondary`.
+- **Micro Mono** — Code snippets, file paths, and tool input/output: SF Mono Regular 12pt, `text.tertiary`. Shown only in expanded detail areas.
 
-字号阶梯是视觉层级的主要载体：严格收敛为 22 / 16 / 13 / 12 四档跨度明确的规格，避免引入中间过渡字号。
+The type scale is the primary carrier of visual hierarchy: strictly converged to four clearly separated steps of 22 / 16 / 13 / 12, with no intermediate transitional sizes introduced.
 
-## 卡片设计语言
+## Card Design Language
 
-按功能划分为三类形态，这是解决原先色彩杂乱问题的核心：
+Divided into three shape families by function — this is the core of fixing the previous color chaos:
 
-1. **信息卡片**（tool 输入输出、patch、diff）：**无描边**，仅使用 `surface` 底色。依靠内部排版（等宽 mono 字体配合留白）建立信息层次。展开详情区域内边距为 14pt。同屏内的多张信息卡片在视觉上保持统一、内敛的容器质感，不喧宾夺主。
-   - **可点暗示**：tool/patch 卡片虽然整体采用中性 `surface` 底色，但本身**具备交互属性**（支持点击查看 input/output 或跳转文件预览）。因此，卡片**内部**的关键可操作元素——工具图标、工具名、可跳转的文件路径与展开 chevron——均采用 `accent` 电蓝色高亮，以此传递明确的可点击提示；卡片本体则维持中性底色。若将整张卡片完全置灰，容易让用户误判为禁用控件（实际迭代中已验证此问题）。将 accent 聚焦在局部交互热区而非铺满整卡，既提供了充足的操作暗示（affordance），又避免倒退回杂乱的彩色卡片风格。对于纯展示、不可交互的文本（如 tool reason 描述），依然维持 `text.secondary` 灰色。
-2. **操作卡片**（permission、question 等需用户响应的组件）：采用无外边框设计，左侧配置一条 3pt 的 `accent` 色条并搭配 `surface` 底色。该色条作为提示用户进行操作的功能信号，在 iOS 界面中具有清晰辨识度。这也是全屏少数允许使用 accent 的关键区域之一。
-3. **状态行**（turn activity、"2:30 elapsed" 等）：**不以卡片形态呈现**。去除底色与圆角容器，直接渲染为单行 `text.secondary` 的 meta 文本，并支持可选的 mono 等宽计时展示。
+1. **Information cards** (tool input/output, patch, diff): **no stroke**, using only the `surface` fill. The information hierarchy is established through internal typography (a monospace mono font with whitespace). The expanded detail area uses 14pt padding. Multiple information cards on the same screen keep a unified, understated container quality that never upstages the content.
+   - **Clickable affordance**: although tool/patch cards use a neutral `surface` fill overall, they are **interactive by nature** (tappable to view input/output or to jump to the file preview). Therefore, the key actionable elements **inside** the card — the tool icon, the tool name, the jumpable file path, and the expand chevron — are all highlighted with the `accent` electric blue, conveying a clear clickable cue; the card body itself keeps the neutral fill. Graying out the entire card would easily make users mistake it for a disabled control (this was verified during actual iteration). Focusing accent on local interaction hotspots instead of flooding the whole card provides ample affordance while avoiding a regression to the messy colorful-card style. For purely descriptive, non-interactive text (such as the tool reason description), `text.secondary` gray is still used.
+2. **Action cards** (permission, question, and other components that require a user response): use a borderless design, with a 3pt `accent` stripe on the leading edge and a `surface` fill. That stripe acts as a functional signal prompting the user to act and is clearly recognizable in the iOS interface. This is also one of the few key areas on screen where accent is allowed.
+3. **Status rows** (turn activity, "2:30 elapsed", etc.): **not presented in card form**. The fill and the rounded container are dropped and the row is rendered directly as a single line of `text.secondary` meta text, with optional monospace timing display.
 
-圆角规格全局统一：信息/操作卡片为 12pt，sheet 为 16pt，inline tag 为 6pt，严格规范、禁止混用。
+Corner radius specs are globally unified: 12pt for information/action cards, 16pt for sheets, 6pt for inline tags — strictly specified, mixing is forbidden.
 
-## 消息区
+## Message Area
 
-- 用户消息：采用**全宽 + 左侧 3pt `accent` 色条 + `accent.muted` 底色**，配合 Body Prominent 字重。该形态与操作卡片保持同构（左侧色条作为全局贯穿的设计语言）。放弃右对齐气泡形态——气泡在 iPad 宽屏下空间利用率较低，而色条方案视觉更为现代利落。
-- AI 回复：**完全不使用容器包裹**，纯 `text.primary` 正文直接排布在 `bg.primary` 背景上，仅通过上下 20pt 间距与用户消息形成区隔。流式文本逐字平滑渲染，不添加多余的入场动画。
-- 消息间距设定为 20pt（原 12pt 过于拥挤）。将每条消息视为独立的思考单元，通过充足留白提供呼吸感。
+- User messages: **full width + a 3pt `accent` stripe on the leading edge + an `accent.muted` fill**, with the Body Prominent weight. This form is isomorphic with the action cards (the leading stripe as a global, thread-through design language). The right-aligned bubble form is abandoned — bubbles use screen space inefficiently on wide iPad screens, while the stripe approach looks more modern and crisp.
+- AI replies: **no container wrapper at all**; plain `text.primary` body text is laid out directly on the `bg.primary` background, separated from user messages only by 20pt of vertical spacing. Streaming text renders smoothly word by word, with no extra entrance animation.
+- Message spacing is set to 20pt (the original 12pt was too cramped). Treat every message as an independent unit of thought, with generous whitespace providing breathing room.
 
 ## Composer
 
-- 输入框：移除描边，仅采用 `bg.secondary` 底色配合 16pt 圆角。描边常带有表单字段暗示，自由文本输入区应保持无框感。
-- text review field：在语音转写或 retry 过程中，持续追加或替换的 partial transcript 需驱动文本框自动滚动至末尾，呈现打字机般的最新文本输出；在手动编辑与草稿恢复场景下则维持系统默认滚动逻辑，避免干扰用户光标。
-- 发送：采用独立的圆角矩形按钮（非圆形图标），以 `accent` 实底搭配白色图标，紧贴输入框右侧底部对齐，在视觉上作为"输入区域的有机组成部分"。
-- mic：调整至输入框**内部左侧**，作为框内功能图标呈现（`text.secondary`）。
-- AI 执行时：send 按钮**始终保留**（符合产品既定逻辑——任务运行期间仍可直接追加新消息，无需手动终止前序任务），且固定位于右侧纵向排列的**底部槽位**。stop 作为**额外增设**的操作按钮展示在 send **上方**（同等尺寸的实底圆角方块，采用 VStack 纵向排列，stop 居上、send 居下），AI 任务结束后自动隐去。需明确 stop 并不替换 send，二者为并存堆叠关系。色彩规范上，send 采用 `accent` 蓝，stop 采用红色（承载中断/破坏性操作语义）。
-- 语音输入：mic 始终固定在左侧纵向排列的**底部槽位**。录音期间仅显示红色 mic，点击即可正常结束录音并进入转写；转写期间 mic 呈现加载状态，右侧同步显示用于强制中断的 `Stop transcription wait`；显式中断后，左侧底部槽位切换为 retry 图标按钮，右侧显示 `Discard audio`。retry 为唯一的主恢复操作，discard 则为退出恢复态的轻量操作，两者职责明确，不可重复定义为两个重试入口。所有临时语音状态均不得改变 send 按钮的固定位置。
+- Input field: drop the stroke, use only a `bg.secondary` fill with a 16pt corner radius. Strokes often imply form fields; a free-text input area should feel borderless.
+- text review field: during voice transcription or retry, the partial transcript that is continuously appended or replaced must drive the text field to auto-scroll to the end, presenting the latest text output in a typewriter-like fashion; in manual editing and draft restoration scenarios it keeps the system default scrolling behavior to avoid disturbing the user's cursor.
+- Send: a standalone rounded-rectangle button (not a circular icon), with a solid `accent` fill and a white icon, hugging the bottom-right of the input field and acting visually as "an organic part of the input area".
+- mic: moved to the **inner left side of the input field**, presented as an in-field functional icon (`text.secondary`).
+- While the AI is running: the send button is **always kept** (consistent with established product logic — new messages can still be appended directly while a task runs, with no need to manually terminate the preceding task), and it stays fixed in the **bottom slot** of the right-side vertical stack. stop is shown as an **additional** action button **above** send (same-size solid rounded square, arranged vertically in a VStack with stop on top and send below), and it hides automatically when the AI task ends. Note that stop does not replace send; the two coexist in a stacked relationship. In color terms, send uses `accent` blue while stop uses red (carrying interrupt/destructive-operation semantics).
+- Voice input: the mic is always fixed in the **bottom slot** of the left-side vertical stack. While recording, only a red mic is shown, and tapping it ends recording normally and proceeds to transcription; during transcription the mic shows a loading state and the right side simultaneously shows `Stop transcription wait` for forcing an interrupt; after an explicit interrupt, the bottom slot on the left switches to a retry icon button while the right shows `Discard audio`. retry is the single primary recovery action and discard is the lightweight action for leaving the recovery state; the two responsibilities are distinct and must not be defined as two separate retry entry points. No transient voice state may change the fixed position of the send button.
 
-## 动效（投入产出比最高）
+## Motion (Highest Return on Investment)
 
-- 用户消息登场：采用 offset y 从 16→0 配合 opacity 从 0→1 的过渡，时长 ease-out 0.28s。AI 流式文本不添加任何入场动效。
-- Tool 卡片展开：采用自定义 spring（response 0.32, damping 0.82），带来比系统默认 DisclosureGroup 更为紧凑灵动的展开体验。
-- Thinking / "N tool calls" 半宽过程 tile 展开：**无动画**，自绘 header 点击直接切换，tile 高度变化触发网格 reflow（首版接受，不做展开动效）。
-- Permission/Question 卡片登场：从下方滑入（offset y 从 24→0）并配合淡入效果，相比纯淡入能更有效地引导用户视觉焦点。
-- Session 切换：消息列表采用 0.2s 的 opacity crossfade 渐变过渡，消除直接硬切带来的突兀停顿感。
-- 明确不做：splash 启动动画、bouncing 弹跳动效、渐变背景（避免过度装饰带来的视觉廉价感）。
+- User message entrance: an offset y transition from 16→0 with opacity from 0→1, over an ease-out of 0.28s. AI streaming text gets no entrance animation at all.
+- Tool card expansion: a custom spring (response 0.32, damping 0.82), giving a more compact and lively expansion than the system default DisclosureGroup.
+- Thinking / "N tool calls" half-width process tile expansion: **no animation**; the custom-drawn header toggles directly on tap, and the tile height change triggers a grid reflow (accepted in the first version, no expansion animation).
+- Permission/Question card entrance: slides in from below (offset y from 24→0) together with a fade-in, which guides the user's visual focus more effectively than a pure fade.
+- Session switching: the message list uses a 0.2s opacity crossfade transition, removing the abrupt pause caused by a hard cut.
+- Explicitly out of scope: splash launch animations, bouncing spring motion, and gradient backgrounds (avoiding the visual cheapness that over-decoration brings).
 
-## 两套布局策略（小屏 vs 大屏）
+## Two Layout Strategies (Small Screen vs Large Screen)
 
-在保持品牌、token、色彩、字体及卡片设计语言**完全一致**的前提下，依据设备形态制定差异化的布局与留白策略。这是本次设计规范的核心补全：避免在 iPhone 上因过度留白而压缩操作空间，同时确保在 iPad 与 visionOS 等大屏设备上通过充裕留白释放屏幕优势。
+While keeping brand, tokens, colors, typography, and the card design language **completely identical**, differentiated layout and whitespace strategies are defined per device form factor. This is the core completion of this design specification: avoiding the loss of operational space on iPhone caused by excessive whitespace, while making sure that on large-screen devices such as iPad and visionOS the generous whitespace releases the advantage of the bigger screen.
 
-### 小屏（iPhone，单栏，功能优先）
+### Small Screen (iPhone, single column, function first)
 
-- 单栏架构：采用底部 Tab 导航（Chat / Files / Settings）。Session 列表通过 Chat 顶部入口触发推入（或下拉展示），不常驻占据屏幕。
-- 克制留白：消息间距设为 20pt，卡片内边距为 14pt，屏幕水平边距为 16pt。在保障呼吸感的同时充分利用纵向显示空间。
-- Toolbar 控件精简为 4 项：session 入口、配置项（model 与 agent 整合至统一 sheet）、context ring（18pt）与 settings。重命名（rename）操作降级为 session 列表中的 swipe action。
-- 紧凑型 Composer：默认单行高度，自适应撑开上限约为 ~100pt。
+- Single-column architecture: bottom tab navigation (Chat / Files / Settings). The Session list is triggered from a Chat top entry that pushes in (or slides down) and does not permanently occupy the screen.
+- Restrained whitespace: message spacing is 20pt, card padding is 14pt, and screen horizontal margins are 16pt. Breathing room is guaranteed while the vertical display space is fully used.
+- The Toolbar is trimmed to 4 items: the session entry, configuration items (model and agent consolidated into a unified sheet), the context ring (18pt), and settings. Rename is demoted to a swipe action in the session list.
+- Compact Composer: single-line height by default, self-expanding up to about ~100pt.
 
 ```
- iPhone — Chat（深色）
+ iPhone — Chat (dark)
  ┌──────────────────────────────┐
- │ ‹  my-session      ◌  ⚙       │  ← 精简 toolbar，◌=context ring
+ │ ‹  my-session      ◌  ⚙       │  ← trimmed toolbar, ◌=context ring
  ├──────────────────────────────┤
- │ ▎Refactor the auth module     │  ← 用户消息：左 accent 色条 + muted 底
+ │ ▎Refactor the auth module     │  ← user message: left accent stripe + muted fill
  │                               │
- │ I'll start by reading the     │  ← AI 回复：无容器，纯正文
+ │ I'll start by reading the     │  ← AI reply: no container, plain body
  │ current implementation.       │
  │                               │
- │ ┌ read  src/auth/login.ts ──┐ │  ← 信息卡片：无描边，surface 底
+ │ ┌ read  src/auth/login.ts ──┐ │  ← info card: no stroke, surface fill
  │ │ 42 lines                  │ │
  │ └───────────────────────────┘ │
- │ ▎ Allow edit to login.ts?     │  ← 操作卡片：左 accent 色条
+ │ ▎ Allow edit to login.ts?     │  ← action card: left accent stripe
  │   Allow      Deny             │
  ├──────────────────────────────┤
- │ 🎤 Message…              [ ▷ ]│  ← mic 在框内左，send 实底贴右
+ │ 🎤 Message…              [ ▷ ]│  ← mic inside the field on the left, solid send on the right
  │ ├──────────────────────────────┤
  │  Chat      Files     Settings │
  └──────────────────────────────┘
 ```
 
-### 大屏（iPad / visionOS，三栏，留白舒展）
+### Large Screen (iPad / visionOS, three columns, relaxed whitespace)
 
-原设计采用 `NavigationSplitView` 三栏架构（左侧 sidebar 上方为 file tree、下方为 Session 列表 / 中间为文件预览 / 右侧为 Chat）。本次调整在此基础上进行**针对性优化**：
+The original design uses a `NavigationSplitView` three-column architecture (file tree at the top of the left sidebar, Session list below / file preview in the middle / Chat on the right). This revision **targeted-optimizes** on top of that:
 
-- **三栏角色分工**：左栏 = Session 列表（树状结构，支持父子层级缩进、leaf 圆点标记及选中态；列表行仅展示标题、时间与状态，**不包含摘要预览**）；中栏 = Chat 交互核心区（主场）；右栏 = 文件预览区（用于承载从 Chat 中点击 tool/patch 触发的单文件预览，支持折叠收起）。
-- **file tree 默认收起**（明确的产品决策）：iPad 上文件树不再常驻占用屏幕宽度，降级为左栏顶部默认折叠、支持手动展开的 "Files" disclosure。该功能在 iPhone 上仍作为独立 tab 保留，从而将宝贵的横向空间释放给 Chat 与预览视图。
-- 舒展留白：屏幕水平边距设定为 32pt，消息间距为 28pt，卡片内边距为 18pt。通过充裕的留白营造精致的质感。
-- 内容区域限宽：Chat 正文内容居中排布且最大宽度限制在约 720pt，不铺满整个中栏——过长的文本行不利于阅读体验，限宽设计能呈现更具编辑质感的版式风格。
-- 右栏文件预览：**采用纯文本代码配合行号等宽渲染，不包含语法高亮**（维持现状逻辑，详见后文 future 说明），不绘制彩色 token；Markdown 提供格式化预览，图片支持手势缩放。
-- visionOS 适配：复用现有 `DesignControls` 中的大尺寸 composer 分支（48/56pt 按钮以提供良好的 gaze 注视交互体验），材质采用系统级 glass 质感，色彩 token 保持完全一致。
+- **Three-column role split**: left column = Session list (tree structure, supporting parent/child indentation, leaf dot markers, and the selected state; list rows show only title, time, and status, with **no summary preview**); middle column = the Chat interaction core (the main stage); right column = the file preview area (carrying the single-file preview triggered by tapping a tool/patch in Chat, with collapse support).
+- **The file tree is collapsed by default** (an explicit product decision): on iPad the file tree no longer permanently occupies screen width, and is demoted to a default-collapsed, manually expandable "Files" disclosure at the top of the left column. The capability is still kept as a separate tab on iPhone, freeing precious horizontal space for Chat and the preview view.
+- Relaxed whitespace: screen horizontal margins are 32pt, message spacing is 28pt, and card padding is 18pt. Generous whitespace creates a refined quality.
+- Content width cap: the Chat body content is centered and its maximum width is limited to about 720pt, instead of filling the entire middle column — overly long text lines hurt readability, and a capped width presents a more editorial layout style.
+- Right-column file preview: **plain text code rendered in a monospace font with line numbers, with no syntax highlighting** (keeping the current logic, see the future note below), and no colored tokens are drawn; Markdown provides a formatted preview, and images support gesture zoom.
+- visionOS adaptation: reuse the existing large-size composer branch in `DesignControls` (48/56pt buttons for a good gaze-interaction experience), the material uses the system-level glass feel, and the color tokens stay completely identical.
 
 ```
- iPad — 三栏（深色）
- ┌───────────────┬───────────────────────────┬──────────────┐
- │ ▸ Files       │  my-session        ◌  ⚙    │  login.ts    │
- │ Sessions   +  │                             │  ──────────  │
- │ ───────────── │   ▎Refactor the auth module │  1  import…  │
- │ ▎my-session   │                             │  2  export…  │
- │  └ sub-task   │   I'll start by reading the │  3  …        │
- │ chat-2        │   current implementation.   │              │
- │               │   ┌ read login.ts ────────┐ │  纯文本+行号 │
- │               │   │ 42 lines              │ │  无语法高亮  │
- │               │   └───────────────────────┘ │              │
- │               │   🎤 Message…         [ ▷ ] │              │
- └───────────────┴───────────────────────────┴──────────────┘
-   ↑ ▸Files 默认收起        ↑ 正文限宽 720pt 居中    ↑ 单文件预览
-   Session 树（无摘要预览）
+ iPad — three columns (dark)
+ ┌───────────────┬───────────────────────────┬────────────────────┐
+ │ ▸ Files       │  my-session        ◌  ⚙    │  login.ts          │
+ │ Sessions   +  │                             │  ──────────        │
+ │ ───────────── │   ▎Refactor the auth module │  1  import…        │
+ │ ▎my-session   │                             │  2  export…        │
+ │  └ sub-task   │   I'll start by reading the │  3  …              │
+ │ chat-2        │   current implementation.   │                    │
+ │               │   ┌ read login.ts ────────┐ │  plain text        │
+ │               │   │ 42 lines              │ │  no syntax hl      │
+ │               │   └───────────────────────┘ │                    │
+ │               │   🎤 Message…         [ ▷ ] │                    │
+ └───────────────┴───────────────────────────┴────────────────────┘
+   ↑ ▸Files collapsed    ↑ body max 720pt     ↑ single-file preview
+   Session tree (no summary preview)
 ```
 
-## 空状态与引导
+## Empty States and Guidance
 
-- 空 session 列表：展示深色版本 logo（待补充资产，目前仅有 `logo_light.png`）配合具有品牌性格的文案，例如 "Start a conversation with your code"，避免使用生硬的 "No sessions"。logo 配合极为轻微的呼吸动效（scale 1.0→1.02→1.0，周期 3s）。
-- 空 chat 界面：居中呈现简明引导文本，不配置图标。
+- Empty session list: show the dark-version logo (asset still to be added; currently only `logo_light.png` exists) with brand-character copy such as "Start a conversation with your code", avoiding the stiff "No sessions". The logo gets an extremely subtle breathing motion (scale 1.0→1.02→1.0, 3s cycle).
+- Empty chat interface: a concise guidance text centered, with no icon.
 
-## 不做清单
+## Non-Goals
 
-- 不引入渐变背景：采用纯色底色配合考究的留白与微动效，呈现更高级的视觉质感。
-- 不引入第三方字体：系统级 SF Pro 与 SF Mono 完全满足需求，且能实现最佳的系统一致性与轻量化。
-- 不制作 splash 启动动画。
-- 不重构信息架构：保留经验证合理的底部 Tab 与三栏布局体系。
-- 常规内容保持灰阶与品牌蓝；Session 列表/composer 的单灯分诊按上述明确例外执行。
+- No gradient backgrounds: use solid base colors with deliberate whitespace and micro-motion for a more premium visual quality.
+- No third-party fonts: the system-level SF Pro and SF Mono fully meet the need and deliver the best system consistency and lightness.
+- No splash launch animation.
+- No information architecture rework: keep the validated bottom tab and three-column layout system.
+- Regular content stays on the gray scale and the brand blue; the single-indicator triage in the Session list/composer follows the explicit exception described above.
 
-## 功能边界（这是实施稿，严格区分三类）
+## Feature Boundaries (This Is the Implementation Draft — Three Categories Strictly Separated)
 
-作为直接指导落地的实施规范，本 spec 中的所有视觉元素均需严格对应真实功能，明确划分为三类边界：
+As an implementation spec meant to directly guide delivery, every visual element in this spec must strictly correspond to a real capability and is clearly divided into three boundary categories:
 
-**现状已有能力（本设计仅调整视觉表现，不变更原有功能）**：3 项 tab 导航（Chat/Files/Settings）；iPhone 上的 Session 列表 sheet 弹窗；iPad 三栏布局；Chat 区域的 10 类消息渲染（用户消息、AI 文本、tool 卡片、patch 卡片、permission 卡片、question 卡片、todo、turn activity、streaming reasoning，其中 step 不作渲染）；Markdown 与可缩放图片预览；file tree（支持展开/折叠与 git 状态着色）；composer（包含 mic/send/stop 及 VoiceFlowKit 语音集成）；toolbar 交互（session/rename/create/model-agent picker/context ring/settings）；Settings 配置项（Server/Project/SSH Tunnel/AI Builder/Appearance/About）；Session 树状嵌套层级与 swipe 滑动删除；深浅双模主题切换。
+**Capabilities that exist today (this design only adjusts the visual presentation and does not change existing functionality)**: 3 tab navigation items (Chat/Files/Settings); the Session list sheet on iPhone; the iPad three-column layout; 10 kinds of message rendering in the Chat area (user message, AI text, tool card, patch card, permission card, question card, todo, turn activity, streaming reasoning, where step is not rendered); Markdown and zoomable image preview; file tree (supporting expand/collapse and git status coloring); composer (including mic/send/stop and the VoiceFlowKit voice integration); toolbar interactions (session/rename/create/model-agent picker/context ring/settings); Settings options (Server/Project/SSH Tunnel/AI Builder/Appearance/About); the Session tree nesting hierarchy and swipe-to-delete; light/dark dual-mode theme switching.
 
-**本规范的常规视觉基线**：卡片、patch、tool 等内容以品牌蓝与中性色组织；以三种卡片形态区分内容；用户消息保留左侧色条。Session 分诊灯遵循本页明确例外，不能沿用历史金色工作灯。
+**The regular visual baseline of this specification**: content such as cards, patches, and tools is organized with the brand blue and neutral colors; three card shapes distinguish content types; user messages keep the leading stripe. The Session triage light follows the explicit exception on this page and must not reuse the legacy golden working light.
 
-**明确排除在本次设计之外的范畴（列入 future 规划，不体现于 mockup 中）**：
-- **代码语法高亮**：当前实现为纯文本配合行号的单色渲染（`Text(line)`），**并不包含**语法高亮能力。mockup 效果图统一按照纯文本绘制。语法高亮作为后续演进（future enhancement）规划——鉴于其涉及分词器（tokenizer）/ 高亮解析库选型，且需兼顾大文件性能与渲染开销，本轮迭代不做实现，设计稿亦不作预先包装。
-- Session 列表项摘要预览、diff 侧边栏对比、消息搜索与编辑、文件上传等在历史 audit 中归属于"未 shipped"的功能，本次均不纳入设计范畴。
+**Explicitly excluded from this design (deferred to future planning and not reflected in the mockup)**:
+- **Code syntax highlighting**: the current implementation is a monochrome plain-text rendering with line numbers (`Text(line)`) and **does not include** syntax highlighting. The mockup images are uniformly drawn as plain text. Syntax highlighting is planned as a future enhancement — given that it involves tokenizer / highlighting-parser library selection and must account for large-file performance and rendering overhead, this iteration does not implement it, and the design is not pre-packaged with it either.
+- Session list item summary previews, diff sidebar comparison, message search and editing, and file upload were classified as "not shipped" in the historical audit, so none of them are in scope for this design.
 
-## 实现落点
+## Implementation Landing Points
 
-`OpenCodeClient/OpenCodeClient/Utils/DesignTokens.swift` 已具备 Brand/Semantic/Neutral/Opacity/Typography/Spacing/Controls/Corners 的基础框架。本次改造重点在于**规范提纯**：将上述色板中的 hex 颜色值与语义映射完整落地，清理 ad-hoc 系统灰与冗余的 Semantic 色彩定义，将 Typography 字号阶梯严格收敛至 22/16/13/12 四档，并将间距按小屏与大屏两套规范分别对齐。View 层代码严禁继续使用 `Color.blue/.red/.gray.opacity(…)` 等随意配色。
+`OpenCodeClient/OpenCodeClient/Utils/DesignTokens.swift` already has a basic framework for Brand/Semantic/Neutral/Opacity/Typography/Spacing/Controls/Corners. The focus of this rework is **specification purification**: fully landing the hex color values and semantic mappings from the palette above, cleaning up ad-hoc system grays and redundant Semantic color definitions, strictly converging the Typography size scale to the four steps 22/16/13/12, and aligning the spacing separately against the small-screen and large-screen specifications. View layer code is strictly forbidden from continuing to use arbitrary colors such as `Color.blue/.red/.gray.opacity(…)`.
 
-## 效果图
+## Mockups
 
-`docs/design_images/` 下的 mockup 由 GPT 图像生成工具（gpt-image-2）生成，旨在锚定"冷静科技感"的视觉基准，非像素级交付物。
+The mockups under `docs/design_images/` were generated by the GPT image generation tool (gpt-image-2) to anchor the visual baseline of the "quiet tech" feel; they are not pixel-level deliverables.
 
-### 小屏（iPhone，单栏）
+### Small Screen (iPhone, single column)
 
-Chat 视图占据用户 90% 的交互时长。设计核心关注点包括：用户消息的蓝色左侧强调条、AI 回复的无容器设计、信息卡片移除描边仅保留深色底、操作卡片的左侧色条搭配文本操作按钮、composer 内置于左侧的 mic 图标及贴靠右下角的实底蓝 send 按钮，以及全屏至多保留一处蓝色 accent 强调色。
+The Chat view occupies 90% of the user's interaction time. The core design concerns include: the blue leading accent bar on user messages, the container-free design of AI replies, information cards with no stroke and only a dark fill, action cards with a leading stripe paired with text action buttons, the mic icon built into the left of the composer, the solid blue send button hugging the bottom-right corner, and at most one blue accent color on the entire screen.
 
 ![iPhone — Chat](design_images/iphone_chat_v.png)
 
-Session 列表：划分为 Active 与 Archived 两大分组。Active 作为默认工作区，Archived 则为同屏折叠面板，无需跳转至独立页面。当前阶段不提供 session search 功能，鉴于现有机制仅为本地已加载项的 title filter，若在 UI 上过早呈现易误导为全量云端历史检索。Active 与 Archived 的 header 采用 44pt 高度的轻量控制条：Title Case 命名、13pt medium 字重配合右侧轻量 chevron 图标，不展示计数标签、不绘制装饰性分割线、不启用 uppercase tracking，以防在狭窄的 sidebar 中发生折行。列表每行呈现标题、灰色摘要预览及时间戳，选中项仅以极浅蓝底配合蓝色左侧条标识，不额外放置 checkmark；子 session 通过竖线与圆点连接符清晰表达父子层级关系。Archived 中的条目依然支持点击查看，但标题与时间统一降级为更浅的灰色，且不显示蓝色指示条，防止与活跃工作项产生视觉混淆。Swipe action 遵循现有组件规范：采用图标居上、文字居下的按钮形态。Delete 操作始终置于 trailing 端并标红；Archive 与 Restore 操作始终置于 leading 端并采用克制的蓝灰色系；所有 swipe action 均禁用 full swipe 快捷触发，且不弹出次级确认弹窗。
+Session list: divided into two major groups, Active and Archived. Active is the default workspace, while Archived is a collapsed panel on the same screen with no need to navigate to a separate page. There is no session search at the current stage: the existing mechanism is only a title filter over locally loaded items, and surfacing it in the UI too early would misleadingly suggest a full cloud-side history search. The Active and Archived headers use a lightweight 44pt-tall control bar: Title Case naming, 13pt medium weight with a lightweight chevron icon on the right, no count labels, no decorative dividers, and no uppercase tracking, to avoid wrapping in the narrow sidebar. Each list row shows a title, a gray summary preview, and a timestamp; the selected item is marked only with a very light blue fill plus a blue leading stripe, without an extra checkmark; child sessions clearly express the parent-child hierarchy through a vertical line and dot connector. Entries in Archived remain tappable, but their titles and times are uniformly downgraded to a lighter gray, and no blue indicator bar is shown, preventing visual confusion with active work items. Swipe actions follow the existing component spec: icon on top, text below. Delete always sits at the trailing edge and is red; Archive and Restore always sit at the leading edge in a restrained blue-gray tone; all swipe actions disable the full-swipe quick trigger, and no secondary confirmation dialog pops up.
 
 ![iPhone — Sessions](design_images/iphone_sessions.png)
 
-Settings：采用标准分组列表，其中 Theme 分段选择器为少数允许使用 accent 强调色的区域，其余部分均保持中性灰阶。
+Settings: uses a standard grouped list, where the Theme segmented selector is one of the few areas allowed to use accent emphasis, while everything else stays on a neutral gray scale.
 
 ![iPhone — Settings](design_images/iphone_settings.png)
 
-Host Profiles（多 OpenCode 环境管理）遵循原生 Form 与 sheet 交互规范，不构建自定义卡片体系。此处设计的核心不在于追求视觉独特性，而在于最大限度降低网络连接配置的认知负担：用户选择的目标是具体的 OpenCode host，而底层 transport 仅为接入通道。
+Host Profiles (management of multiple OpenCode environments) follow native Form and sheet interaction specs and do not build a custom card system. The core of this design is not visual distinctiveness but minimizing the cognitive burden of network connection configuration as much as possible: the user selects a concrete OpenCode host, while the underlying transport is only an access channel.
 
 ![iPhone — Host Profiles](design_images/host_profiles_list_v1.png)
 
-Add Host 提供两段式入口：顶部优先展示 `Import Host Config` 便捷导入，下方为完整的手动配置表单。Direct 与 SSH Tunnel 两种模式通过 segmented control 切换。在 SSH 模式下，不开放用户直接编辑 `127.0.0.1:4096`，仅展示为 `Managed by SSH tunnel` 提示；由管理员分发的核心参数集中归纳于 `SSH Gateway` 分组；设备公钥作为独立分组呈现，且必须提供可点击触发的 `Copy This Device Public Key` 操作，而非仅仅放置于静态说明文字中。
+Add Host provides a two-stage entry: the `Import Host Config` quick import takes priority at the top, with the full manual configuration form below. Direct and SSH Tunnel modes are switched through a segmented control. In SSH mode, users cannot directly edit `127.0.0.1:4096`; it is shown only as a `Managed by SSH tunnel` hint. The core parameters distributed by the administrator are consolidated into the `SSH Gateway` group; the device public key is presented as an independent group and must provide a clickable `Copy This Device Public Key` action, rather than merely being placed in static explanatory text.
 
 ![iPhone — Add SSH Host](design_images/host_profiles_add_v2.png)
 
-设计评审结论：初版原型仅将 "copy public key" 作为说明文本展示而未提供交互动作，导致 SSH onboarding 流程中断；此外 `opencode` 配置行中亦遗漏了 `SSH Username` 标签。修订版本将 Import 功能置于顶层，清晰标注各项 SSH 参数的来源渠道，并将本地 OpenCode URL 从可编辑输入框调整为系统托管字段。在后续代码实现中需适配 Dynamic Type 特性：确保 `LabeledContent` 在大字号辅助功能下支持数值换行或垂直堆叠，避免 `Assigned Remote Port` 标签与对应数值产生相互挤压遮挡。
+Design review conclusion: the first prototype presented "copy public key" only as explanatory text with no interactive action, which broke the SSH onboarding flow; in addition, the `SSH Username` label was missing from the `opencode` configuration row. The revision moves Import to the top level, clearly labels the source channel of each SSH parameter, and changes the local OpenCode URL from an editable input field to a system-managed field. The follow-up implementation must accommodate the Dynamic Type feature: ensure `LabeledContent` supports value wrapping or vertical stacking under large accessibility text sizes, avoiding the `Assigned Remote Port` label and its value squeezing and occluding each other.
 
-Host Profiles 后续设计复核将关注重心从 onboarding 转向长效运维：导入后的 profile 必须支持便捷的检查、修正与连通性诊断。截图自动化 harness 生成的验证材料保存于 `/tmp/opencode-host-profiles-screenshots/`，完整覆盖 Settings Current Host、Hosts list、Host Detail、Import prefill 以及 SSH 导入后的表单状态。复核后确立的 UI 规范为：Settings 与 Host Detail 均需提供可交互执行的诊断功能；点击 Hosts 列表项应进入详情页而非直接触发切换；在无有效连接历史记录时统一展示 `Never connected`；SSH Host Detail 必须完整呈现 Gateway Host、SSH Port、SSH Username、Assigned Remote Port、本地 URL、`Use This Host`、`Copy Host Config JSON` 以及 `Copy This Device Public Key`。
+The follow-up design review of Host Profiles shifts its focus from onboarding to long-term operations: an imported profile must support convenient inspection, correction, and connectivity diagnosis. The verification material produced by the screenshot automation harness is stored in `/tmp/opencode-host-profiles-screenshots/`, fully covering Settings Current Host, the Hosts list, Host Detail, Import prefill, and the post-SSH-import form state. The UI spec established after the review is: both Settings and Host Detail must provide an executable diagnostic function; tapping a Hosts list item should enter the detail page rather than directly triggering a switch; `Never connected` is shown uniformly when there is no valid connection history; and SSH Host Detail must fully present Gateway Host, SSH Port, SSH Username, Assigned Remote Port, the local URL, `Use This Host`, `Copy Host Config JSON`, and `Copy This Device Public Key`.
 
-本轮截图测试还发现了两项设计细节。其一，禁止将未经处理的 raw Swift error 直接暴露在 UI 中，例如 Basic Auth 认证失败时应呈现如 `OpenCode rejected Basic Auth. Check username and password.` 这类具有明确排查指引的文本。其二，在窄屏设备上 SSH 列表项的摘要文本可能存在截断风险，因此列表摘要仅用于基础识别与跳转详情，完整配置字段均以 Host Detail 详情页为准。
+This round of screenshot testing also surfaced two design details. First, an unprocessed raw Swift error must never be exposed directly in the UI; for example, a Basic Auth failure should present text with clear troubleshooting guidance such as `OpenCode rejected Basic Auth. Check username and password.`. Second, on narrow-screen devices the summary text of SSH list items risks truncation, so the list summary is only used for basic identification and for jumping to details, and all complete configuration fields remain authoritative on the Host Detail page.
 
-Key technical decisions：Host 实体代表单一 OpenCode 运行环境，而非单独的 SSH host；transport 明确划分为 `direct` 与 `sshTunnel` 两种类型，其中 Tailscale、VPN、LAN 及 HTTPS 均归属于 direct；Settings 顶部展示从全局连接表单调整为 Current Host 当前主机状态；Add Host 流程优先支持不包含敏感凭据的 Import Config 快速导入，同时保留手动配置入口；SSH private key 默认按设备维度（device-level）生成管理，同一设备上的多个 SSH host 共享同一公钥；Basic Auth 密码按 profile 隔离存储于 Keychain，profile 配置中仅保存引用标记；TOFU 机制的 trusted host 按照 SSH gateway 的 `host:port` 进行绑定；SSH 模式下的 `127.0.0.1:4096` 属于应用托管的运行时 URL，UI 层面不提供用户编辑；切换 host 时需同步停止 SSE 监听、断开原 SSH tunnel、加载新 profile、清空当前选中的 session，并重新拉取 health、projects 与 sessions 数据；首版实现方案以 profile 作为持久化的 source of truth，再将其解构回填至现有的 `serverURL`、Basic Auth 及 `SSHTunnelManager.config` 运行时字段，避免对 APIClient、SSE 和 SSH tunnel 架构产生一次性颠覆式重构。
+Key technical decisions: a Host entity represents a single OpenCode runtime environment rather than a standalone SSH host; transport is explicitly divided into `direct` and `sshTunnel` types, with Tailscale, VPN, LAN, and HTTPS all belonging to direct; the top of Settings shifts from a global connection form to the Current Host status; the Add Host flow prioritizes an Import Config quick import that excludes sensitive credentials, while retaining the manual configuration entry; SSH private keys are generated and managed per device (device-level) by default, with multiple SSH hosts on the same device sharing one public key; Basic Auth passwords are stored per profile in the Keychain, with only a reference marker kept in the profile configuration; TOFU trusted hosts are bound to the SSH gateway's `host:port`; `127.0.0.1:4096` in SSH mode is an app-managed runtime URL that the UI does not let the user edit; switching hosts must simultaneously stop the SSE listener, tear down the original SSH tunnel, load the new profile, clear the currently selected session, and re-fetch the health, projects, and sessions data; the first implementation uses the profile as the persisted source of truth, then destructures it back into the existing `serverURL`, Basic Auth, and `SSHTunnelManager.config` runtime fields, avoiding a disruptive one-shot rewrite of the APIClient, SSE, and SSH tunnel architecture.
 
-### 大屏（iPad / visionOS，三栏）
+### Large Screen (iPad / visionOS, three columns)
 
-共享同一套 token 与品牌规范，大屏布局更具舒展感：左侧为 Session 列表、中间为主 Chat 交互区（正文限宽居中，呈现 editorial 版式留白）、右侧为文件与代码预览区。代码预览中的语法高亮收敛至克制的中性灰阶，避免色彩杂乱。iPad sidebar 中的 Files 模块默认保持折叠；Session 区域直接展开展示各自独立的 Active 与 Archived 分区，不预置 search 检索框。Archive、Restore 与 Delete 的 swipe 滑动手势方向与 iPhone 端保持完全一致。
+Sharing the same token set and brand spec, the large-screen layout is more relaxed: the Session list on the left, the main Chat interaction area in the middle (body width capped and centered, presenting an editorial layout with whitespace), and the file/code preview area on the right. Syntax highlighting in the code preview is converged to a restrained neutral gray scale to avoid color chaos. The Files module in the iPad sidebar stays collapsed by default; the Session area directly shows its own separate Active and Archived sections, with no search field preset. The swipe gesture directions for Archive, Restore, and Delete are exactly the same as on iPhone.
 
-![iPad — 三栏](design_images/ipad_threecol.png)
+![iPad — three columns](design_images/ipad_threecol.png)
 
-## 诊断回顾（来自上一版，结论仍成立）
+## Diagnostic Retrospective (From the Previous Version — the Conclusions Still Hold)
 
-早期 UI 呈现出典型的工程师思维：信息层级扁平（字号与间距缺乏差异化梯度）、留白欠缺（消息间距 12pt、卡片内边距 8pt 过于局促）、品牌辨识度不足（过度依赖系统原生 SF Symbols 与系统默认色，视觉质感偏向基础演示项目）、微交互缺失（缺乏必要的过渡动画支撑）。本规范确立的各项原则均精准对应并解决上述痛点。
+The early UI exhibited typical engineer thinking: flat information hierarchy (font size and spacing lacked a differentiated gradient), insufficient whitespace (12pt message spacing and 8pt card padding were too cramped), weak brand recognition (over-reliance on the system-native SF Symbols and the system default colors, giving a visual quality closer to a basic demo project), and missing micro-interactions (lacking the necessary transition animations). Every principle established in this specification precisely addresses and solves the pain points above.
 
 ---
 
-# 工具卡渲染重做（已实现；最新演进：过程 tile 永远半宽、共享两列网格）
+# Tool Card Rendering Rework (Implemented; Latest Evolution: Process Tiles Are Always Half-Width and Share a Two-Column Grid)
 
-**明确不做像素风格。** 本章节的设计完全立足于上述 Quiet Tech 设计语言，不引入任何多余的视觉纹理——严格维持现有的极简现代图标、微细分割线与中性卡片底色。本次重构聚焦于**信息组织结构**的优化，而非更换视觉皮肤：重点解决发言角色的区隔以及工具调用结果的高效呈现。
+**Pixel style is explicitly out of scope.** This chapter's design is entirely grounded in the Quiet Tech design language described above and introduces no extra visual texture — it strictly maintains the existing minimal modern icons, hairline dividers, and neutral card fills. This refactor focuses on optimizing the **information organization structure** rather than swapping the visual skin: the main goals are to separate the speaking roles and to present tool call results efficiently.
 
-当前痛点主要集中在两点：(a) AI 回复与用户消息的视觉差异不足，难以快速辨识发言主体；(b) 所有工具调用均统一套用"通用展开式 DisclosureGroup + wrench 图标"，而 patch 又被单独处理为全蓝底色的导航卡——工具卡之间缺乏语义层面的差异化，整体视觉呈现出大量同质化的灰色卡片。
+The current pain points concentrate on two aspects: (a) AI replies and user messages have insufficient visual difference, making it hard to quickly identify the speaker; (b) all tool calls uniformly use a "generic expandable DisclosureGroup + wrench icon", while patch is separately handled as a full blue navigation card — the tool cards lack semantic differentiation from each other, and the overall visual presents a large amount of homogeneous gray cards.
 
-本次设计包含三项具体调整：(1) 明确区分用户与 OpenCode 的发言角色；(2) 将文件类操作统一渲染为文件卡片（采用 2 列网格布局）；(3) 将其余通用工具调用收敛聚合为支持展开的 "N tool calls"。
+This design contains three concrete adjustments: (1) clearly distinguish the speaking roles of the user and of OpenCode; (2) uniformly render file-type operations as file cards (using a 2-column grid layout); (3) converge all remaining generic tool calls into an expandable "N tool calls".
 
-## 一、区分谁在说话（不要头像，但要标题）
+## One, Distinguishing Who Is Speaking (No Avatar, but a Title)
 
-当前 AI 回复与用户消息之间的视觉辨识度偏弱，难以迅速定位发言角色。优化后的设计规范如下：
+The visual distinction between AI replies and user messages is currently too weak to locate the speaker quickly. The optimized design spec is as follows:
 
-- **用户消息**：延续使用现有的**蓝色左侧指示条**（3pt accent 左侧色条配合 muted 底色）。
-- **OpenCode 回复**：**不使用头像或圆形图标**，而是在回复顶部增加 **"OpenCode" 文本标题**（采用微区分样式，明确标识 AI 发言身份）；同时**完整保留现有的"模型信息小字"**——即每条回复底部标注模型信息（如 `claude-opus-4 · 12:04`）的次级灰色文本，位置与现有逻辑保持一致，不做改动。回复正文区域不配置背景容器，亦不添加左侧色条。
+- **User messages**: continue to use the existing **blue leading indicator bar** (a 3pt accent leading stripe with a muted fill).
+- **OpenCode replies**: **use no avatar and no round icon**, and instead add a **"OpenCode" text title** at the top of the reply (using a micro-differentiated style that clearly marks the AI speaking identity); at the same time, **fully retain the existing "model info caption"** — that is, the secondary gray text that notes the model information at the bottom of each reply (such as `claude-opus-4 · 12:04`), with its position and existing logic unchanged. The reply body area has no background container and no leading stripe.
 
-设计的核心思路在于通过**差异化的 visual style**（顶部文本标题 + 底部模型小字 对比 蓝色左侧指示条）清晰界定双方角色，而非依赖常规的用户头像。
+The core idea of the design is to clearly delineate the two roles through a **differentiated visual style** (top text title + bottom model caption versus the blue leading indicator bar), rather than relying on a conventional user avatar.
 
-## 二、文件卡（2 列网格）
+## Two, File Cards (2-Column Grid)
 
-**文件操作类工具（涵盖 patch / edit / write / read 四类）**统一渲染为**文件卡片**：卡片左侧展示简洁现代的**文件图标**，中间呈现 monospace 等宽字体的文件名或路径，右侧配置用于触发跳转或展开的 chevron 图标。每个工具调用对应一张卡片，**采用 2 列网格排布**（每行并排展示两张卡片，与 iPhone 现有的 2 列网格规范对齐；iPad 端可扩展为 3 列）。逻辑判断规则为 `part.tool ∈ {apply_patch, edit_file, write_file, read_file}`（包含历史兼容别名）。
+**File-operation tools (covering the four types patch / edit / write / read)** are uniformly rendered as **file cards**: a clean, modern **file icon** on the left of the card, the filename or path in monospace in the middle, and a chevron icon on the right that triggers navigation or expansion. Each tool call corresponds to one card, **arranged in a 2-column grid** (two cards side by side per row, aligned with the iPhone's existing 2-column grid spec; it can extend to 3 columns on iPad). The logical decision rule is `part.tool ∈ {apply_patch, edit_file, write_file, read_file}` (including historical compatibility aliases).
 
-## 三、合并成 "N tool calls"（半宽 tile）
+## Three, Merge into "N tool calls" (Half-Width Tile)
 
-**除文件操作外的其余工具（包括 bash / 测试 / grep / glob / list / webfetch / task 等）统一合并收敛为单个 "N tool calls" tile**，文本格式统一定义为 **"N tool calls"**（例如 `3 tool calls`）——进行适度抽象，在未展开时不直接暴露具体工具类别。组件默认处于折叠收起状态，且是**永远半宽的 tile**：与 file card 同进两列（iPhone）/ 三列（iPad）网格，宽度由网格列决定，**无论收起或展开都不撑到全宽**。
+**All remaining tools besides file operations (including bash / test / grep / glob / list / webfetch / task, etc.) are uniformly merged into a single "N tool calls" tile**, with the text format uniformly defined as **"N tool calls"** (for example `3 tool calls`) — a moderate abstraction that does not expose the specific tool category while collapsed. The component is collapsed by default and is a **tile that is always half-width**: it shares the two-column (iPhone) / three-column (iPad) grid with the file cards, its width is determined by the grid column, and **it never stretches to full width whether collapsed or expanded**.
 
-tile 采用自绘披露（不用系统 DisclosureGroup）：header 为纯文本（无 icon，与 Android 一致）+ 右侧 chevron，字体/字重/颜色遵循过程行规范（micro / medium / accent 蓝）；点击 header 切换展开，展开后逐项展示其中包含的各工具（复用现有 ToolPartView 的展开逻辑），**内容留在半宽 tile 内部**（窄列），tile 变高、网格 reflow。
+The tile uses a custom disclosure (not the system DisclosureGroup): the header is plain text (no icon, consistent with Android) plus a chevron on the right, with font/weight/color following the process row spec (micro / medium / accent blue); tapping the header toggles the expansion, and once expanded it lists the individual tools it contains item by item (reusing the existing ToolPartView expansion logic), with **the content staying inside the half-width tile** (narrow column) — the tile grows taller and the grid reflows.
 
-## 排列：半宽 tile 共享两列网格
+## Arrangement: Half-Width Tiles Share a Two-Column Grid
 
-thinking（ThinkingCard）、"N tool calls" 合并 tile 与 file card **同进一个 LazyVGrid 两列（iPhone）/ 三列（iPad）网格**，tile 按 part 原始顺序排布：reasoning 生成半宽 ThinkingCard tile，file 操作逐张生成半宽 file card tile，非文件工具聚拢合并为**一个**半宽 "N tool calls" tile。所有过程 tile **永远半宽**——宽度由网格列决定，展开时不撑全宽；**展开内容留在半宽 tile 内部**（窄列），tile 变高、网格 reflow（首版接受，无动画）。
+thinking (ThinkingCard), the merged "N tool calls" tile, and the file cards **all enter the same LazyVGrid two-column (iPhone) / three-column (iPad) grid**, with the tiles laid out in the original part order: reasoning produces a half-width ThinkingCard tile, file operations each produce a half-width file card tile, and non-file tools cluster together and merge into **one** half-width "N tool calls" tile. All process tiles are **always half-width** — the width is determined by the grid column and does not stretch to full width when expanded; **the expanded content stays inside the half-width tile** (narrow column), the tile grows taller, and the grid reflows (accepted in the first version, no animation).
 
-text 与附件块不进网格，**全宽渲染在网格之后**（读序：网格在前、全宽文本在后，用户接受）。整体不作额外分组，亦不添加类似 "Files updated" 或 "Actions" 的分类标题。
+text and attachment blocks do not enter the grid and are **rendered full width after the grid** (reading order: the grid first, the full-width text after; users accept this). There is no extra grouping overall, and no category headings like "Files updated" or "Actions" are added.
 
-file card 遵循 Quiet Tech 的中性卡片规范（neutral `surface` 底色、无边框描边、12pt 圆角）；thinking / tool calls tile 保持轻量过程行形态（无重卡面），彩色点缀仅限制在文件图标、header 与 chevron 区域——确保同屏内至多保留一处蓝色强调。
+File cards follow the Quiet Tech neutral card spec (neutral `surface` fill, no border stroke, 12pt corner radius); the thinking / tool calls tiles keep the lightweight process row form (no heavy card surface), with color accents restricted to the file icon, the header, and the chevron area — ensuring at most one blue emphasis remains on screen.
 
-![工具卡：说话区分 + 2 列文件卡 + N tool calls](design_images/tool_cards_chronological.png)
+![Tool cards: speaker differentiation + 2-column file cards + N tool calls](design_images/tool_cards_chronological.png)
 
-> 本张 mockup 明确了最终演进方向：用户消息采用蓝色左侧指示条；OpenCode 回复配置 "OpenCode" 文本标题与底部模型小字（`claude-opus-4 · 12:04`），不使用头像；文件操作聚合为 2 列文件卡片网格（`client.ts` / `types.ts` / `README.md` / `utils.ts` 等）；其余工具调用收敛为 `▸ 3 tool calls`。全局采用纯粹利落的 sans-serif 字体，不引入像素质感。
+> This mockup clarifies the final evolution direction: user messages use a blue leading indicator bar; OpenCode replies carry an "OpenCode" text title and a bottom model caption (`claude-opus-4 · 12:04`), with no avatar; file operations aggregate into a 2-column file card grid (`client.ts` / `types.ts` / `README.md` / `utils.ts`, etc.); the remaining tool calls converge into `▸ 3 tool calls`. A purely crisp sans-serif font is used throughout, with no pixel-art texture.
 
-## 不做 / 边界
+## Non-Goals / Boundaries
 
-- **坚决不引入像素风格**：核心价值在于"角色区分 / 文件卡片 / N tool calls"所构建的**信息组织结构**，而非像素视觉质感。整体设计严格保持极简克制的 Quiet Tech 规范。
-- **不额外分组，不增加分类标题**。
-- **文件卡片保留 file 图标并维持 2 列网格**；AI 回复**不使用头像**但**必须展示 "OpenCode" 文本标题**；**底部模型小字保持原样不作改动**。
-- **模型选择器保持现有交互，右上角不添加用户头像。**
-- **Session 执行未结束** 使用专用绿色轻呼吸，不引入像素化效果、缩放或光晕；金红蓝常亮。
-- **本章节属于探索性设计规范**；涉及 `ToolPartView`、`PatchPartView` 及 `MessageRowView` 的底层代码重构将移交后续实现 PR 完成。
+- **Never introduce a pixel style**: the core value lies in the **information organization structure** built by "role differentiation / file cards / N tool calls", not in a pixel visual texture. The overall design strictly maintains the minimal, restrained Quiet Tech spec.
+- **No extra grouping and no added category headings.**
+- **File cards keep the file icon and the 2-column grid**; AI replies **use no avatar** but **must show the "OpenCode" text title**; **the bottom model caption stays as-is with no changes**.
+- **The model picker keeps its existing interaction, and no user avatar is added in the top-right corner.**
+- **Session execution not finished** uses a dedicated light green breathing effect, with no pixelation, scaling, or glow; gold, red, and blue stay solid.
+- **This chapter is an exploratory design spec**; the underlying code refactor involving `ToolPartView`, `PatchPartView`, and `MessageRowView` is handed over to a follow-up implementation PR.

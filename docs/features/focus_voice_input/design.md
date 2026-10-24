@@ -1,79 +1,79 @@
-# 专注模式与语音优先输入
+# Focus Mode and Voice-First Input
 
-状态：实现与验证中。两个功能放入同一个 PR，独立配置，默认保持现有交互。
+Status: under implementation and validation. The two features go into the same PR, are configured independently, and keep the existing interaction by default.
 
-## 产品决定
+## Product Decisions
 
-**大屏专注模式**：允许用户主动切换至单内容区域的紧凑体验，复用现有窄屏的 Chat / Files / Settings 标签页，以及聊天中打开 Markdown 时替换正文、保留底部输入区的行为。布局偏好为自动 / 专注，默认自动。设备旋转至横屏不会自动退出专注模式。
+**Large-screen Focus mode**: allows the user to switch to a compact single-content-area experience on their own, reusing the existing narrow-screen Chat / Files / Settings tabs, as well as the behavior where opening Markdown in the chat replaces the body while keeping the bottom input area. The layout preference is Auto / Focus, with Auto as the default. Rotating the device to landscape does not automatically exit Focus mode.
 
-**语音优先输入**：新增设备本地开关，默认关闭。开启后，草稿可读、可滚动，支持点按定位光标、长按选字，但不自动弹出软键盘。用户点击键盘按钮才呼出系统键盘，点击收起、发送成功或切换会话后回到无键盘状态。现有麦克风交互与录音、发送策略继续适用，设置本身不启动录音或发送消息。
+**Voice-first input**: a new device-local switch, off by default. Once enabled, the draft is readable and scrollable, supports tapping to place the caret and long-pressing to select text, but the software keyboard does not pop up automatically. The system keyboard is summoned only when the user taps the keyboard button; tapping to dismiss it, a successful send, or switching sessions returns to the keyboard-free state. The existing microphone interaction and the recording/sending policies continue to apply; toggling the setting itself neither starts recording nor sends a message.
 
-**系统粘贴入口**：语音优先开启时提供蓝色图标的粘贴按钮，底色融入语音栏，不再使用白图标蓝实底的大圆角框，同时保留不小于 44 × 44 pt 的点按区域。继续使用原生 `UIPasteControl`，不靠缩小原生控件破坏实际粘贴点击。首版接收文本；图片继续使用现有相册入口。粘贴仅更新草稿，不自动发送、不在未请求键盘时唤起键盘。
+**System paste entry point**: when voice-first is enabled, a paste button with a blue icon is provided, whose background blends into the voice bar, replacing the large rounded blue box with a white icon; at the same time, a tap target of no less than 44 × 44 pt is preserved. The native `UIPasteControl` continues to be used, without shrinking the native control in a way that would break the actual paste tap. The first version receives text; images keep using the existing photo library entry point. Pasting only updates the draft — it does not auto-send, and it does not summon the keyboard when the keyboard has not been requested.
 
-不包含多会话并排、正文选段引用、方向锁、铰链特定交互或自定义系统键盘扩展。
+Not included: side-by-side multiple sessions, quoting selected passages of the body, orientation lock, hinge-specific interactions, or custom system keyboard extensions.
 
-## 界面
+## User Interface
 
-设置页提供布局模式和语音优先输入。主界面工具栏提供布局快捷入口；专注模式下仍有明确的恢复自动入口。
+The Settings screen provides the layout mode and voice-first input. The main interface toolbar provides a quick layout entry point; Focus mode still has an explicit entry point back to Auto.
 
 ```text
 ┌─────────────────────────────────────────┐
-│ 会话 / 返回      当前会话或文档     布局 │
+│ Session / Back   Current session  Layout│
 ├─────────────────────────────────────────┤
 │                                         │
-│       聊天消息 或 Markdown 预览          │
+│    Chat messages or Markdown preview    │
 │                                         │
 ├─────────────────────────────────────────┤
-│ 草稿：语音转写、粘贴文本                 │
-│ 麦克风   缩短的波形       粘贴   键盘   │
-│ 相册        草稿               发送    │
+│ Draft: speech transcript, pasted text   │
+│ Mic     Waveform        Paste   Keyboard│
+│ Photos     Draft              Send      │
 └─────────────────────────────────────────┘
 ```
 
-关闭语音优先时保留现有输入习惯，不额外增加键盘入口。开启时将粘贴与显式编辑入口放进现有语音栏，缩短波形，不另占一行；窄屏不以缩小点按区域解决拥挤。麦克风与发送保持既有槽位，临时录音、重试、停止按钮的排列继续遵循现有 [Composer 规范](../../design.md#composer)。
+When voice-first is off, the existing input habits are preserved with no additional keyboard entry point. When it is on, the paste and explicit-edit entry points go into the existing voice bar and the waveform is shortened without taking an extra row; on narrow screens, crowding is not solved by shrinking the tap target. The microphone and send keep their existing slots, and the arrangement of the temporary recording, retry, and stop buttons continues to follow the existing [Composer specification](../../design.md#composer).
 
-## 技术设计
+## Technical Design
 
-### 本地偏好与有效布局
+### Local Preferences and Effective Layout
 
-布局偏好与语音优先开关存储在设备本地，重启保持，不按服务端 host 分开配置。
+The layout preference and the voice-first switch are stored on the device, persist across restarts, and are not configured separately per server host.
 
-| 系统可用空间 | 自动 | 专注 |
+| Available system space | Auto | Focus |
 | --- | --- | --- |
-| compact | 现有单内容布局 | 单内容布局 |
-| regular | 现有三栏布局 | 单内容布局 |
+| compact | existing single-content layout | single-content layout |
+| regular | existing three-column layout | single-content layout |
 
-保持系统 `horizontalSizeClass` 原样，派生应用自己的有效布局状态。根导航、预览位置、消息卡片排布、会话入口及边缘手势统一读取有效布局；系统 sheet / popover 等继续遵循真实设备环境。
+Keep the system `horizontalSizeClass` as-is and derive the app's own effective layout state. The root navigation, preview placement, message card layout, session entry points, and edge gestures all read the effective layout uniformly; system sheets / popovers and the like continue to follow the real device environment.
 
-方向声明使用通用 `UISupportedInterfaceOrientations`（竖屏及左右横屏），iPad 保留四态覆盖，不依赖仅有 `~iphone` 的生成键。是否真正旋转仍以运行中的窗口尺寸与界面测试为准。
+The orientation declaration uses the general `UISupportedInterfaceOrientations` (portrait plus both landscape orientations); iPad keeps the four-state override and does not rely on the generated key that only has `~iphone`. Whether the rotation actually happens is still determined by the running window size and the UI tests.
 
-切换布局应保留当前会话、文字草稿、当前文件预览、待发图片和进行中的录音。优先保持聊天与输入视图身份，避免为这两个功能引入通用工作区重构。双向映射聊天内预览与中栏预览，不把视图消失误判为用户切换会话。
+Switching the layout should preserve the current session, the text draft, the current file preview, pending images, and any in-progress recording. Prefer keeping the identity of the chat and input views, and avoid introducing a generic workspace refactor for these two features. Map the in-chat preview and the center-column preview in both directions, and do not misread a disappearing view as the user switching sessions.
 
-### 输入焦点与粘贴
+### Input Focus and Paste
 
-`UITextView` 桥接将光标焦点与软键盘请求分开。语音优先且未请求键盘时，使用自定义零高度 `inputView` 替代软键盘，让点按仍能取得输入焦点并显示光标；显式点击键盘按钮才恢复系统键盘。未聚焦时不自动唤焦，中文 `markedTextRange` 保护继续适用。键盘请求状态不持久化，避免下次启动自动唤起键盘。
+The `UITextView` bridge separates caret focus from the software keyboard request. When voice-first is on and the keyboard has not been requested, a custom zero-height `inputView` replaces the software keyboard, so a tap can still obtain input focus and show the caret; only an explicit tap on the keyboard button restores the system keyboard. The caret is not focused automatically when unfocused, and the Chinese `markedTextRange` protection still applies. The keyboard request state is not persisted, to avoid the keyboard being summoned automatically on the next launch.
 
-采用 Apple `PasteButton` 或 `UIPasteControl`，不通过普通按钮直接读取 `UIPasteboard.general.string`。系统控件负责剪贴板访问与可粘贴状态。
+Use Apple's `PasteButton` or `UIPasteControl`, and do not read `UIPasteboard.general.string` directly from an ordinary button. The system control handles clipboard access and the pasteable state.
 
-未聚焦时，空草稿直接写入，已有草稿在末尾换行追加；已点击定位光标后，按当前光标或选区插入，不以软键盘是否显示决定插入位置。多段文本保持顺序；中文尚在组合输入时不得替换未上屏内容。异步粘贴和语音结果必须合并最新草稿，并保留原 host / session 归属，不能用旧快照整体覆盖。
+When unfocused, an empty draft is written directly and an existing draft is appended at the end with a newline; after the caret has been positioned by a tap, the text is inserted at the current caret or selection, and the insertion position is not determined by whether the software keyboard is visible. Multiple text blocks keep their order; while Chinese input is still being composed, the not-yet-committed content must not be replaced. Async paste and voice results must be merged into the latest draft, preserving the original host / session ownership, and must not overwrite everything with an old snapshot.
 
-发送失败且仍处于同一 host、会话与选择时，恢复已发送文本并保留等待期间新增的内容；只有完整原文或以原文加换行为前缀才去重，不能用任意子串判断。已发送与新增图片按附件 ID 去重合并，不因文字 revision 改变而丢图。
+When the send fails and the host, session, and selection are still the same, the sent text is restored while keeping the content added during the wait; deduplication applies only to the complete original text, or to text prefixed by the original plus a newline, and must not rely on arbitrary substrings. Sent and newly added images are deduplicated and merged by attachment ID, so images are not lost when the text revision changes.
 
-## 一个 PR 的实施与验收顺序
+## Implementation and Acceptance Order Within a Single PR
 
-1. 偏好存储与有效布局解析，覆盖自动 / 专注 × compact / regular。
-2. 布局入口、预览双向迁移、聊天与录音生命周期连续性。
-3. 语音优先焦点控制、系统粘贴控件和草稿合并。
-4. 定向单测及 iPhone / iPad 模拟器 UI 回归。
-5. 独立 code review 与 privacy review；修复后重跑受影响检查。
-6. 提交单个 PR，不合并；真实 iPhone / iPad 由用户部署验收。
+1. Preference storage and effective layout resolution, covering Auto / Focus × compact / regular.
+2. The layout entry point, two-way preview migration, and chat/recording lifecycle continuity.
+3. Voice-first focus control, the system paste control, and draft merging.
+4. Targeted unit tests and iPhone / iPad simulator UI regression.
+5. Independent code review and privacy review; after fixes, rerun the affected checks.
+6. Submit a single PR without merging; the real iPhone / iPad are accepted by the user after deployment.
 
-验收重点为：默认行为回归；iPad 横竖屏自动 / 专注互切；聊天与 Markdown 下点击草稿不弹键盘；显式编辑、收起及发送；真实系统粘贴路径不额外弹授权、不唤起键盘、不发送；已有草稿与转写并发不丢内容；中文组合输入；设置重启保留。
+The acceptance focus is: default behavior regression; switching between Auto / Focus in iPad landscape and portrait; tapping the draft in chat and in Markdown does not pop up the keyboard; explicit editing, dismissal, and sending; the real system paste path does not request extra authorization, summon the keyboard, or send; existing drafts are not lost when running concurrently with a transcript; Chinese composition input; the setting persists across restarts.
 
-## 验证边界
+## Verification Boundary
 
-Duo 验证需要 Xcode 27.1 和 iOS 27.1 runtime；测试必须覆盖实际内外屏及旋转，普通 iPad 模拟器不能代替 Duo 姿态验收。若开合控制或截图受模拟器接口限制，应列明已执行与待验的场景。
+Duo verification requires Xcode 27.1 and the iOS 27.1 runtime; the tests must cover the real inner and outer screens as well as rotation, and an ordinary iPad simulator cannot substitute for Duo posture acceptance. If opening/closing control or screenshots are limited by the simulator interface, the scenarios already executed and the ones still pending must be listed explicitly.
 
-模拟器用于界面与状态行为验证。真实麦克风收音、跨应用粘贴与握持点按体感由用户真机确认。
+The simulator is used for interface and state behavior verification. Real microphone capture, cross-app pasting, and the feel of tap targets in the hand are confirmed by the user on a real device.
 
-参考：[Apple 布局准备指南](https://developer.apple.com/iphone-duo/prepare/)、[PasteButton](https://developer.apple.com/documentation/swiftui/pastebutton)、[UIPasteControl](https://developer.apple.com/documentation/uikit/uipastecontrol)。
+References: [Apple layout preparation guide](https://developer.apple.com/iphone-duo/prepare/), [PasteButton](https://developer.apple.com/documentation/swiftui/pastebutton), [UIPasteControl](https://developer.apple.com/documentation/uikit/uipastecontrol).

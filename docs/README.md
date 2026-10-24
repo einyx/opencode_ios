@@ -1,59 +1,59 @@
-# OpenCode iOS Client — Docs 索引
+# OpenCode iOS Client — Docs Index
 
-> 最后更新：2026-10-18（Watch Ambient 标记为 Experimental；真机语音和工具回传已跑通，多轮对话仍会断开，根因未确认）。查阅与检索任何文档请先参考本索引。
+> Last updated: 2026-10-18 (Watch Ambient is marked Experimental; voice and tool return on a physical device work, but multi-turn conversations still drop and the root cause is unconfirmed). Always start from this index when reading or searching any document.
 
-## 顶层主文档（living）
+## Top-level living documents
 
-| 文件 | 角色 | 状态 |
+| File | Role | Status |
 |---|---|---|
-| `OpenCode_iOS_Client_PRD.md` | 产品需求（客户端全功能） | living |
-| `OpenCode_iOS_Client_RFC.md` | 技术架构设计（客户端全链路） | living |
-| `WORKING.md` | 进度、问题排查与决策记录（changelog） | living |
-| `tests.md` | 测试体系设计规范（Tier 1–4） | living |
-| `design.md` | 视觉设计 Spec（Quiet Tech 风格） | living |
-| `OpenCode_Web_API.md` | OpenCode server HTTP API 参考（上游快照，以官方文档与 live `/doc` 为准） | living reference |
-| `lessons.md` | 工程复盘与可复用经验 | living |
+| `OpenCode_iOS_Client_PRD.md` | Product requirements (the client's full feature set) | living |
+| `OpenCode_iOS_Client_RFC.md` | Technical architecture design (the client's full path) | living |
+| `WORKING.md` | Progress, troubleshooting and decision log (changelog) | living |
+| `tests.md` | Test system design spec (Tier 1–4) | living |
+| `design.md` | Visual design spec (Quiet Tech style) | living |
+| `OpenCode_Web_API.md` | OpenCode server HTTP API reference (upstream snapshot; the official docs and the live `/doc` are authoritative) | living reference |
+| `lessons.md` | Engineering retrospectives and reusable lessons | living |
 
-## features/ — 按 feature 的文档
+## features/ — one directory per feature
 
-| 目录 | feature | 文件 | 状态 |
+| Directory | Feature | Files | Status |
 |---|---|---|---|
-| `client_capabilities/` | 设备能力扩展（V0: Health export） | `prd.md` / `rfc.md` / `protocol.md` | V0 shipped；protocol 是 wire contract 的 source of truth |
-| `context_compaction/` | 手动 Context Compaction | `design.md` | proposal only，未实现 |
-| `session_finder/` | Session Finder 智能会话检索 | `design.md` | 设计草案 |
-| `background_task_notification/` | 后台 Subagent 任务通知渲染（TaskNotificationCard + synthetic 通用规则） | `design.md` | 已实现 |
-| `push_notifications/` | 后台推送通知方案 | `research.md` | 调研 |
-| `localization/` | en/zh-Hans 双语本地化 | `research.md` | Settings 已有 en/zh；research 文档偏旧 |
-| `focus_voice_input/` | 大屏专注布局与语音优先、系统粘贴 | `design.md` | 实现及模拟器验收；设备本地设置 |
-| `agent_catalog_validation/` | Agent 目录校验与删除失败可见 | `notes.md` | shipped；选中 agent 对照当前 server `/agent`，delete 非 2xx 带状态码与 body |
-| `watch_ambient/` | Watch 直连 Live，工具经手机执行 | `prd.md` / `rfc.md` | **Experimental**；回答中或第二轮仍可断开，后台持续使用未验收（PR #223） |
-| `v2_support/` | OpenCode V2 server 接入 + `opencode pair` 扫码配对 | `plan.md` | 已实现；wire contract 见 `../v2_server_compatibility.md` |
+| `client_capabilities/` | Device capability extensions (V0: Health export) | `prd.md` / `rfc.md` / `protocol.md` | V0 shipped; `protocol.md` is the source of truth for the wire contract |
+| `context_compaction/` | Manual Context Compaction | `design.md` | proposal only, not implemented |
+| `session_finder/` | Session Finder smart session search | `design.md` | design draft |
+| `background_task_notification/` | Background subagent task notification rendering (TaskNotificationCard + the generic synthetic rule) | `design.md` | implemented |
+| `push_notifications/` | Background push notification approach | `research.md` | research |
+| `localization/` | en/zh-Hans bilingual localization | `research.md` | Settings already ships en/zh; the research doc is somewhat dated |
+| `focus_voice_input/` | Large-screen focus layout, voice-first input, system paste | `design.md` | implemented and accepted on simulator; device-local settings |
+| `agent_catalog_validation/` | Agent catalog validation and visible delete failures | `notes.md` | shipped; the selected agent is checked against the current server `/agent`, and a non-2xx delete carries the status code and body |
+| `watch_ambient/` | Watch connects to Live directly, tools execute through the phone | `prd.md` / `rfc.md` | **Experimental**; it can still drop during an answer or on the second turn, and sustained background use is not accepted (PR #223) |
+| `v2_support/` | OpenCode V2 server support + `opencode pair` QR onboarding | `plan.md` | implemented; see `../v2_server_compatibility.md` for the wire contract |
 
-## archive/ — 一次性工作记录与冻结决策（只进不改）
+## archive/ — one-off work records and frozen decisions (append only, never edited)
 
-| 文件 | 内容 |
+| File | Content |
 |---|---|
-| `2026-06_markdown_web_preview_prd.md` / `_rfc.md` | Markdown Web Preview 子项目设计；决策已并入主 PRD §4.3.5 / 主 RFC §7.5。文件在 `docs/archive/` 本地保留，untracked + gitignored，**不随仓库分发** |
-| `2026-06_visual_writing_weapon_system.md` | 视觉与写作风格讨论稿 |
-| `2026-07_yage_fix_work.md` | opencode-official fork 修复记录 |
-| `2026-08_qwen38_rendering_fix.md` | qwen38 渲染修复记录（PR #145） |
+| `2026-06_markdown_web_preview_prd.md` / `_rfc.md` | Markdown Web Preview subproject design; the decisions were folded into main PRD §4.3.5 / main RFC §7.5. The files are kept locally in `docs/archive/`, are untracked + gitignored, and **are not distributed with the repo** |
+| `2026-06_visual_writing_weapon_system.md` | Visual and writing style discussion draft |
+| `2026-07_yage_fix_work.md` | opencode-official fork fix record |
+| `2026-08_qwen38_rendering_fix.md` | qwen38 rendering fix record (PR #145) |
 
-## skills/（repo 根，agent-facing 操作 skill）
+## skills/ (repo root, agent-facing operational skills)
 
-| 文件 | 角色 |
+| File | Role |
 |---|---|
-| `skills/client_capabilities.md` | 新增 client capability 的 canonical agent 接入入口 |
-| `skills/operate_ios_simulator.md` | iOS 模拟器自动化操作层 |
-| `skills/ui_test_tasks.md` | Tier 4 UI 测试任务工作流（workflow） |
-| `skills/ui_test_prompts/` | Tier 4 测试 Prompt 集合 |
+| `skills/client_capabilities.md` | Canonical agent entry point for adding a new client capability |
+| `skills/operate_ios_simulator.md` | iOS simulator automation layer |
+| `skills/ui_test_tasks.md` | Tier 4 UI test task workflow |
+| `skills/ui_test_prompts/` | Tier 4 test prompt collection |
 
-## 其他
+## Other
 
-- `design_images/` — `design.md` 的 mockup 示意图（gpt-image-2 生成，非像素级最终实现稿）
-- `logo_light.png` — 应用 Logo 图标
+- `design_images/` — mockup illustrations for `design.md` (generated with gpt-image-2, not a pixel-accurate final implementation)
+- `logo_light.png` — app logo icon
 
-## 约定
+## Conventions
 
-- 顶层目录仅维护 living 主文档；单项功能文档统一归入 `features/<name>/`；一次性工作记录归档至 `archive/`（文件名前缀统一遵循 `YYYY-MM_` 规范）。
-- `tmp_*` 文件属于未纳入版本跟踪的设计草稿，不进 git、不进 archive，亦不作为权威事实来源（source of truth）；关键结论须及时提炼沉淀至正式文档中。
-- 新增客户端能力时，严格依照 `skills/client_capabilities.md` 中“输出位置”一节的规范同步更新对应文档。
+- The top level only holds living documents; per-feature documents live under `features/<name>/`; one-off work records are archived under `archive/` (file name prefixes follow the `YYYY-MM_` convention).
+- `tmp_*` files are design drafts that are not tracked in git, do not belong in archive, and are not an authoritative source of truth; key conclusions must be distilled into the formal documents in time.
+- When adding a client capability, update the matching documents strictly following the rules in the "output location" section of `skills/client_capabilities.md`.
