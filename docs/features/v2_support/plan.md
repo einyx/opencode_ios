@@ -97,6 +97,23 @@ now-working write, and `opencode pair --remote` (OpenTunnel).
   Measured `45/45` against the live `v2.1.3` server.
 - `./scripts/test_unit.sh` — unit tests, including mapper tests over saved V2 bodies.
   New suites: `V2MappingTests`, `PairingTests`, `V2EventTranslationTests`.
+- `OpenCodeClientUITests/V2LiveServerUITests` — drives the shipped app against a
+  live V2 server: adds a host with the password form, then adds one with a
+  pairing link and checks that the credential fields disappear.
+
+  The server is described by environment variables, never by a value in the
+  repository:
+
+  ```bash
+  OPENCODE_UI_TEST_ONLY='OpenCodeClientUITests/V2LiveServerUITests' \
+  OPENCODE_LIVE_SERVER='http://127.0.0.1:4096' \
+  OPENCODE_LIVE_PASSWORD="$(python3 -c 'import json;print(json.load(open("'"$HOME"'/.config/opencode/service.json"))["password"])')" \
+  ./scripts/test_ui.sh
+  ```
+
+  Without both variables the tests skip. Run artifacts (xcresult bundles,
+  screenshots) land in `.occlient/`, which is gitignored — a failing run can
+  contain the typed password, so that directory stays untracked.
 
 ## Implementation notes
 
