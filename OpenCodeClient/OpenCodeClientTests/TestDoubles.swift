@@ -31,6 +31,28 @@ func makeIsolatedUserDefaults() -> UserDefaults {
     return defaults
 }
 
+/// Store a host profile the way an install that already has one does.
+///
+/// A fresh install has no host: the user adds one with the host form or a
+/// pairing link. The tests that need a host start from an install that
+/// already has one.
+func seedHostProfile(in defaults: UserDefaults) {
+    guard defaults.data(forKey: AppState.hostProfilesKey) == nil else { return }
+    // A test that set up the flat preferences is testing the migration, so
+    // it must not get a stored host instead.
+    guard defaults.string(forKey: AppState.serverURLKey) == nil else { return }
+    let profile = HostProfile(
+        name: "Local OpenCode",
+        transport: .direct,
+        serverURL: APIClient.defaultServer,
+        basicAuth: nil,
+        ssh: nil,
+        lastUsedAt: nil
+    )
+    guard let data = try? JSONEncoder().encode([profile]) else { return }
+    defaults.set(data, forKey: AppState.hostProfilesKey)
+}
+
 @MainActor
 func makeIsolatedAppState(
     apiClient: APIClientProtocol = MockAPIClient(),
@@ -43,9 +65,13 @@ func makeIsolatedAppState(
     clientCapabilityStore: ClientCapabilityCallbackStore = .applicationSupport(),
     clientCapabilityURLOpener: (@MainActor (URL) async -> Bool)? = nil,
     userDefaults: UserDefaults? = nil,
-    hostCredentialAccess: HostCredentialAccess = .noExternal
+    hostCredentialAccess: HostCredentialAccess = .noExternal,
+    seedHost: Bool = true
 ) -> AppState {
     let defaults = userDefaults ?? makeIsolatedUserDefaults()
+    if seedHost {
+        seedHostProfile(in: defaults)
+    }
     return AppState(
         apiClient: apiClient,
         sseClient: sseClient,

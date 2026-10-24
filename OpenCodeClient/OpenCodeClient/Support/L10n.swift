@@ -205,7 +205,6 @@ enum L10n {
         case hostDuplicateName
         case hostImportErrorDirectRequiresServerURL
         case hostImportErrorSSHTunnelRequiresSSHSettings
-        case hostDeleteOnlyHostError
         case hostImportErrorInvalidUTF8
         case hostExportErrorEncodeConfigJSON
         case hostConnectionErrorInvalidURL
@@ -725,7 +724,6 @@ enum L10n {
         Key.hostDuplicateName.rawValue: "%@ Copy",
         Key.hostImportErrorDirectRequiresServerURL.rawValue: "Direct host config requires serverURL.",
         Key.hostImportErrorSSHTunnelRequiresSSHSettings.rawValue: "SSH Tunnel host config requires ssh settings.",
-        Key.hostDeleteOnlyHostError.rawValue: "Add another host before deleting this one.",
         Key.hostImportErrorInvalidUTF8.rawValue: "Host config is not valid UTF-8.",
         Key.hostExportErrorEncodeConfigJSON.rawValue: "Could not encode Host Config JSON.",
         Key.hostConnectionErrorInvalidURL.rawValue: "Invalid OpenCode URL. Check the host address and port.",
@@ -1249,7 +1247,6 @@ enum L10n {
         Key.hostDuplicateName.rawValue: "%@ 副本",
         Key.hostImportErrorDirectRequiresServerURL.rawValue: "直连配置需要 serverURL。",
         Key.hostImportErrorSSHTunnelRequiresSSHSettings.rawValue: "SSH 隧道配置需要 ssh 设置。",
-        Key.hostDeleteOnlyHostError.rawValue: "请先添加另一个主机，再删除这个主机。",
         Key.hostImportErrorInvalidUTF8.rawValue: "Host config 不是有效的 UTF-8。",
         Key.hostExportErrorEncodeConfigJSON.rawValue: "无法生成 Host Config JSON。",
         Key.hostConnectionErrorInvalidURL.rawValue: "OpenCode 地址无效，请检查主机地址和端口。",

@@ -1063,6 +1063,7 @@ private struct LifecycleHarness {
         defaults = UserDefaults(suiteName: suite)!
         storeRoot = FileManager.default.temporaryDirectory.appendingPathComponent(suite, isDirectory: true)
         previousSSHConfig = UserDefaults.standard.object(forKey: "sshTunnelConfig")
+        seedHostProfile(in: defaults)
         let tunnel = ssh ?? SSHTunnelManager(defaults: defaults)
         state = AppState(
             apiClient: api,
