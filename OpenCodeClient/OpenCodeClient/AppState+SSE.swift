@@ -41,11 +41,13 @@ extension AppState {
             let credentialUser = username.isEmpty ? nil : username
             let credentialPassword = password.isEmpty ? nil : password
             let lease: SSEStreamLease
+            let generation = await apiClient.currentGeneration()
             if let client = sseClient as? SSEClient {
                 lease = await client.connectLease(
                     baseURL: baseURL,
                     username: credentialUser,
-                    password: credentialPassword
+                    password: credentialPassword,
+                    generation: generation
                 )
             } else {
                 lease = SSEStreamLease(
@@ -243,6 +245,13 @@ extension AppState {
                 }
             }
         case "session.updated":
+            // A V2 session event carries no session body: read it back.
+            if props["v2Refresh"]?.value as? Bool == true {
+                if let sessionID = props["sessionID"]?.value as? String {
+                    await refreshSessionFromServer(sessionID)
+                }
+                return
+            }
             let infoVal = props["info"]?.value ?? props["session"]?.value
             if let infoObj = infoVal,
                JSONSerialization.isValidJSONObject(infoObj),
@@ -690,8 +699,24 @@ extension AppState {
         syncModelFromMessageHistory()
     }
 
-    func handleRemoteSessionDeleted(sessionID: String) async {
-        let sourceHostID = currentHostProfileID
+    /// Read a session back from the server and apply it to the list.
+    ///
+    /// V2 publishes session events without the session body, so the client
+    /// asks the server for it.
+    func refreshSessionFromServer(_ sessionID: String) async {
+        let host = captureHostRequestSnapshot()
+        guard let session = try? await apiClient.session(sessionID: sessionID) else { return }
+        guard isCurrentHostRequest(host) else { return }
+        let dir = effectiveProjectDirectory ?? serverCurrentProjectWorktree
+        let isCurrent = session.id == currentSessionID
+        let isKnown = sessions.contains(where: { $0.id == session.id })
+        let matchesProject = dir.map { session.directory == $0 } ?? isKnown
+        guard matchesProject || isCurrent else { return }
+        if sessions.first(where: { $0.id == session.id }) == session { return }
+        upsertSession(session)
+    }
+
+    func handleRemoteSessionDeleted(sessionID: String) async {        let sourceHostID = currentHostProfileID
         let deletedCurrentSession = (sessionID == currentSessionID)
         noteConfirmedMissingSession(sessionID, hostProfileID: sourceHostID, clearSelection: deletedCurrentSession)
         await loadSessions()

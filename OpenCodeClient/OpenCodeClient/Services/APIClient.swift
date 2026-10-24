@@ -29,6 +29,16 @@ actor APIClient {
     private let session: URLSession
     private var liveLease = CarLiveTransportLease()
 
+    /// Which OpenCode API this client speaks. `.auto` probes on the first
+    /// request; the result is remembered for the life of the client.
+    private var generation: ServerGeneration = .auto
+    /// Sessions this client has seen. V2 lists permissions and questions per
+    /// session, so the global refresh walks them.
+    private var knownSessionIDs: Set<String> = []
+    /// V2 forms are replied to with option *values*, not the labels the app
+    /// collects. The table is filled when the forms are read.
+    private var formReplyTable: [String: FormReplyEntry] = [:]
+
     // Default to localhost to avoid leaking a personal LAN IP in open source repos.
     nonisolated static let defaultServer = "127.0.0.1:4096"
 
@@ -36,19 +46,46 @@ actor APIClient {
         baseURL: String = APIClient.defaultServer,
         username: String? = nil,
         password: String? = nil,
-        session: URLSession = .shared
+        session: URLSession = .shared,
+        generation: ServerGeneration = .auto
     ) {
         self.baseURL = Self.normalizeBaseURL(baseURL)
         self.username = username
         self.password = password
         self.session = session
+        self.generation = generation
     }
 
     func configure(baseURL: String, username: String? = nil, password: String? = nil) {
-        self.baseURL = Self.normalizeBaseURL(baseURL)
+        configure(baseURL: baseURL, username: username, password: password, generation: generation)
+    }
+
+    func configure(
+        baseURL: String,
+        username: String? = nil,
+        password: String? = nil,
+        generation: ServerGeneration
+    ) {
+        let normalized = Self.normalizeBaseURL(baseURL)
+        let addressChanged = normalized != self.baseURL
+        self.baseURL = normalized
         self.username = username
         self.password = password
+        if addressChanged {
+            // The generation belongs to the address: a different server has
+            // to be probed again.
+            self.generation = .auto
+            knownSessionIDs.removeAll()
+            formReplyTable.removeAll()
+        } else if generation != .auto {
+            self.generation = generation
+        }
         liveLease = CarLiveTransportGate.invalidate(liveLease)
+    }
+
+    /// The generation this client currently speaks.
+    func currentGeneration() -> ServerGeneration {
+        generation
     }
 
     /// A separate gate and cancellable session, using the same phone-only route.
@@ -57,8 +94,10 @@ actor APIClient {
         config.timeoutIntervalForRequest = 12
         config.timeoutIntervalForResource = 15
         config.waitsForConnectivity = false
+        // The watch talks to the same server, so it speaks the same API.
         return APIClient(baseURL: baseURL, username: username, password: password,
-                         session: URLSession(configuration: config))
+                         session: URLSession(configuration: config),
+                         generation: generation)
     }
 
     nonisolated func cancelWatchRequests() {
@@ -106,14 +145,7 @@ actor APIClient {
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-
-        if let username, let password {
-            let credential = "\(username):\(password)"
-            if let data = credential.data(using: .utf8) {
-                let encoded = data.base64EncodedString()
-                request.setValue("Basic \(encoded)", forHTTPHeaderField: "Authorization")
-            }
-        }
+        applyCredentials(to: &request)
 
         if let body {
             request.httpBody = body
@@ -131,6 +163,70 @@ actor APIClient {
         return (data, http)
     }
 
+    private func applyCredentials(to request: inout URLRequest) {
+        guard let username, let password else { return }
+        let credential = "\(username):\(password)"
+        guard let data = credential.data(using: .utf8) else { return }
+        request.setValue("Basic \(data.base64EncodedString())", forHTTPHeaderField: "Authorization")
+    }
+
+    /// A request that reports the status instead of throwing on it. The
+    /// generation probe needs to see a `401` and an HTML body.
+    private func probe(path: String, accept: String = "application/json") async throws -> (status: Int, body: Data) {
+        guard let built = URL(string: "\(baseURL)\(path)") else { throw APIError.invalidURL }
+        var request = URLRequest(url: built)
+        request.setValue(accept, forHTTPHeaderField: "Accept")
+        applyCredentials(to: &request)
+        let (data, response) = try await session.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        return (status, data)
+    }
+
+    /// Probe which OpenCode API the host speaks.
+    ///
+    /// `/global/health` decides V1: it answers with JSON there and with the
+    /// SPA shell on a V2 server. Only when it is not V1 is `/api/info` tried,
+    /// which is the V2 marker. A `401` or `403` is an authentication failure
+    /// and never falls through to the other probe.
+    ///
+    /// The result is remembered: the probe runs once per host, not once per
+    /// request. An unrecognised server leaves the generation unset, so the
+    /// caller keeps the V1 behaviour and reports the real error itself.
+    func detectGeneration() async throws -> ServerGeneration {
+        let health = try await probe(path: "/global/health")
+        if health.status == 401 || health.status == 403 {
+            throw APIError.httpError(statusCode: health.status, data: health.body)
+        }
+        switch ServerGenerationProbe.classify(healthStatus: health.status, healthBody: health.body) {
+        case .v1:
+            generation = .v1
+            return .v1
+        default:
+            break
+        }
+        let info = try await probe(path: "/api/info")
+        if info.status == 401 || info.status == 403 {
+            throw APIError.httpError(statusCode: info.status, data: info.body)
+        }
+        let detected = ServerGenerationProbe.classify(infoStatus: info.status, infoBody: info.body)
+        guard detected == .v2 else { throw APIError.unsupportedServer }
+        generation = .v2
+        return .v2
+    }
+
+    /// The generation requests are routed with.
+    ///
+    /// An unknown generation means the host was never probed: the client keeps
+    /// its historical V1 behaviour, and the health check reports the problem.
+    private func resolvedGeneration() async throws -> ServerGeneration {
+        switch generation {
+        case .v1, .v2:
+            return generation
+        case .auto, .unrecognized:
+            return .v1
+        }
+    }
+
     private func acceptEmptyOrJSONBoolean(_ data: Data) throws {
         if let text = String(data: data, encoding: .utf8),
            text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -140,21 +236,38 @@ actor APIClient {
     }
 
     func health() async throws -> HealthResponse {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            let (data, _) = try await makeRequest(path: "/api/info")
+            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            return HealthResponse(healthy: true, version: object?["version"] as? String)
+        }
         let (data, _) = try await makeRequest(path: "/global/health")
         return try JSONDecoder().decode(HealthResponse.self, from: data)
     }
 
     func projects() async throws -> [Project] {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            let (data, _) = try await makeRequest(path: "/api/project")
+            return try V2Mapper.projects(from: data)
+        }
         let (data, _) = try await makeRequest(path: "/project")
         return try JSONDecoder().decode([Project].self, from: data)
     }
 
     func projectCurrent() async throws -> Project? {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            let (data, _) = try await makeRequest(path: "/api/location")
+            return try V2Mapper.currentProject(from: data)
+        }
         let (data, _) = try await makeRequest(path: "/project/current")
         return try? JSONDecoder().decode(Project.self, from: data)
     }
 
     func sessions(directory: String? = nil, limit: Int = 100) async throws -> [Session] {
+        let generation = try await resolvedGeneration()
         var queryItems: [URLQueryItem] = []
         if let directory, !directory.isEmpty {
             queryItems.append(URLQueryItem(name: "directory", value: directory))
@@ -162,14 +275,40 @@ actor APIClient {
         if limit > 0 {
             queryItems.append(URLQueryItem(name: "limit", value: String(limit)))
         }
+        if generation == .v2 {
+            let (data, _) = try await makeRequest(
+                path: "/api/session",
+                queryItems: queryItems.isEmpty ? nil : queryItems
+            )
+            let sessions = try V2Mapper.sessions(from: data)
+            rememberSessions(sessions)
+            return sessions
+        }
         let (data, _) = try await makeRequest(
             path: "/session",
             queryItems: queryItems.isEmpty ? nil : queryItems
         )
-        return try JSONDecoder().decode([Session].self, from: data)
+        let sessions = try JSONDecoder().decode([Session].self, from: data)
+        rememberSessions(sessions)
+        return sessions
+    }
+
+    /// Sessions this client has seen. V2 lists permissions and questions per
+    /// session, so the global refresh walks them.
+    private func rememberSessions(_ sessions: [Session]) {
+        for session in sessions {
+            knownSessionIDs.insert(session.id)
+        }
     }
 
     func session(sessionID: String) async throws -> Session {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            let (data, _) = try await makeRequest(path: "/api/session/\(sessionID)")
+            let session = try V2Mapper.session(from: data)
+            knownSessionIDs.insert(session.id)
+            return session
+        }
         let (data, _) = try await makeRequest(path: "/session/\(sessionID)")
         return try JSONDecoder().decode(Session.self, from: data)
     }
@@ -183,6 +322,18 @@ actor APIClient {
         agent: String = "build",
         model: Message.ModelInfo
     ) async throws -> MessageWithParts {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            return try await promptStructuredV2(
+                sessionID: sessionID,
+                messageID: messageID,
+                text: text,
+                system: system,
+                format: format,
+                agent: agent,
+                model: model
+            )
+        }
         struct PromptBody: Encodable {
             struct PartInput: Encodable {
                 let type: String
@@ -219,7 +370,140 @@ actor APIClient {
         return try JSONDecoder().decode(MessageWithParts.self, from: responseData)
     }
 
+    /// V2 has no structured-output field: the schema goes into the prompt and
+    /// the assistant's text is parsed locally.
+    private func promptStructuredV2(
+        sessionID: String,
+        messageID: String?,
+        text: String,
+        system: String,
+        format: StructuredOutputFormat,
+        agent: String,
+        model: Message.ModelInfo
+    ) async throws -> MessageWithParts {
+        try await switchAgentAndModelV2(sessionID: sessionID, agent: agent, model: model)
+
+        let schema = (try? JSONEncoder().encode(format)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        let prompt = [
+            system,
+            "",
+            text,
+            "",
+            "Reply with only JSON matching this schema:",
+            schema,
+        ].joined(separator: "\n")
+
+        let admittedID = messageID ?? "msg_v2_\(UUID().uuidString)"
+        let body = try V2Mapper.promptBody(text: prompt, files: [], messageID: admittedID)
+        let (_, http) = try await makeRequest(
+            path: "/api/session/\(sessionID)/prompt",
+            method: "POST",
+            body: body
+        )
+        guard http.statusCode == 200 else {
+            throw APIError.httpError(statusCode: http.statusCode, data: Data())
+        }
+
+        // The server does not enforce the schema, so the answer is parsed
+        // here. Poll the transcript until the assistant answered.
+        for _ in 0..<60 {
+            try await Task.sleep(for: .seconds(1))
+            let (data, _) = try await makeRequest(path: "/api/session/\(sessionID)/message", queryItems: [
+                URLQueryItem(name: "limit", value: "50")
+            ])
+            let messages = try V2Mapper.messages(from: data, sessionID: sessionID)
+            guard let answer = messages.last(where: { $0.info.role == "assistant" }) else { continue }
+            let answerText = answer.parts
+                .filter { $0.type == "text" }
+                .compactMap(\.text)
+                .joined(separator: "\n")
+            guard !answerText.isEmpty else { continue }
+            guard let json = try? JSONDecoder().decode(WireJSON.self, from: Data(answerText.utf8)),
+                  let envelope = try? CarResponseEnvelope(validating: json),
+                  envelope.version == 1,
+                  !envelope.speech.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw CarModeError.invalidResponse
+            }
+            var info = answer.info
+            if info.time.completed == nil {
+                info = Message(
+                    id: info.id,
+                    sessionID: info.sessionID,
+                    role: info.role,
+                    parentID: info.parentID,
+                    providerID: info.providerID,
+                    modelID: info.modelID,
+                    model: info.model,
+                    error: info.error,
+                    time: Message.TimeInfo(created: info.time.created, completed: info.time.created),
+                    finish: info.finish,
+                    tokens: info.tokens,
+                    cost: info.cost,
+                    structured: try WireJSON(encoding: envelope),
+                    agent: info.agent
+                )
+            }
+            return MessageWithParts(info: info, parts: answer.parts)
+        }
+        throw CarModeError.invalidResponse
+    }
+
+    /// Switch the session's agent and model. V2 keeps them out of the prompt
+    /// body, on their own routes.
+    private func switchAgentAndModelV2(
+        sessionID: String,
+        agent: String,
+        model: Message.ModelInfo?,
+        transportToken: UInt64? = nil
+    ) async throws {
+        let trimmedAgent = agent.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedAgent.isEmpty {
+            struct AgentBody: Encodable {
+                let agent: String
+            }
+            let data = try JSONEncoder().encode(AgentBody(agent: trimmedAgent))
+            let (_, http) = try await makeRequest(
+                path: "/api/session/\(sessionID)/agent",
+                method: "POST",
+                body: data,
+                liveToken: transportToken
+            )
+            guard http.statusCode == 204 else {
+                throw APIError.httpError(statusCode: http.statusCode, data: Data())
+            }
+        }
+        if let model {
+            struct ModelInput: Encodable {
+                let id: String
+                let providerID: String
+            }
+            struct ModelBody: Encodable {
+                let model: ModelInput
+            }
+            let data = try JSONEncoder().encode(
+                ModelBody(model: ModelInput(id: model.modelID, providerID: model.providerID))
+            )
+            let (_, http) = try await makeRequest(
+                path: "/api/session/\(sessionID)/model",
+                method: "POST",
+                body: data,
+                liveToken: transportToken
+            )
+            guard http.statusCode == 204 else {
+                throw APIError.httpError(statusCode: http.statusCode, data: Data())
+            }
+        }
+    }
+
     func createSession(title: String? = nil, directory: String? = nil) async throws -> Session {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            let body = try V2Mapper.createSessionBody(title: title, directory: directory)
+            let (responseData, _) = try await makeRequest(path: "/api/session", method: "POST", body: body)
+            let session = try V2Mapper.session(from: responseData)
+            knownSessionIDs.insert(session.id)
+            return session
+        }
         let data = try CarLivePromptWire.sessionCreateData(title: title)
         let queryItems = directory.map { [URLQueryItem(name: "directory", value: $0)] }
         let (responseData, _) = try await makeRequest(
@@ -232,6 +516,16 @@ actor APIClient {
     }
 
     func updateSession(sessionID: String, title: String) async throws -> Session {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            // V2 answers a title patch with `204` and no body: read it back.
+            let body = try JSONEncoder().encode(["title": title])
+            let (_, http) = try await makeRequest(path: "/api/session/\(sessionID)", method: "PATCH", body: body)
+            guard http.statusCode == 204 else {
+                throw APIError.httpError(statusCode: http.statusCode, data: Data())
+            }
+            return try await session(sessionID: sessionID)
+        }
         let body = ["title": title]
         let data = try JSONEncoder().encode(body)
         let (responseData, _) = try await makeRequest(path: "/session/\(sessionID)", method: "PATCH", body: data)
@@ -239,27 +533,53 @@ actor APIClient {
     }
 
     func updateSessionArchived(sessionID: String, archived: Int) async throws -> Session {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            let data = try V2Mapper.archiveBody(archived: archived != 0)
+            let (_, http) = try await makeRequest(path: "/api/session/\(sessionID)", method: "PATCH", body: data)
+            guard http.statusCode == 204 else {
+                throw APIError.httpError(statusCode: http.statusCode, data: Data())
+            }
+            return try await session(sessionID: sessionID)
+        }
         let data = try CarLiveArchiveWire.body(archived: archived)
         let (responseData, _) = try await makeRequest(path: "/session/\(sessionID)", method: "PATCH", body: data)
         return try JSONDecoder().decode(Session.self, from: responseData)
     }
 
     func updateSessionArchivedForLive(sessionID: String, archived: Int, transportToken: UInt64) async throws -> Int {
-        let data = try CarLiveArchiveWire.body(archived: archived)
+        let generation = try await resolvedGeneration()
+        let data = generation == .v2
+            ? try V2Mapper.archiveBody(archived: archived != 0)
+            : try CarLiveArchiveWire.body(archived: archived)
         let (_, http) = try await makeRequest(path: "/session/\(sessionID)", method: "PATCH", body: data, liveToken: transportToken)
         return http.statusCode
     }
 
     func deleteSession(sessionID: String) async throws {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            let (data, http) = try await makeRequest(path: "/api/session/\(sessionID)", method: "DELETE")
+            guard http.statusCode == 204 else {
+                throw APIError.httpError(statusCode: http.statusCode, data: data)
+            }
+            knownSessionIDs.remove(sessionID)
+            return
+        }
         let (data, _) = try await makeRequest(path: "/session/\(sessionID)", method: "DELETE")
         try acceptEmptyOrJSONBoolean(data)
     }
 
     func messages(sessionID: String, limit: Int? = nil) async throws -> [MessageWithParts] {
+        let generation = try await resolvedGeneration()
         let queryItems: [URLQueryItem]? = {
             guard let limit, limit > 0 else { return nil }
             return [URLQueryItem(name: "limit", value: String(limit))]
         }()
+        if generation == .v2 {
+            let (data, _) = try await makeRequest(path: "/api/session/\(sessionID)/message", queryItems: queryItems)
+            return try V2Mapper.messages(from: data, sessionID: sessionID)
+        }
         let (data, _) = try await makeRequest(path: "/session/\(sessionID)/message", queryItems: queryItems)
         guard let text = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
               !text.isEmpty else {
@@ -408,6 +728,18 @@ actor APIClient {
         model: Message.ModelInfo?,
         directory: String?
     ) async throws {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            try await promptAsyncV2(
+                sessionID: sessionID,
+                messageID: messageID,
+                text: text,
+                attachments: attachments,
+                agent: agent,
+                model: model
+            )
+            return
+        }
         struct PromptBody: Encodable {
             let messageID: String
             let parts: [PartInput]
@@ -458,7 +790,81 @@ actor APIClient {
         }
     }
 
+    /// V2 prompts carry text, not parts, and the agent and the model are
+    /// switched with their own routes before the prompt is sent.
+    private func promptAsyncV2(
+        sessionID: String,
+        messageID: String,
+        text: String,
+        attachments: [ComposerImageAttachment],
+        agent: String,
+        model: Message.ModelInfo?,
+        transportToken: UInt64? = nil
+    ) async throws {
+        let trimmedAgent = agent.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedAgent.isEmpty {
+            struct AgentBody: Encodable {
+                let agent: String
+            }
+            let data = try JSONEncoder().encode(AgentBody(agent: trimmedAgent))
+            let (_, http) = try await makeRequest(
+                path: "/api/session/\(sessionID)/agent",
+                method: "POST",
+                body: data,
+                liveToken: transportToken
+            )
+            guard http.statusCode == 204 else {
+                throw APIError.httpError(statusCode: http.statusCode, data: Data())
+            }
+        }
+
+        if let model {
+            struct ModelInput: Encodable {
+                let id: String
+                let providerID: String
+            }
+            struct ModelBody: Encodable {
+                let model: ModelInput
+            }
+            let data = try JSONEncoder().encode(
+                ModelBody(model: ModelInput(id: model.modelID, providerID: model.providerID))
+            )
+            let (_, http) = try await makeRequest(
+                path: "/api/session/\(sessionID)/model",
+                method: "POST",
+                body: data,
+                liveToken: transportToken
+            )
+            guard http.statusCode == 204 else {
+                throw APIError.httpError(statusCode: http.statusCode, data: Data())
+            }
+        }
+
+        var body = try V2Mapper.promptBody(text: text, files: attachments)
+        if !messageID.isEmpty {
+            // V2 echoes a client-supplied message id back.
+            body = try V2Mapper.promptBody(text: text, files: attachments, messageID: messageID)
+        }
+        let (data, http) = try await makeRequest(
+            path: "/api/session/\(sessionID)/prompt",
+            method: "POST",
+            body: body,
+            liveToken: transportToken
+        )
+        guard http.statusCode == 200 else {
+            throw APIError.httpError(statusCode: http.statusCode, data: data)
+        }
+    }
+
     func abort(sessionID: String) async throws {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            let (data, http) = try await makeRequest(path: "/api/session/\(sessionID)/interrupt", method: "POST", body: Data("{}".utf8))
+            if http.statusCode != 200 {
+                throw APIError.httpError(statusCode: http.statusCode, data: data)
+            }
+            return
+        }
         let (data, http) = try await makeRequest(path: "/session/\(sessionID)/abort", method: "POST")
         if http.statusCode != 200 {
             throw APIError.httpError(statusCode: http.statusCode, data: data)
@@ -470,6 +876,12 @@ actor APIClient {
     }
 
     func sessionStatus(directory: String?) async throws -> [String: SessionStatus] {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            // V2 has no status poll: the active map lists the busy sessions.
+            let (data, _) = try await makeRequest(path: "/api/session/active")
+            return try V2Mapper.activeSessionStatuses(from: data)
+        }
         let query = directory.map { [URLQueryItem(name: "directory", value: $0)] } ?? []
         let (data, _) = try await makeRequest(path: "/session/status", queryItems: query)
         return try JSONDecoder().decode([String: SessionStatus].self, from: data)
@@ -502,11 +914,37 @@ actor APIClient {
     }
 
     func pendingPermissions() async throws -> [PermissionRequest] {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            // V2 lists permissions per session.
+            var requests: [PermissionRequest] = []
+            for sessionID in knownSessionIDs {
+                let (data, _) = try await makeRequest(path: "/api/session/\(sessionID)/permission")
+                requests.append(contentsOf: try V2Mapper.permissions(from: data))
+            }
+            return requests
+        }
         let (data, _) = try await makeRequest(path: "/permission")
         return try JSONDecoder().decode([PermissionRequest].self, from: data)
     }
 
     func respondPermission(sessionID: String, permissionID: String, response: PermissionResponse) async throws {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            struct DecisionBody: Encodable {
+                let decision: String
+            }
+            let data = try JSONEncoder().encode(DecisionBody(decision: response.rawValue))
+            let (responseData, http) = try await makeRequest(
+                path: "/api/session/\(sessionID)/permission/\(permissionID)/reply",
+                method: "POST",
+                body: data
+            )
+            guard http.statusCode == 204 else {
+                throw APIError.httpError(statusCode: http.statusCode, data: responseData)
+            }
+            return
+        }
         struct Body: Encodable {
             let response: PermissionResponse
         }
@@ -522,11 +960,50 @@ actor APIClient {
     }
 
     func pendingQuestions() async throws -> [QuestionRequest] {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            // V2 lists forms per session.
+            var questions: [QuestionRequest] = []
+            for sessionID in knownSessionIDs {
+                let (data, _) = try await makeRequest(path: "/api/session/\(sessionID)/form")
+                questions.append(contentsOf: try V2Mapper.questions(from: data))
+                for (id, entry) in try V2Mapper.formReplyTable(from: data) {
+                    formReplyTable[id] = entry
+                }
+            }
+            return questions
+        }
         let (data, _) = try await makeRequest(path: "/question")
         return try JSONDecoder().decode([QuestionRequest].self, from: data)
     }
 
     func replyQuestion(requestID: String, answers: [[String]]) async throws {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            guard let entry = formReplyTable[requestID] else {
+                throw APIError.httpError(statusCode: 404, data: Data())
+            }
+            // V2 answers a form with `{key: value}`; the app collects labels.
+            var answer: [String: String] = [:]
+            for (index, labels) in answers.enumerated() {
+                guard index < entry.fields.count else { continue }
+                let field = entry.fields[index]
+                answer[field.key] = entry.values(for: field.key, labels: labels).first ?? ""
+            }
+            struct AnswerBody: Encodable {
+                let answer: [String: String]
+            }
+            let data = try JSONEncoder().encode(AnswerBody(answer: answer))
+            let (responseData, http) = try await makeRequest(
+                path: "/api/session/\(entry.sessionID)/form/\(requestID)/reply",
+                method: "POST",
+                body: data
+            )
+            guard http.statusCode == 204 else {
+                throw APIError.httpError(statusCode: http.statusCode, data: responseData)
+            }
+            return
+        }
         struct Body: Encodable {
             let answers: [[String]]
         }
@@ -536,11 +1013,35 @@ actor APIClient {
     }
 
     func rejectQuestion(requestID: String) async throws {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            guard let entry = formReplyTable[requestID] else {
+                throw APIError.httpError(statusCode: 404, data: Data())
+            }
+            let (responseData, http) = try await makeRequest(
+                path: "/api/session/\(entry.sessionID)/form/\(requestID)",
+                method: "DELETE"
+            )
+            guard http.statusCode == 204 else {
+                throw APIError.httpError(statusCode: http.statusCode, data: responseData)
+            }
+            return
+        }
         let (responseData, _) = try await makeRequest(path: "/question/\(requestID)/reject", method: "POST")
         try acceptEmptyOrJSONBoolean(responseData)
     }
 
     func providers() async throws -> ProvidersResponse {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            let registry = try await providerRegistry()
+            let (defaultData, _) = try await makeRequest(path: "/api/model/default")
+            let defaultModel = try V2Mapper.defaultModel(from: defaultData)
+            return ProvidersResponse(
+                providers: registry.providers,
+                default: defaultModel.map { DefaultProvider(providerID: $0.providerID, modelID: $0.modelID) }
+            )
+        }
         let (data, _) = try await makeRequest(path: "/config/providers")
         return try JSONDecoder().decode(ProvidersResponse.self, from: data)
     }
@@ -549,26 +1050,71 @@ actor APIClient {
     /// connected (authenticated or keyless-local), used to scope the model
     /// picker to models the user can actually run.
     func providerRegistry() async throws -> ProviderRegistryResponse {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            let (providerData, _) = try await makeRequest(path: "/api/provider")
+            let registry = try V2Mapper.providerRegistry(from: providerData)
+            // The provider list carries no models; the model list does.
+            let (modelData, _) = try await makeRequest(path: "/api/model")
+            let models = try V2Mapper.models(from: modelData)
+            var providers = registry.providers
+            for index in providers.indices {
+                let providerID = providers[index].id
+                let owned = models.filter { $0.providerID == providerID }
+                guard !owned.isEmpty else { continue }
+                providers[index] = ConfigProvider(
+                    id: providerID,
+                    name: providers[index].name,
+                    models: Dictionary(uniqueKeysWithValues: owned.map { ($0.id, $0) })
+                )
+            }
+            return ProviderRegistryResponse(providers: providers, connectedProviderIDs: registry.connectedProviderIDs)
+        }
         let (data, _) = try await makeRequest(path: "/provider")
         return try JSONDecoder().decode(ProviderRegistryResponse.self, from: data)
     }
 
     func agents() async throws -> [AgentInfo] {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            let (data, _) = try await makeRequest(path: "/api/agent")
+            return try V2Mapper.agents(from: data)
+        }
         let (data, _) = try await makeRequest(path: "/agent")
         return try JSONDecoder().decode([AgentInfo].self, from: data)
     }
 
     func sessionDiff(sessionID: String) async throws -> [FileDiff] {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            let (data, _) = try await makeRequest(path: "/api/session/\(sessionID)/diff")
+            return try V2Mapper.diff(from: data)
+        }
         let (data, _) = try await makeRequest(path: "/session/\(sessionID)/diff")
         return try JSONDecoder().decode([FileDiff].self, from: data)
     }
 
     func sessionTodos(sessionID: String) async throws -> [TodoItem] {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            // V2 exposes no todo route. The panel stays empty rather than
+            // guessing a stand-in.
+            return []
+        }
         let (data, _) = try await makeRequest(path: "/session/\(sessionID)/todo")
         return try JSONDecoder().decode([TodoItem].self, from: data)
     }
 
     func fileList(path: String = "", directory: String? = nil) async throws -> [FileNode] {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            var queryItems = [URLQueryItem(name: "path", value: path)]
+            if let directory, !directory.isEmpty {
+                queryItems.append(URLQueryItem(name: "location[directory]", value: directory))
+            }
+            let (data, _) = try await makeRequest(path: "/api/fs/list", queryItems: queryItems)
+            return try V2Mapper.fileList(from: data)
+        }
         var queryItems = [URLQueryItem(name: "path", value: path)]
         if let directory, !directory.isEmpty {
             queryItems.append(URLQueryItem(name: "directory", value: directory))
@@ -578,6 +1124,29 @@ actor APIClient {
     }
 
     func fileContent(path: String, directory: String? = nil) async throws -> FileContent {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            let relative = path.hasPrefix("/") ? String(path.dropFirst()) : path
+            var components = URLComponents(string: "\(baseURL)/api/fs/read/\(relative)")!
+            if let directory, !directory.isEmpty {
+                components.queryItems = [URLQueryItem(name: "location[directory]", value: directory)]
+            }
+            guard let url = components.url else { throw APIError.invalidURL }
+            var request = URLRequest(url: url)
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+            applyCredentials(to: &request)
+            let (data, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                throw APIError.httpError(statusCode: 0, data: data)
+            }
+            guard (200..<300).contains(http.statusCode) else {
+                throw APIError.httpError(statusCode: http.statusCode, data: data)
+            }
+            if let text = String(data: data, encoding: .utf8) {
+                return FileContent(type: "text", content: text)
+            }
+            return FileContent(type: "binary", content: nil)
+        }
         var queryItems = [URLQueryItem(name: "path", value: path)]
         if let directory, !directory.isEmpty {
             queryItems.append(URLQueryItem(name: "directory", value: directory))
@@ -591,6 +1160,18 @@ actor APIClient {
     }
 
     func findFile(query: String, limit: Int, directory: String?) async throws -> [String] {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            var queryItems = [
+                URLQueryItem(name: "query", value: query),
+                URLQueryItem(name: "limit", value: String(limit)),
+            ]
+            if let directory, !directory.isEmpty {
+                queryItems.append(URLQueryItem(name: "location[directory]", value: directory))
+            }
+            let (data, _) = try await makeRequest(path: "/api/fs/find", queryItems: queryItems)
+            return try V2Mapper.foundPaths(from: data)
+        }
         var queryItems = [
             URLQueryItem(name: "query", value: query),
             URLQueryItem(name: "limit", value: String(limit)),
@@ -603,11 +1184,31 @@ actor APIClient {
     }
 
     func fileStatus() async throws -> [FileStatusEntry] {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            let (data, _) = try await makeRequest(path: "/api/vcs/status")
+            return try V2Mapper.fileStatus(from: data)
+        }
         let (data, _) = try await makeRequest(path: "/file/status")
         return try JSONDecoder().decode([FileStatusEntry].self, from: data)
     }
 
     func forkSession(sessionID: String, messageID: String? = nil) async throws -> Session {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            struct ForkBody: Encodable {
+                let before: String?
+            }
+            let data = try JSONEncoder().encode(ForkBody(before: messageID))
+            let (responseData, _) = try await makeRequest(
+                path: "/api/session/\(sessionID)/fork",
+                method: "POST",
+                body: data
+            )
+            let forked = try V2Mapper.session(from: responseData)
+            knownSessionIDs.insert(forked.id)
+            return forked
+        }
         struct ForkBody: Encodable {
             let messageID: String?
         }
@@ -622,6 +1223,24 @@ actor APIClient {
     }
 
     func revertSession(sessionID: String, messageID: String, partID: String? = nil) async throws -> Session {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            // V2 stages the revert and answers with the staged message, not
+            // the session: read the session back afterwards.
+            struct RevertBody: Encodable {
+                let messageID: String
+            }
+            let data = try JSONEncoder().encode(RevertBody(messageID: messageID))
+            let (_, http) = try await makeRequest(
+                path: "/api/session/\(sessionID)/revert/stage",
+                method: "POST",
+                body: data
+            )
+            guard http.statusCode == 200 else {
+                throw APIError.httpError(statusCode: http.statusCode, data: Data())
+            }
+            return try await session(sessionID: sessionID)
+        }
         struct RevertBody: Encodable {
             let messageID: String
             let partID: String?
@@ -647,6 +1266,27 @@ actor APIClient {
     }
 
     func experimentalRootSessionPage(cursor: Int?, transportToken: UInt64) async throws -> CarLiveSessionPage {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            // V2 has no root session page route. The list answers with the
+            // same sessions; its cursor is an opaque string, so the page
+            // carries no next cursor.
+            var queryItems = [
+                URLQueryItem(name: "limit", value: "50"),
+                URLQueryItem(name: "archived", value: "true"),
+            ]
+            if let cursor {
+                queryItems.append(URLQueryItem(name: "cursor", value: String(cursor)))
+            }
+            let (data, http) = try await makeRequest(
+                path: "/api/session",
+                queryItems: queryItems,
+                liveToken: transportToken
+            )
+            let rows = try V2Mapper.sessions(from: data)
+            Self.logger.debug("live session page status=\(http.statusCode, privacy: .public) rows=\(rows.count, privacy: .public)")
+            return CarLiveSessionPage(rows: rows, nextCursor: nil)
+        }
         let (data, http) = try await makeRequest(
             path: "/experimental/session",
             queryItems: CarLivePromptWire.sessionPageQuery(cursor: cursor),
@@ -659,6 +1299,12 @@ actor APIClient {
     }
 
     func sessionForLive(sessionID: String, directory: String?, transportToken: UInt64) async throws -> Session {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            let (data, http) = try await makeRequest(path: "/api/session/\(sessionID)", liveToken: transportToken)
+            Self.logger.debug("live session lookup status=\(http.statusCode, privacy: .public)")
+            return try V2Mapper.session(from: data)
+        }
         let query = directory.flatMap { value -> [URLQueryItem]? in
             let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmed.isEmpty ? nil : [URLQueryItem(name: "directory", value: trimmed)]
@@ -680,6 +1326,26 @@ actor APIClient {
         transportToken: UInt64
     ) async throws -> CarLiveMessagePage {
         let capped = min(max(limit, 1), CarLiveHistory.bound)
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            var queryItems = [URLQueryItem(name: "limit", value: String(capped))]
+            if let directory, !directory.isEmpty {
+                queryItems.append(URLQueryItem(name: "location[directory]", value: directory))
+            }
+            let (data, http) = try await makeRequest(
+                path: "/api/session/\(sessionID)/message",
+                queryItems: queryItems,
+                liveToken: transportToken
+            )
+            let messages = try V2Mapper.messages(from: data, sessionID: sessionID)
+            return CarLiveMessagePage(
+                messages: messages,
+                hasOlder: Self.historyHasOlder(http),
+                requestedLimit: capped,
+                nextCursor: Self.historyNextCursor(http),
+                hasDecodeGaps: false
+            )
+        }
         let (data, http) = try await makeRequest(
             path: "/session/\(sessionID)/message",
             queryItems: Self.liveMessageQuery(limit: capped, before: before, directory: directory),
@@ -689,6 +1355,18 @@ actor APIClient {
     }
 
     func sessionChildrenForLive(sessionID: String, transportToken: UInt64) async throws -> [Session] {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            // V2 has no children route: the list filters by parent.
+            let (data, http) = try await makeRequest(
+                path: "/api/session",
+                queryItems: [URLQueryItem(name: "parentID", value: sessionID)],
+                liveToken: transportToken
+            )
+            let rows = try V2Mapper.sessions(from: data)
+            Self.logger.debug("live children status=\(http.statusCode, privacy: .public) rows=\(rows.count, privacy: .public)")
+            return rows
+        }
         let (data, http) = try await makeRequest(path: "/session/\(sessionID)/children", liveToken: transportToken)
         let rows = try JSONDecoder().decode([Session].self, from: data)
         Self.logger.debug("live children status=\(http.statusCode, privacy: .public) rows=\(rows.count, privacy: .public)")
@@ -696,6 +1374,22 @@ actor APIClient {
     }
 
     func createSessionForLive(directory: String?, transportToken: UInt64) async throws -> Session {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            let body = try V2Mapper.createSessionBody(title: nil, directory: directory)
+            let (responseData, http) = try await makeRequest(
+                path: "/api/session",
+                method: "POST",
+                body: body,
+                liveToken: transportToken
+            )
+            guard http.statusCode == 200 else {
+                throw APIError.httpError(statusCode: http.statusCode, data: responseData)
+            }
+            let session = try V2Mapper.session(from: responseData)
+            knownSessionIDs.insert(session.id)
+            return session
+        }
         let data = try CarLivePromptWire.sessionCreateData(title: nil)
         let queryItems = directory.map { [URLQueryItem(name: "directory", value: $0)] }
         let (responseData, _) = try await makeRequest(
@@ -717,6 +1411,19 @@ actor APIClient {
         directory: String?,
         transportToken: UInt64
     ) async throws {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            try await promptAsyncV2(
+                sessionID: sessionID,
+                messageID: messageID,
+                text: text,
+                attachments: [],
+                agent: agent,
+                model: model,
+                transportToken: transportToken
+            )
+            return
+        }
         let body = try CarLivePromptWire.startData(messageID: messageID, text: text, agent: agent, model: model)
         try await postLivePrompt(sessionID: sessionID, directory: directory, body: body, transportToken: transportToken)
     }
@@ -730,11 +1437,33 @@ actor APIClient {
         directory: String?,
         transportToken: UInt64
     ) async throws {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            // An inherited turn keeps the session's agent and model.
+            try await promptAsyncV2(
+                sessionID: sessionID,
+                messageID: messageID,
+                text: text,
+                attachments: [],
+                agent: agent ?? "",
+                model: nil,
+                transportToken: transportToken
+            )
+            return
+        }
         let body = try CarLivePromptWire.continueData(messageID: messageID, text: text, agent: agent, variant: variant)
         try await postLivePrompt(sessionID: sessionID, directory: directory, body: body, transportToken: transportToken)
     }
 
     func abortForLive(sessionID: String, transportToken: UInt64) async throws {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            let (data, http) = try await makeRequest(path: "/api/session/\(sessionID)/interrupt", method: "POST", body: Data("{}".utf8), liveToken: transportToken)
+            if http.statusCode != 200 {
+                throw APIError.httpError(statusCode: http.statusCode, data: data)
+            }
+            return
+        }
         let (data, http) = try await makeRequest(path: "/session/\(sessionID)/abort", method: "POST", liveToken: transportToken)
         if http.statusCode != 200 {
             throw APIError.httpError(statusCode: http.statusCode, data: data)
@@ -746,6 +1475,11 @@ actor APIClient {
     }
 
     func sessionStatusForLive(directory: String?, transportToken: UInt64) async throws -> [String: SessionStatus] {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            let (data, _) = try await makeRequest(path: "/api/session/active", liveToken: transportToken)
+            return try V2Mapper.activeSessionStatuses(from: data)
+        }
         let query = Self.liveDirectoryQuery(directory)
         let (data, _) = try await makeRequest(
             path: "/session/status",
@@ -756,27 +1490,110 @@ actor APIClient {
     }
 
     func providerRegistryForLive(transportToken: UInt64) async throws -> ProviderRegistryResponse {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            let (providerData, _) = try await makeRequest(path: "/api/provider", liveToken: transportToken)
+            let registry = try V2Mapper.providerRegistry(from: providerData)
+            let (modelData, _) = try await makeRequest(path: "/api/model", liveToken: transportToken)
+            let models = try V2Mapper.models(from: modelData)
+            var providers = registry.providers
+            for index in providers.indices {
+                let providerID = providers[index].id
+                let owned = models.filter { $0.providerID == providerID }
+                guard !owned.isEmpty else { continue }
+                providers[index] = ConfigProvider(
+                    id: providerID,
+                    name: providers[index].name,
+                    models: Dictionary(uniqueKeysWithValues: owned.map { ($0.id, $0) })
+                )
+            }
+            return ProviderRegistryResponse(providers: providers, connectedProviderIDs: registry.connectedProviderIDs)
+        }
         let (data, _) = try await makeRequest(path: "/provider", liveToken: transportToken)
         return try JSONDecoder().decode(ProviderRegistryResponse.self, from: data)
     }
 
     func pendingPermissionsForLive(transportToken: UInt64) async throws -> [PermissionRequest] {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            var requests: [PermissionRequest] = []
+            for sessionID in knownSessionIDs {
+                let (data, _) = try await makeRequest(path: "/api/session/\(sessionID)/permission", liveToken: transportToken)
+                requests.append(contentsOf: try V2Mapper.permissions(from: data))
+            }
+            return requests
+        }
         let (data, _) = try await makeRequest(path: "/permission", liveToken: transportToken)
         return try JSONDecoder().decode([PermissionRequest].self, from: data)
     }
 
     func pendingQuestionsForLive(transportToken: UInt64) async throws -> [QuestionRequest] {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            var questions: [QuestionRequest] = []
+            for sessionID in knownSessionIDs {
+                let (data, _) = try await makeRequest(path: "/api/session/\(sessionID)/form", liveToken: transportToken)
+                questions.append(contentsOf: try V2Mapper.questions(from: data))
+                for (id, entry) in try V2Mapper.formReplyTable(from: data) {
+                    formReplyTable[id] = entry
+                }
+            }
+            return questions
+        }
         let (data, _) = try await makeRequest(path: "/question", liveToken: transportToken)
         return try JSONDecoder().decode([QuestionRequest].self, from: data)
     }
 
     func replyQuestionForLive(requestID: String, answers: [[String]], transportToken: UInt64) async throws {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            guard let entry = formReplyTable[requestID] else {
+                throw APIError.httpError(statusCode: 404, data: Data())
+            }
+            var answer: [String: String] = [:]
+            for (index, labels) in answers.enumerated() {
+                guard index < entry.fields.count else { continue }
+                let field = entry.fields[index]
+                answer[field.key] = entry.values(for: field.key, labels: labels).first ?? ""
+            }
+            struct AnswerBody: Encodable {
+                let answer: [String: String]
+            }
+            let data = try JSONEncoder().encode(AnswerBody(answer: answer))
+            let (responseData, http) = try await makeRequest(
+                path: "/api/session/\(entry.sessionID)/form/\(requestID)/reply",
+                method: "POST",
+                body: data,
+                liveToken: transportToken
+            )
+            guard http.statusCode == 204 else {
+                throw APIError.httpError(statusCode: http.statusCode, data: responseData)
+            }
+            return
+        }
         let data = try JSONEncoder().encode(["answers": answers])
         let (responseData, _) = try await makeRequest(path: "/question/\(requestID)/reply", method: "POST", body: data, liveToken: transportToken)
         try acceptEmptyOrJSONBoolean(responseData)
     }
 
     func respondPermissionForLive(sessionID: String, permissionID: String, response: PermissionResponse, transportToken: UInt64) async throws {
+        let generation = try await resolvedGeneration()
+        if generation == .v2 {
+            struct DecisionBody: Encodable {
+                let decision: String
+            }
+            let data = try JSONEncoder().encode(DecisionBody(decision: response.rawValue))
+            let (responseData, http) = try await makeRequest(
+                path: "/api/session/\(sessionID)/permission/\(permissionID)/reply",
+                method: "POST",
+                body: data,
+                liveToken: transportToken
+            )
+            guard http.statusCode == 204 else {
+                throw APIError.httpError(statusCode: http.statusCode, data: responseData)
+            }
+            return
+        }
         let data = try JSONEncoder().encode(["response": response.rawValue])
         let (responseData, http) = try await makeRequest(
             path: "/session/\(sessionID)/permissions/\(permissionID)",
@@ -987,6 +1804,11 @@ struct FileDiff: Codable, Identifiable, Hashable {
 nonisolated struct ProvidersResponse: Decodable {
     let providers: [ConfigProvider]
     let `default`: DefaultProvider?
+
+    init(providers: [ConfigProvider], default defaultModel: DefaultProvider?) {
+        self.providers = providers
+        self.default = defaultModel
+    }
 
     private enum CodingKeys: String, CodingKey {
         case providers
@@ -1218,11 +2040,15 @@ nonisolated struct HealthResponse: Codable {
 enum APIError: LocalizedError {
     case invalidURL
     case httpError(statusCode: Int, data: Data)
+    /// The host answered, but not as an OpenCode V1 or V2 API.
+    case unsupportedServer
 
     var errorDescription: String? {
         switch self {
         case .invalidURL:
             return "Invalid URL"
+        case .unsupportedServer:
+            return "This server does not speak the OpenCode API."
         case .httpError(let statusCode, let data):
             let body = String(data: data, encoding: .utf8)?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -1236,6 +2062,10 @@ enum APIError: LocalizedError {
 
 protocol APIClientProtocol: Actor {
     func configure(baseURL: String, username: String?, password: String?)
+    /// Which OpenCode API the client speaks. `.auto` means it has not probed yet.
+    func currentGeneration() -> ServerGeneration
+    /// Probe which OpenCode API the host speaks.
+    func detectGeneration() async throws -> ServerGeneration
     func health() async throws -> HealthResponse
     func projects() async throws -> [Project]
     func projectCurrent() async throws -> Project?
@@ -1297,6 +2127,15 @@ protocol FileDirectorySearching: APIClientProtocol {
 extension APIClient: FileDirectorySearching {}
 
 extension APIClientProtocol {
+    /// Configure with a known generation. Clients that do not track one fall
+    /// back to the plain configuration.
+    func configure(baseURL: String, username: String?, password: String?, generation: ServerGeneration) {
+        configure(baseURL: baseURL, username: username, password: password)
+    }
+    /// The generation of a client that does not track one.
+    func currentGeneration() -> ServerGeneration { .auto }
+    /// A client that does not probe keeps the historical V1 behaviour.
+    func detectGeneration() async throws -> ServerGeneration { .auto }
     func sessionStatus(directory: String?) async throws -> [String: SessionStatus] {
         try await sessionStatus()
     }

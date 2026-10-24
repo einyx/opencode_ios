@@ -141,6 +141,7 @@ enum FileSearchFixture {
         func session(sessionID: String) async throws -> Session {
             throw APIError.httpError(statusCode: 404, data: Data())
         }
+        func currentGeneration() -> ServerGeneration { .auto }
         func createSession(title: String?, directory: String?) async throws -> Session {
             throw APIError.httpError(statusCode: 501, data: Data())
         }

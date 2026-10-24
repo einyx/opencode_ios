@@ -1,6 +1,9 @@
 # V1 / V2 server compatibility
 
-Status: waiting for the server to reach feature parity before client implementation. The app code is not changed. Re-checked 2026-09-30 against upstream `v2.0.20` and master through PR #189; see "Changes since 2.0.18" at the end.
+Status: implemented in the app. The client probes the server generation on
+connect and routes every request through `V2Mapper` for V2 hosts. Re-measured
+2026-10-24 against upstream `v2.1.3`; the delta from the `v2.0.18` baseline
+this document was written against is in "Changes since 2.0.18" at the end.
 
 Measured on tag `v2.0.18`, a local `serve` process, Basic auth user `opencode`. The diff from `v2.0.18` to `v2.0.20` does not change any route, event name, or body this doc maps (only new credential routes and an optional provider-response field on session errors), so every mapping below stays the measured 2.0.18 wire behavior.
 
@@ -200,11 +203,17 @@ An extra `format` field is ignored. 2.0.18 returned 200 and did not constrain th
 
 The server does not drop an existing archive. `time.archived` is a real optional field on the session object, and the database column `time_archived` is what V1 migration copies. A GET that includes it must be shown as archived.
 
-What the gate proved is narrower. `PATCH /api/session/:id` only accepts title, metadata, and permissions. Sending `{"time":{"archived":1}}` returns 204 because unknown fields are ignored, then GET still has no `archived`. That 204 is not a stored archive and not a deleted one. Do not send that body.
+**`v2.1.3` writes the archive.** `PATCH /api/session/:id` takes a top-level `archived` boolean and answers `204`:
 
-2.0.18 has no archive write route. The official V2 app says the same thing: archive stays unavailable until the client exposes a session archive API, and the action rejects with `Session archiving is unavailable`. Do not invent a phone-only map. That map would disagree with the desktop, and it would hide a server `time.archived` that migration already wrote.
+```json
+{ "archived": true }
+```
 
-Archive and Restore on V2 fail with that 404. The list still sorts by the server field. Send does not try to restore first. If the server says the session is archived, it stays archived after send.
+The archive lands in `time.archived`; `{ "archived": false }` restores it. The V1-shaped body `{"time":{"archived":1}}` is still ignored, because the field is top-level on V2. The app sends the top-level boolean and reads the session back, since the PATCH answers `204` with no body.
+
+On `v2.0.18` there was no write route at all, and the official V2 app rejected the action with `Session archiving is unavailable`. That is no longer true.
+
+The client maps the server's archived timestamp onto `time.archived` when it reads a session, so the archived filter keeps working. The V1 `updateSessionArchived` body is unchanged.
 
 ### Questions
 

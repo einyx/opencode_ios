@@ -59,6 +59,46 @@ struct HostProfile: Codable, Equatable, Identifiable {
     var basicAuth: BasicAuthConfig?
     var ssh: SSHTunnelConfig?
     var lastUsedAt: Date?
+    /// Which OpenCode API this host speaks. `auto` probes on connect. The
+    /// value is bound to `serverURL`: changing the URL clears it.
+    var apiGeneration: ServerGeneration = .auto
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, transport, serverURL, basicAuth, ssh, lastUsedAt, apiGeneration
+    }
+
+    init(
+        id: UUID = UUID(),
+        name: String,
+        transport: HostTransport,
+        serverURL: String,
+        basicAuth: BasicAuthConfig? = nil,
+        ssh: SSHTunnelConfig? = nil,
+        lastUsedAt: Date? = nil,
+        apiGeneration: ServerGeneration = .auto
+    ) {
+        self.id = id
+        self.name = name
+        self.transport = transport
+        self.serverURL = serverURL
+        self.basicAuth = basicAuth
+        self.ssh = ssh
+        self.lastUsedAt = lastUsedAt
+        self.apiGeneration = apiGeneration
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        transport = try c.decode(HostTransport.self, forKey: .transport)
+        serverURL = try c.decode(String.self, forKey: .serverURL)
+        basicAuth = try c.decodeIfPresent(BasicAuthConfig.self, forKey: .basicAuth)
+        ssh = try c.decodeIfPresent(SSHTunnelConfig.self, forKey: .ssh)
+        lastUsedAt = try c.decodeIfPresent(Date.self, forKey: .lastUsedAt)
+        // Hosts saved before V2 support have no generation stored.
+        apiGeneration = try c.decodeIfPresent(ServerGeneration.self, forKey: .apiGeneration) ?? .auto
+    }
 
     var displayName: String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)

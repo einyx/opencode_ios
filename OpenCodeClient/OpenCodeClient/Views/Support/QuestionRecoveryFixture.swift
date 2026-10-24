@@ -114,6 +114,7 @@ enum QuestionRecoveryFixture {
         }
 
         func configure(baseURL: String, username: String?, password: String?) {}
+        func currentGeneration() -> ServerGeneration { .auto }
         func health() async throws -> HealthResponse {
             HealthResponse(healthy: true, version: "fixture")
         }

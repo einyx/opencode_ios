@@ -27,6 +27,7 @@
 | `focus_voice_input/` | 大屏专注布局与语音优先、系统粘贴 | `design.md` | 实现及模拟器验收；设备本地设置 |
 | `agent_catalog_validation/` | Agent 目录校验与删除失败可见 | `notes.md` | shipped；选中 agent 对照当前 server `/agent`，delete 非 2xx 带状态码与 body |
 | `watch_ambient/` | Watch 直连 Live，工具经手机执行 | `prd.md` / `rfc.md` | **Experimental**；回答中或第二轮仍可断开，后台持续使用未验收（PR #223） |
+| `v2_support/` | OpenCode V2 server 接入 + `opencode pair` 扫码配对 | `plan.md` | 已实现；wire contract 见 `../v2_server_compatibility.md` |
 
 ## archive/ — 一次性工作记录与冻结决策（只进不改）
 

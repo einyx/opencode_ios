@@ -137,6 +137,7 @@ enum Tier4OfflineFixture {
                 try await Task.sleep(nanoseconds: 50_000_000)
             }
         }
+        func currentGeneration() -> ServerGeneration { .auto }
 
         func projects() async throws -> [Project] { [] }
         func projectCurrent() async throws -> Project? { nil }

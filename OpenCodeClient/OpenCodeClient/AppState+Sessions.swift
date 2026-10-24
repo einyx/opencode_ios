@@ -101,6 +101,42 @@ extension AppState {
 
         await apiClient.configure(baseURL: baseURL, username: username.isEmpty ? nil : username, password: password.isEmpty ? nil : password)
         guard isCurrentHostRequest(snapshot) else { return }
+
+        // Find out which OpenCode API the server speaks before the first
+        // request routes anywhere. A wrong password is reported here; an
+        // unrecognised server is reported by the health check.
+        do {
+            let generation = try await apiClient.detectGeneration()
+            Self.logger.debug("server generation=\(generation.rawValue, privacy: .public)")
+        } catch let error as APIError {
+            switch error {
+            case .httpError(let statusCode, _) where statusCode == 401 || statusCode == 403:
+                isConnected = false
+                connectionError = friendlyConnectionError(error, phase: .health)
+                updateConnectionDiagnostic(
+                    phase: .failed,
+                    message: connectionError ?? L10n.t(.hostDiagnosticHealthUnhealthy),
+                    recoveryHint: L10n.t(.hostDiagnosticHintBasicAuth)
+                )
+                return
+            case .unsupportedServer:
+                // The address answered, but not as an OpenCode server.
+                isConnected = false
+                connectionError = friendlyConnectionError(error, phase: .health)
+                updateConnectionDiagnostic(
+                    phase: .failed,
+                    message: connectionError ?? L10n.t(.hostDiagnosticHealthUnhealthy),
+                    recoveryHint: L10n.t(.hostDiagnosticHintVerifyHostConfig)
+                )
+                return
+            default:
+                // The health check below reports what went wrong.
+                break
+            }
+        } catch {
+            // The health check below reports what went wrong.
+        }
+
         do {
             updateConnectionDiagnostic(phase: .health, message: L10n.t(.hostDiagnosticCheckingHealthURL, baseURL))
             let health = try await apiClient.health()

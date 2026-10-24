@@ -189,10 +189,13 @@ actor SSEClient {
     func connectLease(
         baseURL: String,
         username: String? = nil,
-        password: String? = nil
+        password: String? = nil,
+        generation: ServerGeneration = .auto
     ) -> SSEStreamLease {
         let urlString = baseURL.hasPrefix("http") ? baseURL : "http://\(baseURL)"
-        guard let url = URL(string: "\(urlString)/global/event") else {
+        // V2 publishes on `/api/event`; V1 on `/global/event`.
+        let path = generation == .v2 ? "/api/event" : "/global/event"
+        guard let url = URL(string: "\(urlString)\(path)") else {
             return SSEStreamLease(
                 events: AsyncThrowingStream { $0.finish(throwing: APIError.invalidURL) },
                 cancel: {}
@@ -237,7 +240,7 @@ actor SSEClient {
                 }
                 do {
                     try Self.acceptHTTP(statusCode: opened.statusCode, contentType: opened.contentType)
-                    try await Self.consume(opened.bytes, into: continuation)
+                    try await Self.consume(opened.bytes, into: continuation, generation: generation)
                     continuation.finish()
                 } catch is CancellationError {
                     continuation.finish()
@@ -259,7 +262,8 @@ actor SSEClient {
 
     private nonisolated static func consume(
         _ bytes: AsyncThrowingStream<UInt8, Error>,
-        into continuation: AsyncThrowingStream<SSEEvent, Error>.Continuation
+        into continuation: AsyncThrowingStream<SSEEvent, Error>.Continuation,
+        generation: ServerGeneration = .auto
     ) async throws {
         var lineBuffer = Data()
         var eventDataLines: [String] = []
@@ -271,6 +275,14 @@ actor SSEClient {
 
             guard !json.isEmpty, json != "[DONE]" else { return }
             let data = Data(json.utf8)
+            if generation == .v2 {
+                guard let frame = try? JSONDecoder().decode(V2EventTranslator.Frame.self, from: data),
+                      let event = V2EventTranslator.translate(frame) else {
+                    return
+                }
+                continuation.yield(event)
+                return
+            }
             if let event = try? JSONDecoder().decode(SSEEvent.self, from: data) {
                 continuation.yield(event)
             }

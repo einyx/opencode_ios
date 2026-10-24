@@ -189,6 +189,7 @@ actor FileContentScript: APIClientProtocol, FileDirectorySearching {
     }
 
     func configure(baseURL: String, username: String?, password: String?) {}
+    func currentGeneration() -> ServerGeneration { .auto }
     func health() async throws -> HealthResponse { HealthResponse(healthy: true, version: "fixture") }
     func projects() async throws -> [Project] { [] }
     func projectCurrent() async throws -> Project? { nil }

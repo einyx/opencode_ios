@@ -151,6 +151,7 @@ enum SessionScrollFixture {
         private let shortMessages: [MessageWithParts] = SessionScrollFixture.makeShortMessages()
 
         func configure(baseURL: String, username: String?, password: String?) {}
+        func currentGeneration() -> ServerGeneration { .auto }
 
         func health() async throws -> HealthResponse {
             try JSONDecoder().decode(HealthResponse.self, from: Data("{\"healthy\":true,\"version\":\"fixture\"}".utf8))

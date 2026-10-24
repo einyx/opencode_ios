@@ -4,6 +4,19 @@
 
 ## 当前状态
 
+### OpenCode V2 server support + `opencode pair` QR onboarding
+
+- [x] Root cause found: the app only spoke V1 routes, and a V2 server answers every V1 path with the packaged SPA shell (`200 text/html`), so the health probe could not decode and **the app could not connect to any V2 server at all**. `/api/info` is the V2 marker (`/api/health` is 404).
+- [x] Generation detection implemented against upstream `v2.1.3` (measured from `/openapi.json`, 121 paths): `/global/health` counts as V1 only when it is 200 JSON, otherwise `/api/info` decides. A 401/403 is an authentication failure and never falls through to the other probe.
+- [x] New `ServerGeneration`, `V2Mapper`, `V2EventTranslator`, `PairingLink`, `PairingClient`. `HostProfile.apiGeneration` stores the detected generation; changing the address clears it.
+- [x] V2 routes implemented: session CRUD, messages, prompt (text + files), interrupt, active status, permissions and forms (**queried per session**, V1 lists them globally), provider/model/agent, fs list/read/find, vcs status, diff, fork, revert/stage, project/location.
+- [x] V2 SSE frames are translated into the V1 shapes, so the event handlers and the MessageStore are untouched: `session.text.*` → `message.part.*`, `form.*` → `question.*`, `session.execution.failed` → `session.error`. `session.created/renamed/metadata.updated` carry no session body, so the client reads the session back.
+- [x] `opencode pair` onboarding: parses the printed link and the QR payload (`{"code","urls"}`), redeems the code at `GET /auth/connect/:code` with `Accept: application/json`, and saves the session token as the host's Basic-auth password (username `opencode`). Added a camera scan (AVFoundation, iOS only) and a paste-a-link entry point.
+- [x] The difference against the repo's existing spec was measured and written back into `docs/v2_server_compatibility.md`: **v2.1.3 does write the archive** (`PATCH /api/session/:id` with a top-level `{"archived": true}`; the V1 `time.archived` body is still ignored). The todo route is still missing, so `sessionTodos` keeps returning `[]`.
+- [x] Evidence: `scripts/v2_contract_check.py` is 45/45 against the live v2.1.3 server. Every route and body shape the client sends was re-checked with curl (agent/model switch 204, interrupt 200, permission/form 200, fs `location[directory]` 200, patch title/archived 204, delete 204).
+- [ ] The camera scan and the pairing flow are not verified on a device. The Car Mode live paths have V2 branches but were not run on a device.
+
+
 ### Watch Ambient（Experimental，PR #223）
 
 - [x] Antigravity 起草 PRD/RFC，完成异步设计与实现审查；新增 watchOS 11 App、独立手机桥接 client、工具去重和结果分片、gateway 确认后回执。

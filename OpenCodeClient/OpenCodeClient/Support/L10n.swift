@@ -177,6 +177,16 @@ enum L10n {
         case hostCopyConfigJSON
         case hostNotFound
         case hostImportConfig
+        case hostPairSection
+        case hostPairScanQR
+        case hostPairPasteLink
+        case hostPairLinkPlaceholder
+        case hostPairRedeeming
+        case hostPairPaired
+        case hostPairInvalidLink
+        case hostPairCameraDenied
+        case hostPairCameraHint
+        case hostPairCameraUnavailable
         case hostImportFooter
         case hostConnectionType
         case hostTransportFooter
@@ -199,6 +209,7 @@ enum L10n {
         case hostImportErrorInvalidUTF8
         case hostExportErrorEncodeConfigJSON
         case hostConnectionErrorInvalidURL
+        case hostConnectionErrorUnsupportedServer
         case hostConnectionErrorBasicAuthRejected
         case hostConnectionErrorHTTPStatus
         case hostConnectionErrorCannotConnect
@@ -219,6 +230,7 @@ enum L10n {
         case hostDiagnosticHealthUnhealthy
         case hostDiagnosticHintCheckServerLogs
         case hostDiagnosticHintVerifyHostConfig
+        case hostDiagnosticHintBasicAuth
         case hostDiagnosticLocalListenerFailed
         case hostValidationVPSHostRequired
         case hostValidationSSHUsernameRequired
@@ -692,6 +704,16 @@ enum L10n {
         Key.hostDeviceKeySendFooter.rawValue: "Send this public key to the server admin before testing. Never share the private key.",
         Key.hostBasicAuth.rawValue: "Basic Auth",
         Key.hostSaveHelp.rawValue: "Save is enabled after required fields are present. Test verifies the selected transport and OpenCode health endpoint.",
+        Key.hostPairSection.rawValue: "Pair with OpenCode",
+        Key.hostPairScanQR.rawValue: "Scan QR code",
+        Key.hostPairPasteLink.rawValue: "Or paste a pairing link",
+        Key.hostPairLinkPlaceholder.rawValue: "http://host:port/auth/connect/…",
+        Key.hostPairRedeeming.rawValue: "Pairing…",
+        Key.hostPairPaired.rawValue: "Paired with %@",
+        Key.hostPairInvalidLink.rawValue: "That is not an OpenCode pairing link.",
+        Key.hostPairCameraDenied.rawValue: "Camera access is off. Enable it in Settings, or paste the pairing link instead.",
+        Key.hostPairCameraHint.rawValue: "Run `opencode pair` on the server and point the camera at the QR code.",
+        Key.hostPairCameraUnavailable.rawValue: "This device has no camera. Paste the pairing link instead.",
         Key.hostSave.rawValue: "Save",
         Key.hostEditTitle.rawValue: "Edit Host",
         Key.hostAddTitle.rawValue: "Add Host",
@@ -707,6 +729,7 @@ enum L10n {
         Key.hostImportErrorInvalidUTF8.rawValue: "Host config is not valid UTF-8.",
         Key.hostExportErrorEncodeConfigJSON.rawValue: "Could not encode Host Config JSON.",
         Key.hostConnectionErrorInvalidURL.rawValue: "Invalid OpenCode URL. Check the host address and port.",
+        Key.hostConnectionErrorUnsupportedServer.rawValue: "This address is not an OpenCode server. It does not answer the OpenCode API.",
         Key.hostConnectionErrorBasicAuthRejected.rawValue: "OpenCode rejected Basic Auth. Check username and password.",
         Key.hostConnectionErrorHTTPStatus.rawValue: "OpenCode returned HTTP %d. Check the server logs or provider setup.",
         Key.hostConnectionErrorCannotConnect.rawValue: "Could not connect to OpenCode. Check network reachability and that the server is running.",
@@ -727,6 +750,7 @@ enum L10n {
         Key.hostDiagnosticHealthUnhealthy.rawValue: "OpenCode health check returned unhealthy.",
         Key.hostDiagnosticHintCheckServerLogs.rawValue: "Check the OpenCode server process and logs.",
         Key.hostDiagnosticHintVerifyHostConfig.rawValue: "For SSH tunnel hosts, first verify the gateway values and device key. For direct hosts, verify the URL from this device.",
+        Key.hostDiagnosticHintBasicAuth.rawValue: "Check the username and password for this host.",
         Key.hostDiagnosticLocalListenerFailed.rawValue: "Local listener failed: %@",
         Key.hostValidationVPSHostRequired.rawValue: "VPS Host is required",
         Key.hostValidationSSHUsernameRequired.rawValue: "SSH Username is required",
@@ -1204,6 +1228,16 @@ enum L10n {
         Key.hostDeviceKeySendFooter.rawValue: "测试前把这个公钥发给服务器管理员。不要分享私钥。",
         Key.hostBasicAuth.rawValue: "Basic Auth",
         Key.hostSaveHelp.rawValue: "必填项完整后即可保存。测试连接会检查连接方式和 OpenCode 服务状态。",
+        Key.hostPairSection.rawValue: "与 OpenCode 配对",
+        Key.hostPairScanQR.rawValue: "扫描二维码",
+        Key.hostPairPasteLink.rawValue: "或粘贴配对链接",
+        Key.hostPairLinkPlaceholder.rawValue: "http://host:port/auth/connect/…",
+        Key.hostPairRedeeming.rawValue: "正在配对…",
+        Key.hostPairPaired.rawValue: "已与 %@ 配对",
+        Key.hostPairInvalidLink.rawValue: "这不是 OpenCode 配对链接。",
+        Key.hostPairCameraDenied.rawValue: "相机权限未开启。请在系统设置中开启，或直接粘贴配对链接。",
+        Key.hostPairCameraHint.rawValue: "在服务器上运行 `opencode pair`，然后用相机对准二维码。",
+        Key.hostPairCameraUnavailable.rawValue: "此设备没有相机，请直接粘贴配对链接。",
         Key.hostSave.rawValue: "保存",
         Key.hostEditTitle.rawValue: "编辑 Host",
         Key.hostAddTitle.rawValue: "添加 Host",
@@ -1219,6 +1253,7 @@ enum L10n {
         Key.hostImportErrorInvalidUTF8.rawValue: "Host config 不是有效的 UTF-8。",
         Key.hostExportErrorEncodeConfigJSON.rawValue: "无法生成 Host Config JSON。",
         Key.hostConnectionErrorInvalidURL.rawValue: "OpenCode 地址无效，请检查主机地址和端口。",
+        Key.hostConnectionErrorUnsupportedServer.rawValue: "该地址不是 OpenCode 服务器，没有响应 OpenCode API。",
         Key.hostConnectionErrorBasicAuthRejected.rawValue: "OpenCode 拒绝了 Basic Auth，请检查用户名和密码。",
         Key.hostConnectionErrorHTTPStatus.rawValue: "OpenCode 返回 HTTP %d。请检查服务器日志或服务商配置。",
         Key.hostConnectionErrorCannotConnect.rawValue: "无法连接到 OpenCode。请检查网络是否可达，以及服务器是否正在运行。",
@@ -1239,6 +1274,7 @@ enum L10n {
         Key.hostDiagnosticHealthUnhealthy.rawValue: "OpenCode 服务状态检查返回异常。",
         Key.hostDiagnosticHintCheckServerLogs.rawValue: "请检查 OpenCode 服务进程和日志。",
         Key.hostDiagnosticHintVerifyHostConfig.rawValue: "SSH 隧道主机请先检查网关参数和设备密钥；直连主机请确认这台设备能访问该地址。",
+        Key.hostDiagnosticHintBasicAuth.rawValue: "请检查这个主机的用户名和密码。",
         Key.hostDiagnosticLocalListenerFailed.rawValue: "本地监听器失败：%@",
         Key.hostValidationVPSHostRequired.rawValue: "VPS 地址不能为空",
         Key.hostValidationSSHUsernameRequired.rawValue: "SSH 用户名不能为空",

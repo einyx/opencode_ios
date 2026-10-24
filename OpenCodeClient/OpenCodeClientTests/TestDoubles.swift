@@ -334,6 +334,7 @@ actor MockAPIClient: APIClientProtocol {
         configuredUsername = username
         configuredPassword = password
     }
+    func currentGeneration() -> ServerGeneration { .auto }
 
     var healthCallCount = 0
 

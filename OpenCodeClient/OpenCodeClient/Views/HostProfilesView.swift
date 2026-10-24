@@ -541,6 +541,72 @@ struct HostProfileEditorView: View {
     @State var credentialDraft: HostEditorCredentialDraft
     @State private var importText = ""
     @State private var publicKeyCopied = false
+    /// The pairing link pasted or scanned by the user.
+    @State private var pairingLinkText = ""
+    /// The host a successful pairing produced, shown as a confirmation.
+    @State private var pairedHostName: String?
+    /// The pairing code that was already redeemed.
+    @State private var lastRedeemedCode: String?
+    @State private var isPairing = false
+    #if os(iOS)
+    @State private var isScanningQR = false
+    #endif
+
+    /// The pairing state the UI renders.
+    private var pairingState: PairingState {
+        isPairing ? .busy : .idle
+    }
+
+    private enum PairingState {
+        case idle
+        case busy
+
+        var isBusy: Bool {
+            if case .busy = self { return true }
+            return false
+        }
+    }
+
+    /// Redeem a pairing link and fill the host with its address and token.
+    ///
+    /// The token is a session token: it is accepted anywhere the server
+    /// password is, so it becomes the host's Basic-auth password with the
+    /// username `opencode`.
+    private func redeemPairingLink(_ value: String) async {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let link = PairingLink.parse(trimmed) else {
+            credentialDraft.errorMessage = L10n.t(.hostPairInvalidLink)
+            return
+        }
+        await redeem(link)
+    }
+
+    /// Redeem an already parsed pairing link.
+    private func redeem(_ link: PairingLink) async {
+        guard !pairingState.isBusy else { return }
+        // The code is single-use: redeeming it twice would report the first
+        // success as an expiry.
+        guard link.code != lastRedeemedCode else { return }
+        isPairing = true
+        defer { isPairing = false }
+        do {
+            let pairing = try await PairingClient().redeem(link)
+            lastRedeemedCode = link.code
+            profile.transport = .direct
+            profile.serverURL = pairing.url
+            profile.basicAuth = BasicAuthConfig(
+                username: "opencode",
+                keychainPasswordID: AppState.passwordKeychainID(for: profile.id)
+            )
+            profile.apiGeneration = .v2
+            pairingLinkText = ""
+            pairedHostName = pairing.url
+            credentialDraft.password = pairing.token
+            credentialDraft.passwordDirty = true
+        } catch {
+            credentialDraft.errorMessage = error.localizedDescription
+        }
+    }
 
     init(state: AppState, mode: HostProfileEditorMode) {
         self.state = state
@@ -600,6 +666,54 @@ struct HostProfileEditorView: View {
                     } footer: {
                         Text(L10n.t(.hostImportFooter))
                     }
+                }
+
+                Section {
+                    #if os(iOS)
+                    Button {
+                        isScanningQR = true
+                    } label: {
+                        Label(L10n.t(.hostPairScanQR), systemImage: "qrcode.viewfinder")
+                    }
+                    .accessibilityIdentifier("host-pair-scan-qr")
+                    .disabled(pairingState.isBusy)
+                    #endif
+
+                    HStack {
+                        TextField(L10n.t(.hostPairLinkPlaceholder), text: $pairingLinkText)
+                            .textContentType(.URL)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .accessibilityIdentifier("host-pair-link-field")
+                            .onChange(of: pairingLinkText) { _, value in
+                                // A pasted pairing link is redeemed on the
+                                // spot: the credentials come from the link,
+                                // so there is nothing else to type.
+                                guard let link = PairingLink.parse(value) else { return }
+                                Task { await redeem(link) }
+                            }
+                        Button {
+                            Task { await redeemPairingLink(pairingLinkText) }
+                        } label: {
+                            if pairingState.isBusy {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "link")
+                            }
+                        }
+                        .accessibilityIdentifier("host-pair-link-redeem")
+                        .disabled(pairingLinkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || pairingState.isBusy)
+                    }
+
+                    if let paired = pairedHostName {
+                        Label(L10n.t(.hostPairPaired, paired), systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(DesignColors.Brand.primary)
+                            .accessibilityIdentifier("host-pair-paired")
+                    }
+                } header: {
+                    Text(L10n.t(.hostPairSection))
+                } footer: {
+                    Text(L10n.t(.hostPairCameraHint))
                 }
 
                 Section {
@@ -671,15 +785,19 @@ struct HostProfileEditorView: View {
                     #endif
                 }
 
-                Section(L10n.t(.hostBasicAuth)) {
-                    TextField(L10n.t(.settingsUsername), text: basicAuthUsernameBinding)
-                        .textContentType(.username)
-                        .textInputAutocapitalization(.never)
-                        .accessibilityIdentifier("host-username")
-                    SecureField(L10n.t(.settingsPassword), text: passwordBinding)
-                        .textContentType(.password)
-                        .accessibilityIdentifier("host-password")
-                        .modifier(HostEditorPasswordProbe(password: credentialDraft.password))
+                // A pairing link supplies the credentials, so they are not
+                // asked for again.
+                if pairedHostName == nil {
+                    Section(L10n.t(.hostBasicAuth)) {
+                        TextField(L10n.t(.settingsUsername), text: basicAuthUsernameBinding)
+                            .textContentType(.username)
+                            .textInputAutocapitalization(.never)
+                            .accessibilityIdentifier("host-username")
+                        SecureField(L10n.t(.settingsPassword), text: passwordBinding)
+                            .textContentType(.password)
+                            .accessibilityIdentifier("host-password")
+                            .modifier(HostEditorPasswordProbe(password: credentialDraft.password))
+                    }
                 }
 
                 Section {
@@ -718,6 +836,19 @@ struct HostProfileEditorView: View {
             } message: {
                 Text(credentialDraft.errorMessage ?? "")
             }
+            #if os(iOS)
+            .sheet(isPresented: $isScanningQR) {
+                QRScannerView { payload in
+                    isScanningQR = false
+                    pairingLinkText = payload
+                    guard let link = PairingLink.parse(payload) else {
+                        credentialDraft.errorMessage = L10n.t(.hostPairInvalidLink)
+                        return
+                    }
+                    Task { await redeem(link) }
+                }
+            }
+            #endif
         }
     }
 

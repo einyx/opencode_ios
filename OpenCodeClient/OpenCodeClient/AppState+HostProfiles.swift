@@ -225,6 +225,12 @@ extension AppState {
             saved.ssh = ssh
             saved.serverURL = APIClient.defaultServer
         }
+        // The generation belongs to the address: a new address has to be
+        // probed again.
+        let current = hostProfiles.first(where: { $0.id == saved.id })
+        if let current, current.serverURL != saved.serverURL {
+            saved.apiGeneration = .auto
+        }
         if let password {
             try commitHostPassword(password, username: profile.basicAuth?.username ?? "", to: &saved)
             hostCredentialError = nil
@@ -328,7 +334,13 @@ extension AppState {
             guard info.isAllowed, let baseURL = info.normalized else { return }
             let user = username.isEmpty ? nil : username
             let pass = password.isEmpty ? nil : password
-            await apiClient.configure(baseURL: baseURL, username: user, password: pass)
+            let generation = currentHostProfile?.apiGeneration ?? .auto
+            await apiClient.configure(
+                baseURL: baseURL,
+                username: user,
+                password: pass,
+                generation: generation
+            )
             if isCurrentHostRequest(snapshot) { return }
         }
     }
@@ -446,6 +458,8 @@ extension AppState {
             switch apiError {
             case .invalidURL:
                 return L10n.t(.hostConnectionErrorInvalidURL)
+            case .unsupportedServer:
+                return L10n.t(.hostConnectionErrorUnsupportedServer)
             case .httpError(let statusCode, _):
                 if statusCode == 401 { return L10n.t(.hostConnectionErrorBasicAuthRejected) }
                 return L10n.t(.hostConnectionErrorHTTPStatus, Int32(statusCode))

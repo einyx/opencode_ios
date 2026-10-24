@@ -210,6 +210,7 @@ enum TurnStabilityFixture {
         func health() async throws -> HealthResponse {
             HealthResponse(healthy: true, version: "fixture")
         }
+        func currentGeneration() -> ServerGeneration { .auto }
         func projects() async throws -> [Project] { [] }
         func projectCurrent() async throws -> Project? { nil }
         func sessions(directory: String?, limit: Int) async throws -> [Session] { [] }
