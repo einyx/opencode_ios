@@ -4,8 +4,11 @@ struct ClientCapabilityPermissionView: View {
     @Bindable var state: AppState
     let request: PendingClientCapabilityRequest
 
-    private var reason: String {
-        request.action.reason ?? L10n.t(.capabilityHealthExportDescription)
+    /// What the capability actually does, in the app's own words. Deliberately
+    /// not derived from the request: the reason text below comes from the
+    /// requesting agent and must never be presented as the app's description.
+    private var canonicalDescription: String {
+        L10n.t(.capabilityHealthExportDescription)
     }
 
     var body: some View {
@@ -15,11 +18,26 @@ struct ClientCapabilityPermissionView: View {
                     .font(.title2.weight(.semibold))
 
                 VStack(alignment: .leading, spacing: DesignSpacing.xs) {
-                    Text(L10n.t(.capabilityReason))
+                    Text(L10n.t(.capabilityWhatHappens))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
-                    Text(reason)
+                    Text(canonicalDescription)
                         .font(.body)
+                }
+
+                // The agent's stated motivation, clearly attributed so the user
+                // can weigh it as a claim from the requester, not a fact about
+                // what will happen.
+                if let agentReason = request.action.reason, !agentReason.isEmpty {
+                    VStack(alignment: .leading, spacing: DesignSpacing.xs) {
+                        Text(L10n.t(.capabilityAgentNote))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Text(agentReason)
+                            .font(.callout.italic())
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
                 }
 
                 Text(L10n.t(.capabilityPermissionFooter))

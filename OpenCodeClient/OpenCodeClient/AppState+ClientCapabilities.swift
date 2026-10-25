@@ -25,7 +25,9 @@ extension AppState {
         assistantMessageID: String
     ) async {
         guard case .healthExportAll = action else { return }
-        if healthExportPermission == .allowAlways {
+        // Host-scoped automatic grant: only the exact host configuration the
+        // user trusted auto-allows; anything else prompts again.
+        if healthExportAutoAllowIsActive {
             await dispatchClientCapability(
                 action,
                 hostProfileID: currentHostProfileID,
@@ -48,7 +50,7 @@ extension AppState {
         guard let request = pendingClientCapabilityRequest else { return }
         pendingClientCapabilityRequest = nil
         guard allow else { return }
-        if always { healthExportPermission = .allowAlways }
+        if always { grantHealthExportAlwaysAllow() }
         await dispatchClientCapability(
             request.action,
             hostProfileID: request.hostProfileID,

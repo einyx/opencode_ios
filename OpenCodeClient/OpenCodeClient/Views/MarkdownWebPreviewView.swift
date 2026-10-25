@@ -6,9 +6,10 @@
 //  (preview.html + markdown-it + Temml + DOMPurify) into a WKWebView and renders the
 //  Markdown via window.renderMarkdown({markdown, theme}). The shell is the
 //  gatekeeper: markdown-it parses, Temml emits MathML, and DOMPurify sanitizes.
-//  The renderer assets ship in the app bundle and no CDN is used, but the
-//  rendered content is not offline: sanitized HTML may still reference
-//  http(s) images and CSS url()/@import, and the WebView fetches those.
+//  The renderer assets ship in the app bundle and no CDN is used. The preview
+//  is fully offline: DOMPurify drops remote src and the CSS network vectors,
+//  and a WKContentRuleList blocks every http(s)/ws(s) request at the engine
+//  level, so rendered content cannot make the device talk to the network.
 //
 //  See docs/archive/2026-06_markdown_web_preview_rfc.md.
 //
@@ -187,6 +188,33 @@ private enum PreviewBridge {
     static let name = "previewBridge"
 }
 
+/// Engine-level network deny-list for the preview WebView. The sanitizer strips
+/// remote `src` and CSS url()/@import, but CSS parsing is regex-based; this rule
+/// list is the backstop that makes the preview genuinely offline: every
+/// http(s)/ws(s) request — subresource or navigation — is cancelled by WebKit
+/// before it reaches the network. file:// and data: URLs are unaffected.
+private enum PreviewNetworkBlocklist {
+    static let identifier = "preview-block-remote"
+    static let rules = """
+    [{"trigger":{"url-filter":"^https?://"},"action":{"type":"block"}},
+     {"trigger":{"url-filter":"^wss?://"},"action":{"type":"block"}}]
+    """
+
+    /// Compile once per process and register on the given controller. Async on
+    /// purpose: the sanitizer already prevents remote references, so the brief
+    /// window before compilation finishes has nothing to fetch.
+    static func install(on controller: WKUserContentController) {
+        let store = WKContentRuleListStore.default()
+        guard let store else { return }
+        store.compileContentRuleList(forIdentifier: identifier, encodedContentRuleList: rules) { list, _ in
+            guard let list else { return }
+            Task { @MainActor in
+                controller.add(list)
+            }
+        }
+    }
+}
+
 struct MarkdownWebPreviewView: UIViewRepresentable {
     let input: MarkdownWebPreviewInput
     /// Called when the user taps an external (http/https) link in the preview.
@@ -207,6 +235,9 @@ struct MarkdownWebPreviewView: UIViewRepresentable {
         // Non-persistent store: no cookies/localStorage survive across loads.
         config.websiteDataStore = .nonPersistent()
         config.defaultWebpagePreferences.allowsContentJavaScript = true
+        // Block every remote fetch at the engine level (defense in depth on top
+        // of the sanitizer: remote src and CSS url()/@import are already gone).
+        PreviewNetworkBlocklist.install(on: config.userContentController)
         config.userContentController.add(context.coordinator, name: PreviewBridge.name)
 
         let webView = WKWebView(frame: .zero, configuration: config)

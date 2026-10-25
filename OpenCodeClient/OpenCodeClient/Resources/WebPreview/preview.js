@@ -169,13 +169,14 @@
       "mpadded", "mphantom", "mroot", "mrow", "ms", "mspace",
       "msqrt", "mstyle", "msub", "msup", "msubsup", "mtable",
       "mtd", "mtext", "mtr", "munder", "munderover", "mprescripts",
-      // CAUTION: <style> is allowed so HTML/CSS "cards" render styled.
-      // RISK: DOMPurify does not parse or sanitize CSS at all. A stylesheet can
-      // still position an overlay over the whole surface, and url()/@import/
-      // @font-face make the WebView fetch an address the content chooses (the
-      // device really requests it, with the user's IP). expression() is dead in
-      // modern engines. We accept this because styled cards are a product
-      // requirement; the markup stays safe, the CSS does not.
+      // <style> is allowed so HTML/CSS "cards" render styled. DOMPurify does
+      // NOT parse CSS, so a hook below (afterSanitizeElements /
+      // afterSanitizeAttributes) strips the network vectors — url(), @import,
+      // @font-face, image-set() — from both stylesheet text and inline style
+      // attributes. Positioning/overlay tricks remain possible and are an
+      // accepted trade-off for styled cards; the native host additionally
+      // installs a WKContentRuleList that blocks every http(s)/ws(s) fetch at
+      // the engine level, so even a missed vector cannot leave the device.
       "style"
     ],
     ALLOWED_ATTR: [
@@ -218,9 +219,12 @@
     ADD_TAGS: ["style"],
     // FORCE_BODY makes DOMPurify parse the fragment in <body> context. Without
     // it, a leading <style> is parsed into <head> and silently dropped, so the
-    // HTML/CSS card styles would vanish. (DOMPurify still sanitizes the CSS.)
+    // HTML/CSS card styles would vanish. (CSS content is scrubbed by the hook
+    // below, not by DOMPurify itself.)
     FORCE_BODY: true,
-    // Block dangerous URI schemes everywhere; allow http/https/mailto/data:image
+    // URI policy: absolute http(s)/mailto/tel survive only on href (link taps
+    // are routed to the app via the bridge and never loaded here); src must be
+    // data:image or relative — the hook below enforces that split.
     ALLOWED_URI_REGEXP:
       /^(?:(?:https?|mailto|tel):|data:image\/(?:png|jpeg|gif|webp|svg\+xml);|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
     // Defensive: these are stripped by the allowlist anyway, but be explicit.
@@ -228,10 +232,32 @@
     FORBID_ATTR: ["onerror", "onload", "onclick"]
   };
 
+  // Strip the CSS network vectors DOMPurify cannot see. Applied to <style>
+  // text and to style="" attributes; the engine-level rule list in the app is
+  // the backstop if an exotic syntax slips past these regexps.
+  function sanitizeCssText(css) {
+    var out = String(css == null ? "" : css);
+    // @import rules (terminated by ; or the end of a block).
+    out = out.replace(/@import[^;{}]*(?:;|(?=\}))/gi, " ");
+    // @font-face blocks (each downloads a font from a chosen URL).
+    out = out.replace(/@font-face\s*\{[^{}]*\}/gi, " ");
+    // url(...) tokens — also kill quoted parens tricks by dropping the whole
+    // token rather than trying to parse the value.
+    out = out.replace(/url\s*\(\s*['"]?[^)]*['"]?\s*\)/gi, " ");
+    // image-set() / -webkit-image-set() reference urls the same way.
+    out = out.replace(/(?:-webkit-)?image-set\s*\([^)]*\)/gi, " ");
+    // Legacy IE behavior: / XBL binding: (harmless today, cheap to drop).
+    out = out.replace(/(?:behavior|binding)\s*:[^;}'"]*(?:;|(?=\}))/gi, " ");
+    return out;
+  }
+
   // Extra defense: drop any attribute starting with "on" (event handlers) and
   // any href/src that resolves to a javascript: scheme, regardless of casing or
   // whitespace tricks. DOMPurify already does this, but the hook makes intent
-  // explicit and survives config drift.
+  // explicit and survives config drift. It also (a) forbids absolute
+  // http(s)/ws(s) on src so no rendered content can point a fetch at an
+  // attacker-chosen server, and (b) scrubs the CSS network vectors from style
+  // attributes and <style> contents.
   if (window.DOMPurify && typeof window.DOMPurify.addHook === "function") {
     window.DOMPurify.addHook("uponSanitizeAttribute", function (_node, data) {
       var name = (data.attrName || "").toLowerCase();
@@ -240,10 +266,27 @@
         return;
       }
       if (name === "href" || name === "src" || name === "xlink:href") {
-        var val = (data.attrValue || "").replace(/\s+/g, "").toLowerCase();
-        if (val.indexOf("javascript:") === 0 || val.indexOf("vbscript:") === 0) {
+        var compact = (data.attrValue || "").replace(/\s+/g, "").toLowerCase();
+        if (compact.indexOf("javascript:") === 0 || compact.indexOf("vbscript:") === 0) {
+          data.keepAttr = false;
+          return;
+        }
+        // src must never name a remote origin: only data: and relative paths.
+        if (name === "src" && /^[a-z][a-z0-9+.\-]*:/i.test(compact) &&
+            compact.indexOf("data:image/") !== 0) {
           data.keepAttr = false;
         }
+        return;
+      }
+      if (name === "style") {
+        data.attrValue = sanitizeCssText(data.attrValue);
+      }
+    });
+    // <style> element contents: rewrite them after DOMPurify finished
+    // sanitizing the element and its children.
+    window.DOMPurify.addHook("afterSanitizeElements", function (node) {
+      if (node && node.nodeType === 1 && node.tagName === "STYLE") {
+        node.textContent = sanitizeCssText(node.textContent);
       }
     });
   }

@@ -181,6 +181,54 @@ struct ClientCapabilityPermissionTests {
         #expect(openedURL?.scheme == "healthquantification")
         #expect(try store.hasActiveRecord(for: .healthExportAll))
     }
+
+    /// "Always Allow" is scoped to the host configuration it was granted to:
+    /// the same host keeps auto-allowing, but a changed (or different) host
+    /// prompts again instead of silently inheriting the grant.
+    @Test @MainActor func allowAlwaysIsScopedToTheGrantingHostConfiguration() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("client-capability-scope-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = ClientCapabilityCallbackStore(rootDirectory: root)
+        let state = makeIsolatedAppState(
+            clientCapabilityStore: store,
+            clientCapabilityURLOpener: { _ in true }
+        )
+        let action = CarClientAction.healthExportAll(id: "health-1", reason: "Refresh sleep")
+
+        await state.requestClientCapability(
+            action,
+            sessionID: "ses_scope",
+            carContextKey: "host|workspace",
+            assistantMessageID: "msg_scope"
+        )
+        #expect(state.pendingClientCapabilityRequest != nil)
+        await state.resolveClientCapabilityPermission(allow: true, always: true)
+        #expect(state.healthExportPermission == .allowAlways)
+        #expect(state.healthExportAutoAllowIsActive)
+
+        // The grant is stored so a relaunch keeps it for this host.
+        #expect(state.defaults.string(forKey: AppState.healthExportAllowAlwaysSignatureKey) != nil)
+
+        // Reconfiguring the host (new address) invalidates the grant.
+        guard var profile = state.hostProfiles.first else {
+            Issue.record("expected a seeded host profile")
+            return
+        }
+        profile.serverURL = "http://10.8.0.1:4096"
+        state.hostProfiles[0] = profile
+        state.saveHostProfiles()
+        #expect(!state.healthExportAutoAllowIsActive)
+
+        // And the next request prompts again rather than auto-dispatching.
+        let action2 = CarClientAction.healthExportAll(id: "health-2", reason: "Refresh again")
+        await state.requestClientCapability(
+            action2,
+            sessionID: "ses_scope2",
+            carContextKey: "host|workspace",
+            assistantMessageID: "msg_scope2"
+        )
+        #expect(state.pendingClientCapabilityRequest != nil)
+    }
 }
 
 struct ClientCapabilityContinuationTests {

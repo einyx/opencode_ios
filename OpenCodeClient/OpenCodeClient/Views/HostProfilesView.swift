@@ -294,16 +294,25 @@ struct DiagnosticSummaryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Label(diagnostic.phase.label, systemImage: diagnostic.phase == .connected ? "checkmark.circle" : "exclamationmark.triangle")
+            HStack(spacing: DesignSpacing.sm) {
+                if diagnostic.phase.isChecking {
+                    ProgressView()
+                        .controlSize(.small)
+                        .accessibilityHidden(true)
+                    Text(diagnostic.phase.label)
+                } else {
+                    Label(diagnostic.phase.label, systemImage: diagnostic.phase.diagnosticSymbol)
+                }
+            }
                 .font(.caption)
-                .foregroundStyle(diagnostic.phase == .connected ? DesignColors.Semantic.success : .orange)
+                .foregroundStyle(diagnostic.phase == .failed ? DesignColors.Semantic.error : DesignColors.Neutral.textSecondary)
                 .accessibilityElement(children: .ignore)
                 .accessibilityIdentifier("host-connection-phase")
                 .accessibilityLabel(diagnostic.phase.label)
                 .accessibilityValue(diagnostic.phase.label)
             Text(diagnostic.message)
                 .font(.caption)
-                .foregroundStyle(diagnostic.phase == .connected ? Color.secondary : Color.red)
+                .foregroundStyle(diagnostic.phase == .failed ? DesignColors.Semantic.error : DesignColors.Neutral.textSecondary)
                 .accessibilityIdentifier("host-connection-diagnostic")
             if let recoveryHint = diagnostic.recoveryHint {
                 Text(recoveryHint)
@@ -1052,11 +1061,18 @@ private struct HostEditorPasswordProbe: ViewModifier {
     let password: String
 
     func body(content: Content) -> some View {
+        // UI-test-only echo of the SecureField contents. Compiled out of release
+        // builds entirely: a launch-argument check alone would still let a
+        // distributed binary publish the password into the accessibility tree.
+        #if DEBUG
         if UITestFixtures.hasHostEditorCredentialFixture {
             content.accessibilityValue(password)
         } else {
             content
         }
+        #else
+        content
+        #endif
     }
 }
 

@@ -34,12 +34,15 @@ enum L10n {
         case capabilityPermissionTitle
         case capabilityHealthExportTitle
         case capabilityHealthExportDescription
+        case capabilityWhatHappens
+        case capabilityAgentNote
         case capabilityReason
         case capabilityPermissionFooter
         case capabilityAllowOnce
         case capabilityAllowAlways
         case capabilitySettingsTitle
         case capabilityAllowedAutomatically
+        case capabilityAllowedOtherHost
         case capabilityAskEveryTime
         case capabilityRevoke
         case capabilitySettingsFooter
@@ -61,6 +64,16 @@ enum L10n {
         case contentRefreshHelp
 
         case settingsTitle
+        case settingsConnection
+        case settingsManageHosts
+        case settingsCheck
+        case settingsChecking
+        case settingsWorkspace
+        case settingsProjectShort
+        case settingsWorkspaceFooter
+        case settingsPreferences
+        case settingsInputVoice
+        case settingsAdvanced
         case settingsUsername
         case settingsPassword
         case settingsConnected
@@ -381,7 +394,9 @@ enum L10n {
         case permissionAllowOnce
         case permissionAllowAlways
         case permissionReject
+        case permissionAgentRequest
         case questionTitle
+        case questionFromAgent
         case questionSingleHint
         case questionMultiHint
         case questionTypeOwnAnswer
@@ -564,12 +579,15 @@ enum L10n {
         Key.capabilityPermissionTitle.rawValue: "Client Capability",
         Key.capabilityHealthExportTitle.rawValue: "Sync Health Quantification data",
         Key.capabilityHealthExportDescription.rawValue: "Export the latest HealthKit data to the configured Health Quantification server.",
+        Key.capabilityWhatHappens.rawValue: "What happens",
+        Key.capabilityAgentNote.rawValue: "Note from the requesting agent",
         Key.capabilityReason.rawValue: "Reason",
         Key.capabilityPermissionFooter.rawValue: "OpenCode constructs a one-time callback. Health details are not returned through the link.",
         Key.capabilityAllowOnce.rawValue: "Allow Once",
         Key.capabilityAllowAlways.rawValue: "Always Allow",
         Key.capabilitySettingsTitle.rawValue: "Client Capabilities",
         Key.capabilityAllowedAutomatically.rawValue: "Allowed automatically",
+        Key.capabilityAllowedOtherHost.rawValue: "Granted to a different host",
         Key.capabilityAskEveryTime.rawValue: "Ask every time",
         Key.capabilityRevoke.rawValue: "Revoke Automatic Access",
         Key.capabilitySettingsFooter.rawValue: "Automatic access only applies to exporting Health data. It does not authorize analysis or other side effects.",
@@ -588,6 +606,16 @@ enum L10n {
         Key.contentRefreshHelp.rawValue: "Refresh preview",
 
         Key.settingsTitle.rawValue: "Settings",
+        Key.settingsConnection.rawValue: "Connection",
+        Key.settingsManageHosts.rawValue: "Manage hosts",
+        Key.settingsCheck.rawValue: "Check",
+        Key.settingsChecking.rawValue: "Checking…",
+        Key.settingsWorkspace.rawValue: "Workspace",
+        Key.settingsProjectShort.rawValue: "Project",
+        Key.settingsWorkspaceFooter.rawValue: "Choose the project and models available in chat.",
+        Key.settingsPreferences.rawValue: "Preferences",
+        Key.settingsInputVoice.rawValue: "Input & Voice",
+        Key.settingsAdvanced.rawValue: "Advanced",
         Key.settingsUsername.rawValue: "Username",
         Key.settingsPassword.rawValue: "Password",
         Key.settingsConnected.rawValue: "Connected",
@@ -907,7 +935,9 @@ enum L10n {
         Key.permissionAllowOnce.rawValue: "Allow Once",
         Key.permissionAllowAlways.rawValue: "Allow Always",
         Key.permissionReject.rawValue: "Reject",
+        Key.permissionAgentRequest.rawValue: "Requested by the agent",
         Key.questionTitle.rawValue: "Question",
+        Key.questionFromAgent.rawValue: "Asked by the agent",
         Key.questionSingleHint.rawValue: "Select one option",
         Key.questionMultiHint.rawValue: "Select one or more options",
         Key.questionTypeOwnAnswer.rawValue: "Type your own answer",
@@ -1091,12 +1121,15 @@ enum L10n {
         Key.capabilityPermissionTitle.rawValue: "客户端能力",
         Key.capabilityHealthExportTitle.rawValue: "同步健康量化数据",
         Key.capabilityHealthExportDescription.rawValue: "将最新 HealthKit 数据导出到健康量化 App 已配置的服务器。",
+        Key.capabilityWhatHappens.rawValue: "将执行的操作",
+        Key.capabilityAgentNote.rawValue: "请求方 Agent 的说明",
         Key.capabilityReason.rawValue: "原因",
         Key.capabilityPermissionFooter.rawValue: "OpenCode 会生成一次性回调链接，链接不会返回健康明细。",
         Key.capabilityAllowOnce.rawValue: "仅这次允许",
         Key.capabilityAllowAlways.rawValue: "以后自动允许",
         Key.capabilitySettingsTitle.rawValue: "客户端能力",
         Key.capabilityAllowedAutomatically.rawValue: "自动允许",
+        Key.capabilityAllowedOtherHost.rawValue: "已授权给其他主机",
         Key.capabilityAskEveryTime.rawValue: "每次询问",
         Key.capabilityRevoke.rawValue: "撤销自动授权",
         Key.capabilitySettingsFooter.rawValue: "自动授权只允许导出健康数据，不授权分析或其他副作用。",
@@ -1115,6 +1148,16 @@ enum L10n {
         Key.contentRefreshHelp.rawValue: "刷新预览",
 
         Key.settingsTitle.rawValue: "设置",
+        Key.settingsConnection.rawValue: "连接",
+        Key.settingsManageHosts.rawValue: "管理主机",
+        Key.settingsCheck.rawValue: "检查",
+        Key.settingsChecking.rawValue: "正在检查…",
+        Key.settingsWorkspace.rawValue: "工作区",
+        Key.settingsProjectShort.rawValue: "项目",
+        Key.settingsWorkspaceFooter.rawValue: "选择聊天中可用的项目和模型。",
+        Key.settingsPreferences.rawValue: "偏好设置",
+        Key.settingsInputVoice.rawValue: "输入与语音",
+        Key.settingsAdvanced.rawValue: "高级设置",
         Key.settingsUsername.rawValue: "用户名",
         Key.settingsPassword.rawValue: "密码",
         Key.settingsConnected.rawValue: "已连接",
@@ -1437,7 +1480,9 @@ enum L10n {
         Key.permissionAllowOnce.rawValue: "允许一次",
         Key.permissionAllowAlways.rawValue: "始终允许",
         Key.permissionReject.rawValue: "拒绝",
+        Key.permissionAgentRequest.rawValue: "来自 Agent 的请求",
         Key.questionTitle.rawValue: "提问",
+        Key.questionFromAgent.rawValue: "来自 Agent 的提问",
         Key.questionSingleHint.rawValue: "选择一个选项",
         Key.questionMultiHint.rawValue: "选择一个或多个选项",
         Key.questionTypeOwnAnswer.rawValue: "输入自定义答案",

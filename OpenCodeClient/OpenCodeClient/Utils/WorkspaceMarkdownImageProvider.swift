@@ -1,10 +1,13 @@
 import Foundation
 import MarkdownUI
-import NetworkImage
 import SwiftUI
 
 struct WorkspaceMarkdownImageProvider: ImageProvider {
-    static let maxBase64ImageCharacters = 80_000_000
+    /// Cap on the base64 payload we are willing to decode into a UIImage. A
+    /// multi-megabyte data URI both balloons memory during decode and gives a
+    /// hostile payload a big allocation; 12 MB of base64 (~9 MB binary) is far
+    /// above any legitimate inline screenshot.
+    static let maxBase64ImageCharacters = 12_000_000
 
     let loadFileContent: @Sendable ([UInt8]) async throws -> FileContent
     let workspaceDirectory: String?
@@ -193,16 +196,12 @@ private struct WorkspaceMarkdownImageView: View {
                         showImageSheet = true
                         #endif
                     }
-            } else if let url, let scheme = url.scheme, scheme == "http" || scheme == "https" {
-                NetworkImage(url: url) { state in
-                    switch state {
-                    case .empty, .failure:
-                        Color.clear.frame(width: 0, height: 0)
-                    case .success(let image, _):
-                        image.resizable().aspectRatio(contentMode: .fit)
-                    }
-                }
             } else {
+                // Remote http(s) images are intentionally not fetched: chat
+                // content is model-controlled, and fetching would leak the
+                // device's IP to whatever host the content names. Local
+                // (workspace) and inline data: images render above; everything
+                // else stays blank, matching the old failure path.
                 Color.clear.frame(width: 0, height: 0)
             }
         }
@@ -259,11 +258,6 @@ private struct WorkspaceMarkdownImageView: View {
                 } catch {
                     return
                 }
-                return
-            }
-
-            if let scheme = url?.scheme, scheme == "http" || scheme == "https" {
-                return
             }
         }
     }

@@ -84,6 +84,10 @@ struct QuestionCardView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(accent)
 
+            Text(L10n.t(.questionFromAgent))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
             Spacer(minLength: 8)
 
             Text(L10n.t(.questionOf, Int32(currentTab + 1), Int32(request.questions.count)))

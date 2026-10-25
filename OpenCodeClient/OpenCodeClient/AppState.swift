@@ -74,7 +74,10 @@ final class AppState {
         guard let idx = trimmed.range(of: "://") else { return nil }
         let beforeScheme = String(trimmed[..<idx.lowerBound])
         let afterScheme = String(trimmed[idx.upperBound...])
-        guard afterScheme.hasPrefix(beforeScheme), beforeScheme != "http", beforeScheme != "https" else { return nil }
+        // Case-insensitive: the duplicated-scheme quirk can carry the author's
+        // casing ("HTTP://HTTP://host"), which a case-sensitive check misses.
+        guard afterScheme.lowercased().hasPrefix(beforeScheme.lowercased()),
+              beforeScheme.lowercased() != "http", beforeScheme.lowercased() != "https" else { return nil }
         return beforeScheme + afterScheme.dropFirst(beforeScheme.count)
     }
 
@@ -106,7 +109,13 @@ final class AppState {
             return false
         }
 
-        let hasScheme = trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://")
+        // Scheme checks are case-insensitive: URL preserves the author's
+        // casing ("HTTP://"), and a case-sensitive comparison would let an
+        // uppercase plaintext address bypass the WAN/HTTPS requirement.
+        let hasScheme: Bool = {
+            guard let s = URL(string: trimmed)?.scheme?.lowercased() else { return false }
+            return s == "http" || s == "https"
+        }()
         let host = parseHost(trimmed)
         let isLocal: Bool = {
             guard let host else { return true }
@@ -117,7 +126,7 @@ final class AppState {
         }()
 
         let scheme: String = {
-            if let u = URL(string: trimmed), let s = u.scheme { return s }
+            if let u = URL(string: trimmed), let s = u.scheme?.lowercased() { return s }
             return isLocal ? "http" : "https"
         }()
 
@@ -143,7 +152,9 @@ final class AppState {
         return .init(
             raw: raw,
             normalized: normalized,
-            scheme: parsed?.scheme,
+            // Lowercased so consumers can compare schemes without re-doing the
+            // case-insensitivity dance (URL preserves the author's casing).
+            scheme: parsed?.scheme?.lowercased(),
             host: parsed?.host,
             isLocal: isLocal,
             isTailscale: isTailscale,
@@ -210,6 +221,11 @@ final class AppState {
     static let carSessionsByContextKey = "carSessionsByContext.v1"
     static let carLiveBindingsByContextKey = "carLiveBindingsByContext.v1"
     static let healthExportPermissionKey = "clientCapability.healthExportAll.permission.v1"
+    /// The host-configuration signature captured when the user chose "Always
+    /// Allow". The automatic grant is only honored for the exact host it was
+    /// given to — a different (or reconfigured) host asks again. See
+    /// `healthExportAutoAllowIsActive`.
+    static let healthExportAllowAlwaysSignatureKey = "clientCapability.healthExportAll.allowAlwaysSignature.v1"
     static let modelShortlistKey = "modelShortlist.v1"
 
     init(
@@ -290,6 +306,7 @@ final class AppState {
         healthExportPermission = ClientCapabilityPermission(
             rawValue: defaults.string(forKey: Self.healthExportPermissionKey) ?? ""
         ) ?? .ask
+        healthExportAllowAlwaysSignature = defaults.string(forKey: Self.healthExportAllowAlwaysSignatureKey)
 
         // Restore last known-good AI Builder connection state if token/baseURL unchanged.
         let storedSig = defaults.string(forKey: Self.aiBuilderLastOKSignatureKey)
@@ -1301,9 +1318,37 @@ final class AppState {
         didSet {
             if healthExportPermission == .ask {
                 defaults.removeObject(forKey: Self.healthExportPermissionKey)
+                defaults.removeObject(forKey: Self.healthExportAllowAlwaysSignatureKey)
             } else {
                 defaults.set(healthExportPermission.rawValue, forKey: Self.healthExportPermissionKey)
             }
+        }
+    }
+    /// The host signature stored alongside an "Always Allow" grant.
+    var healthExportAllowAlwaysSignature: String?
+
+    /// Whether the stored automatic grant applies to the *current* host. The
+    /// grant is host-scoped: a different host — or the same host after its
+    /// address/credentials changed — prompts again instead of silently
+    /// auto-allowing.
+    var healthExportAutoAllowIsActive: Bool {
+        guard healthExportPermission == .allowAlways,
+              let signature = healthExportAllowAlwaysSignature, !signature.isEmpty,
+              let currentSignature = clientCapabilityHostSignature(for: currentHostProfileID) else {
+            return false
+        }
+        return signature == currentSignature
+    }
+
+    func grantHealthExportAlwaysAllow() {
+        healthExportPermission = .allowAlways
+        healthExportAllowAlwaysSignature = clientCapabilityHostSignature(for: currentHostProfileID)
+        if let signature = healthExportAllowAlwaysSignature {
+            defaults.set(signature, forKey: Self.healthExportAllowAlwaysSignatureKey)
+        } else {
+            // No resolvable host: a hostless grant would silently apply to
+            // whoever connects next, so don't persist one.
+            healthExportPermission = .ask
         }
     }
 

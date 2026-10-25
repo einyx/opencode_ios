@@ -635,4 +635,27 @@ struct ServerURLNormalizationTests {
         #expect(info.isAllowed)
         #expect(info.normalized == "http://127.0.0.1:4096")
     }
+
+    /// Uppercase schemes must not bypass the WAN-requires-HTTPS rule: URL
+    /// preserves author casing, and the security check used to compare
+    /// case-sensitively, so "HTTP://public" slipped through as "allowed".
+    @Test func serverURLInfoRejectsUppercasePlaintextHTTPOnWAN() {
+        let info = AppState.serverURLInfo("HTTP://public.example.com:4096")
+        #expect(!info.isAllowed)
+        #expect(info.scheme == "http")
+
+        let mixed = AppState.serverURLInfo("hTtPs://public.example.com:4096")
+        #expect(mixed.isAllowed)
+        #expect(mixed.scheme == "https")
+    }
+
+    /// The duplicated-scheme autocorrect quirk can carry mixed casing.
+    @Test func correctMalformedServerURLHandlesUppercaseDuplication() {
+        // http/https duplication is deliberately left alone.
+        #expect(AppState.correctMalformedServerURL("HTTP://HTTP://host:4096") == nil)
+        #expect(AppState.correctMalformedServerURL("http://http://host") == nil)
+        // Mixed-casing host duplication is corrected (was case-sensitive before).
+        #expect(AppState.correctMalformedServerURL("Example.com://example.com") == "Example.com")
+        #expect(AppState.correctMalformedServerURL("example.com://example.com") == "example.com")
+    }
 }

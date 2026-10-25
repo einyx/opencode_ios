@@ -27,15 +27,29 @@ struct PermissionCardView: View {
                         .font(DesignTypography.body.weight(.semibold))
                 }
 
-                Text(permission.description)
-                    .font(DesignTypography.body)
-                    .foregroundStyle(DesignColors.Neutral.text)
-
-                if !permission.patterns.isEmpty {
-                    Text(permission.patterns.joined(separator: ", "))
-                        .font(DesignTypography.microMono)
+                // Agent-authored: attributed so the user reads it as the
+                // requester's claim about the action, not the app's own.
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L10n.t(.permissionAgentRequest))
+                        .font(DesignTypography.meta)
                         .foregroundStyle(DesignColors.Neutral.textSecondary)
-                        .lineLimit(2)
+                    Text(permission.description)
+                        .font(DesignTypography.body)
+                        .foregroundStyle(DesignColors.Neutral.text)
+                        .textSelection(.enabled)
+                }
+
+                // Granted scope: never clipped — approving a pattern you cannot
+                // fully read is how over-broad grants happen.
+                if !permission.patterns.isEmpty {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(Array(permission.patterns.enumerated()), id: \.offset) { _, pattern in
+                            Text(pattern)
+                                .font(DesignTypography.microMono)
+                                .foregroundStyle(DesignColors.Neutral.textSecondary)
+                                .textSelection(.enabled)
+                        }
+                    }
                 }
 
                 HStack(spacing: DesignSpacing.lg) {
