@@ -596,6 +596,14 @@ extension ChatTabView {
                         currentSessionID: state.currentSessionID
                     ) else {
                         await terminateSpeechSession(session)
+                        // The microphone never opened on this path, so the capture
+                        // state must not stay set — a leaked flag would suppress
+                        // every haptic in the app.
+                        state.chatSpeechCaptureActive = false
+                        isStartingRecording = false
+                        // Close the `.recordingStarted` pair: the tap was
+                        // acknowledged, and the attempt is over.
+                        DesignHaptics.fire(.recordingStopped, microphoneOpen: state.isMicrophoneCaptureActive)
                         return
                     }
                     speechSession = session
@@ -620,6 +628,10 @@ extension ChatTabView {
                     let audioURL = try? await startingMicrophone.stop()
                     // The engine is closed from here on, so the capture state can clear.
                     state.chatSpeechCaptureActive = false
+                    // Close the `.recordingStarted` pair: the tap was acknowledged
+                    // and the attempt is over. The failure itself is reported by
+                    // the error channel, not by this haptic.
+                    DesignHaptics.fire(.recordingStopped, microphoneOpen: state.isMicrophoneCaptureActive)
                     startingMicrophone.discard()
                     await finishSpeechAudioSender()
                     let owner = ChatSpeechOwner(sessionID: originSessionID)
@@ -647,6 +659,10 @@ extension ChatTabView {
                 let audioURL = try? await startingMicrophone.stop()
                 // The engine is closed from here on, so the capture state can clear.
                 state.chatSpeechCaptureActive = false
+                // Close the `.recordingStarted` pair: the tap was acknowledged and
+                // the attempt is over. The failure itself is reported by the
+                // error channel, not by this haptic.
+                DesignHaptics.fire(.recordingStopped, microphoneOpen: state.isMicrophoneCaptureActive)
                 startingMicrophone.discard()
                 await finishSpeechAudioSender()
                 let owner = ChatSpeechOwner(sessionID: originSessionID)

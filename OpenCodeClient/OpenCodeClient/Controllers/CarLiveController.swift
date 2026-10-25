@@ -40,14 +40,18 @@ final class CarLiveController {
     private let audioSendTimeout: TimeInterval?
     private var runToken: UInt64 = 0
     private var captureGeneration: UInt64 = 0
-    /// True from the moment a capture is *requested* until the handle is
-    /// released.
+    /// The run whose capture start is in flight, if any.
     ///
     /// `audio.startCapture()` opens the engine on the audio queue and only
     /// returns afterwards, so `captureGeneration` is assigned strictly after
-    /// the microphone is live. This flag closes that window — it is set before
-    /// the await and cleared only once the engine is confirmed closed.
-    private var captureStartPending = false
+    /// the microphone is live. This token closes that window — it is set before
+    /// the await and cleared once the engine is confirmed closed, or once the
+    /// capture is registered as `captureGeneration`.
+    ///
+    /// It is **token-scoped** on purpose: `start()` can be re-entered on the
+    /// same controller while an older `beginAudio` is still suspended, and an
+    /// unscoped flag would let the superseded run clear the newer run's flag.
+    private var captureStartPendingToken: UInt64?
     private var captureToken: UInt64 = 0
     private var earlyCapture: CarLiveCaptureHandle?
     private var captureCleanup: Task<Void, Never>?
@@ -120,6 +124,7 @@ final class CarLiveController {
         let token = runToken
         captureGeneration = 0
         captureToken = 0
+        captureStartPendingToken = nil
         releasePlaybackHold()
         diagnostics.reset()
         inputFrameCount = 0
@@ -221,10 +226,11 @@ final class CarLiveController {
     /// capturing. Callers use it to decide whether an event may be announced
     /// audibly or haptically.
     ///
-    /// - `captureStartPending` covers the window in which `audio.startCapture()`
+    /// - `captureStartPendingToken` covers the window in which `audio.startCapture()`
     ///   is suspended and the engine has already been started on the audio
     ///   queue but `captureGeneration` has not been assigned yet. It is set
-    ///   before the await and cleared only once the engine is confirmed closed.
+    ///   before the await and cleared once the engine is confirmed closed, or
+    ///   once the capture is registered as `captureGeneration`.
     /// - `captureGeneration` covers a capture that is established. It is cleared
     ///   *after* `audio.stopCapture()` returns, so it over-approximates during
     ///   the shutdown — the safe direction.
@@ -234,7 +240,7 @@ final class CarLiveController {
     /// - The phase cases cover a capture that is established, and the connecting
     ///   phase, during which a capture may already be running.
     var isMicrophoneCaptureActiveForPolicy: Bool {
-        captureStartPending || captureGeneration != 0 || earlyCapture != nil
+        captureStartPendingToken != nil || captureGeneration != 0 || earlyCapture != nil
             || phase == .listening || phase == .speaking || phase == .connecting
     }
 
@@ -449,7 +455,7 @@ final class CarLiveController {
             // Mark the capture as pending across the await so the
             // microphone-open window is never reported as closed — including
             // when a backgrounding cancel clears the phase underneath it.
-            captureStartPending = true
+            captureStartPendingToken = token
             if let prepared = earlyCapture {
                 earlyCapture = nil
                 handle = prepared
@@ -459,11 +465,11 @@ final class CarLiveController {
             guard token == runToken, !closing, !blocksNewCapture else {
                 handle.finish()
                 await audio.stopCapture(generation: handle.generation)
-                captureStartPending = false
+                if captureStartPendingToken == token { captureStartPendingToken = nil }
                 resumeWaiter(false)
                 return
             }
-            captureStartPending = false
+            if captureStartPendingToken == token { captureStartPendingToken = nil }
             captureGeneration = handle.generation
             captureToken = token
             phase = .listening
@@ -540,7 +546,7 @@ final class CarLiveController {
             }
             resumeWaiter(true)
         } catch {
-            captureStartPending = false
+            if captureStartPendingToken == token { captureStartPendingToken = nil }
             resumeWaiter(false)
             await failLive(CarLiveCopy.microphoneUnavailable, token: token)
         }

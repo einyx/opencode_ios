@@ -62,9 +62,14 @@ nonisolated enum DesignHapticEvent: String, CaseIterable {
         self == .recordingStarted || self == .recordingStopped
     }
 
-    /// Silent mode does not affect haptics. The feedback generators emit no
-    /// audio component, so the ringer switch is irrelevant — only Reduce Motion
-    /// and the microphone guard suppress an event.
+    /// Silent mode does not suppress haptics.
+    ///
+    /// This is a **policy**, not a platform guarantee: the ringer switch is not
+    /// consulted, because a haptic is a physical sensation rather than sound.
+    /// Apple's documentation for the feedback generators describes the patterns
+    /// as haptics and does not promise an audio-free component for every
+    /// generator, so no stronger claim is made here — and none should be read
+    /// into it.
     var isAffectedBySilentMode: Bool { false }
 }
 

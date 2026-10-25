@@ -83,9 +83,12 @@ struct DesignHapticsTests {
         #expect(alerting == [.sendFailed, .permissionArrived, .questionArrived, .destructiveConfirmed])
     }
 
-    @Test func silentModeDoesNotAffectAnyEvent() {
-        // The feedback generators emit no audio component, so the ringer switch
-        // is irrelevant. Written down in §QT-HAPTIC; asserted here.
+    @Test func theSilentModePolicyIsUnchanged() {
+        // A canary on a policy constant, not a behavioural assertion: the
+        // silent-mode rule is written policy (the ringer switch is not
+        // consulted), and no platform guarantee is claimed for it. If a future
+        // change makes silent mode suppress an event, this fails and §QT-HAPTIC
+        // has to be updated with it.
         for event in DesignHapticEvent.allCases {
             #expect(!event.isAffectedBySilentMode, "\(event.rawValue)")
         }
@@ -108,14 +111,39 @@ struct DesignHapticsTests {
     }
 
     @Test func theLedgerSurvivesTheRequestBeingRemovedFromTheLiveList() {
-        // The bug this guards: "already seen" was derived from the live pending
-        // list, so answering a permission removed it from that list and the
-        // next poll re-announced it.
-        var ledger = DesignAnnouncementLedger()
-        ledger.markAnnounced("perm-1")
-        var liveList = ["perm-1"]
-        liveList.removeAll { $0 == "perm-1" }
-        #expect(!ledger.needsAnnouncement("perm-1"))
+        // Drives the production path. The bug this guards: "already seen" was
+        // derived from the live pending list, so answering a permission removed
+        // it from that list and the next poll re-announced it.
+        //
+        // The isolated `UserDefaults` suite is the repo convention — the default
+        // `.standard` leaks state across suites and between runs.
+        let defaults = UserDefaults(suiteName: "DesignHapticsTests.\(UUID().uuidString)")!
+        let state = AppState(apiClient: MockAPIClient(), sseClient: MockSSEClient(),
+                             sshTunnelManager: SSHTunnelManager(defaults: defaults),
+                             userDefaults: defaults, hostCredentialAccess: .noExternal)
+
+        // Seed the live list, so the scenario is modelled rather than asserted:
+        // `PendingPermission.id` is the composite "sessionID/permissionID"
+        // (`AppState.swift:1868`), so that is the key the announcement uses.
+        let permission = PendingPermission(sessionID: "s1", permissionID: "p1",
+                                         permission: "write", patterns: [],
+                                         allowAlways: false, tool: "write",
+                                         description: "write")
+        state.pendingPermissions = [permission]
+        #expect(permission.id == "s1/p1")
+
+        #expect(state.announcePermissionArrival(permission.id))
+        #expect(!state.announcePermissionArrival(permission.id))
+
+        // Answering removes the request from the live list. The ledger is
+        // deliberately independent of it, so the request is not re-announced.
+        state.pendingPermissions = []
+        #expect(!state.announcePermissionArrival(permission.id))
+
+        // A different request is still announced.
+        #expect(state.announcePermissionArrival("s1/p2"))
+        #expect(state.announceQuestionArrival("q-1"))
+        #expect(!state.announceQuestionArrival("q-1"))
     }
 
     @Test func theLedgerIsBounded() {
