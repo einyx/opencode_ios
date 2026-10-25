@@ -14,6 +14,17 @@ TEST_TARGET="OpenCodeClientTests"
 DERIVED_DATA="${OPENCODE_TEST_DERIVED_DATA:-$REPO_ROOT/.occlient/DerivedData}"
 REBUILD="${OPENCODE_TEST_REBUILD:-0}"
 ONLY="${OPENCODE_TEST_ONLY:-}"
+
+# Polish lint (PRY-12): fail fast on new rubric violations before spending a
+# build. Exit 65 — the run's quality-gate failure code — with the findings in
+# the phase log (lint.log) and events.tsv; 0/65/73/74 keep their meanings.
+LINT_EXIT=0
+oc_phase lint "$OC_TIMEOUT" "$REPO_ROOT/scripts/polish_lint.sh" || LINT_EXIT=$?
+if [ "$LINT_EXIT" -ne 0 ]; then
+  printf 'polish lint failed (exit %s) — findings in %s/lint.log and polish_lint output above\n' "$LINT_EXIT" "$OC_RUN" >&2
+  exit 65
+fi
+
 BUILD_ARGS=(-project "$PROJECT" -scheme "$SCHEME" -destination "$SIM_DEST" -derivedDataPath "$DERIVED_DATA")
 if [ -n "$ONLY" ]; then BUILD_ARGS+=(-only-testing:"$ONLY"); fi
 oc_phase build "$OC_TIMEOUT" bash -e -c \
