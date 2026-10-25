@@ -734,6 +734,10 @@ struct ChatTabView: View {
                 .environment(\.layoutDirection, textLayoutDirection)
         }
         .environment(\.layoutDirection, composerControlDirection)
+        // Align the waveform track with the input field: inside the glass
+        // card the rail shares the composer row's horizontal padding, or the
+        // Canvas spills past the card's rounded edge.
+        .padding(.horizontal, DesignSpacing.md)
         .padding(.top, DesignSpacing.xs)
         .padding(.bottom, 6)
     }
@@ -747,15 +751,19 @@ struct ChatTabView: View {
     /// the tab bar.
     private var composerDock: some View {
         VStack(spacing: DesignSpacing.sm) {
-            if showsVoiceRail {
-                voiceRail
-            }
-
             if !imageAttachments.isEmpty || isLoadingAttachment || attachmentError != nil {
                 attachmentStrip
             }
 
-            HStack(alignment: .bottom, spacing: DesignSpacing.sm) {
+            // ONE glass surface: the voice rail lives inside the same card as
+            // the input. Rendered above the card it floated detached on the
+            // page background and its idle waveform read as a glitch line.
+            VStack(spacing: 0) {
+                if showsVoiceRail {
+                    voiceRail
+                }
+
+                HStack(alignment: .bottom, spacing: DesignSpacing.sm) {
                 VStack(alignment: .leading, spacing: DesignSpacing.xs) {
                     ZStack(alignment: .leading) {
                         ChatComposerTextView(
@@ -827,6 +835,7 @@ struct ChatTabView: View {
             }
             .padding(.horizontal, DesignSpacing.md)
             .padding(.vertical, DesignSpacing.sm)
+            }
             .glassSurface(cornerRadius: 26, interactive: true)
             .environment(\.layoutDirection, composerControlDirection)
         }
@@ -1333,6 +1342,18 @@ struct ChatTabView: View {
                 waveform
                     .frame(minWidth: 36, maxWidth: .infinity)
                     .layoutPriority(-1)
+            } else if voiceRailMode == .idle {
+                // Idle without voice-first: a bare dashed track reads as a
+                // glitch. A quiet caption makes the affordance self-explanatory.
+                ZStack {
+                    waveform
+                    Text(L10n.t(.chatSpeechTapToSpeak))
+                        .font(DesignTypography.meta)
+                        .foregroundStyle(DesignColors.Neutral.textTertiary)
+                        .lineLimit(1)
+                        .padding(.horizontal, DesignSpacing.sm)
+                        .glassSurface(cornerRadius: 12)
+                }
             } else {
                 waveform
             }
