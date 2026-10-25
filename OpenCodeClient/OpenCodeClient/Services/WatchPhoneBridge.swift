@@ -402,11 +402,11 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
             return await answerPending(arguments, owned: owned, client: client)
         }
         let box = CarLiveAPIBox(client)
-        await box.bindOwner { [weak self] in await self?.allowed(owned) ?? false }
+        await box.bindOwner { [weak self] in self?.allowed(owned) ?? false }
         await box.bindTransport(owned.transportToken)
         let context = CarLiveToolContext(trackedSessionID: binding?.sessionID,
             directory: directory, startAgent: agent,
-            allows: { [weak self] in await self?.allowed(owned) ?? false },
+            allows: { [weak self] in self?.allowed(owned) ?? false },
             reserveReply: { [weak self] reservation in await self?.replies.reserve(reservation, lease: owned) },
             rollbackReply: { [weak self] token in self?.replies.rollback(token) })
         let effect = await CarLiveToolHandler.run(name, arguments: arguments, client: box, context: context)

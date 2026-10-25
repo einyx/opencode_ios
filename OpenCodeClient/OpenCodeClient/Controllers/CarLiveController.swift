@@ -444,7 +444,7 @@ final class CarLiveController {
     private func beginAudio(token: UInt64) async {
         guard phase == .connecting, token == runToken, !blocksNewCapture else { return }
         audio.setHoldHandler { [weak self] _, generation in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 self?.noteExternalAudioHold(generation: generation)
             }
         }
@@ -474,13 +474,13 @@ final class CarLiveController {
             captureToken = token
             phase = .listening
             audio.setFailureHandler { [weak self] _ in
-                Task { @MainActor in
+                Task { @MainActor [weak self] in
                     await self?.failLive(CarLiveCopy.microphoneUnavailable, token: token)
                 }
             }
             audio.setMuted(isMuted)
             audio.setLevelHandler { [weak self] input, output in
-                Task { @MainActor in
+                Task { @MainActor [weak self] in
                     guard let self, self.runToken == token else { return }
                     self.inputLevel = input
                     if output > 0 { self.outputLevel = output }
@@ -488,7 +488,7 @@ final class CarLiveController {
                 }
             }
             audio.setPlaybackIdleHandler { [weak self] in
-                Task { @MainActor in
+                Task { @MainActor [weak self] in
                     guard let self, self.runToken == token, self.phase == .speaking else { return }
                     self.phase = .listening
                     self.outputLevel = 0

@@ -17,14 +17,14 @@ final class FileContentProbe {
 
 enum FileContentReuseFixture {
     static let argument = "UITEST_FILE_CONTENT_REUSE_FIXTURE"
-    static let modeKey = "FILE_CONTENT_FIXTURE_MODE"
-    static let workspaceA = "/tmp/w06-ws-a"
-    static let workspaceB = "/tmp/w06-ws-b"
-    static let contentA = "CONTENT_A"
-    static let contentB = "CONTENT_B"
+    nonisolated static let modeKey = "FILE_CONTENT_FIXTURE_MODE"
+    nonisolated static let workspaceA = "/tmp/w06-ws-a"
+    nonisolated static let workspaceB = "/tmp/w06-ws-b"
+    nonisolated static let contentA = "CONTENT_A"
+    nonisolated static let contentB = "CONTENT_B"
     static let sessionRebindBody = "SESSION_REBIND_BODY"
     static let sessionRebindLink = "Open other"
-    static let sessionRebindMarkdown = "[\(sessionRebindLink)](other.md)\n\n\(sessionRebindBody)"
+    nonisolated static let sessionRebindMarkdown = "[\(sessionRebindLink)](other.md)\n\n\(sessionRebindBody)"
     @MainActor static let probe = FileContentProbe()
     static var script: FileContentScript?
 
@@ -56,7 +56,7 @@ enum FileContentReuseFixture {
         ProcessInfo.processInfo.arguments.contains(argument)
     }
 
-    static var mode: Mode {
+    nonisolated static var mode: Mode {
         let raw = ProcessInfo.processInfo.environment[modeKey] ?? Mode.latePath.rawValue
         return Mode(rawValue: raw) ?? .latePath
     }
@@ -165,7 +165,7 @@ private enum WebPreviewLinkClick {
         }
     }
 
-    private static func webViews(in view: UIView) -> [WKWebView] {
+    nonisolated private static func webViews(in view: UIView) -> [WKWebView] {
         let found = (view as? WKWebView).map { [$0] } ?? []
         return found + view.subviews.flatMap(webViews(in:))
     }

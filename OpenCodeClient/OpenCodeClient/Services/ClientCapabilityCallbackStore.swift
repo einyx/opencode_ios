@@ -152,7 +152,7 @@ struct ClientCapabilityCallbackStore {
             .replacingOccurrences(of: "=", with: "")
     }
 
-    static func isValidCallbackID(_ value: String) -> Bool {
+    nonisolated static func isValidCallbackID(_ value: String) -> Bool {
         guard (43...128).contains(value.count) else { return false }
         return value.unicodeScalars.allSatisfy { scalar in
             switch scalar.value {

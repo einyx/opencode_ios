@@ -14,14 +14,14 @@ final class FileSearchProbe {
 
 enum FileSearchFixture {
     static let argument = "UITEST_FILE_SEARCH_FIXTURE"
-    static let modeKey = "FILE_SEARCH_FIXTURE_MODE"
-    static let resultPath = "notes.txt"
+    nonisolated static let modeKey = "FILE_SEARCH_FIXTURE_MODE"
+    nonisolated static let resultPath = "notes.txt"
     static let sentinel = "W06_FILE_SENTINEL"
     static let directory = "/tmp/w06-files"
-    static let workspaceA = "/tmp/w06-ws-a"
-    static let workspaceB = "/tmp/w06-ws-b"
-    static let contentA = "CONTENT_A"
-    static let contentB = "CONTENT_B"
+    nonisolated static let workspaceA = "/tmp/w06-ws-a"
+    nonisolated static let workspaceB = "/tmp/w06-ws-b"
+    nonisolated static let contentA = "CONTENT_A"
+    nonisolated static let contentB = "CONTENT_B"
     @MainActor static let probe = FileSearchProbe()
 
     enum Mode: String {
@@ -40,7 +40,7 @@ enum FileSearchFixture {
         ProcessInfo.processInfo.arguments.contains(argument)
     }
 
-    static var mode: Mode {
+    nonisolated static var mode: Mode {
         let raw = ProcessInfo.processInfo.environment[modeKey] ?? Mode.results.rawValue
         return Mode(rawValue: raw) ?? .results
     }
@@ -179,8 +179,8 @@ enum FileSearchFixture {
             await MainActor.run {
                 FileSearchFixture.probe.contentDirectories.append(recorded)
             }
-            if await FileSearchFixture.mode == .live || FileSearchFixture.mode == .split {
-                let text = await directory == FileSearchFixture.workspaceB ? FileSearchFixture.contentB : FileSearchFixture.contentA
+            if FileSearchFixture.mode == .live || FileSearchFixture.mode == .split {
+                let text = directory == FileSearchFixture.workspaceB ? FileSearchFixture.contentB : FileSearchFixture.contentA
                 return FileContent(type: "text", content: text)
             }
             return await FileContent(type: "text", content: FileSearchFixture.sentinel)
@@ -193,8 +193,8 @@ enum FileSearchFixture {
             await MainActor.run {
                 FileSearchFixture.probe.findDirectories.append(recorded)
             }
-            if await await FileSearchFixture.mode == .live || FileSearchFixture.mode == .split {
-                return await await query.isEmpty ? [] : [FileSearchFixture.resultPath]
+            if FileSearchFixture.mode == .live || FileSearchFixture.mode == .split {
+                return query.isEmpty ? [] : [FileSearchFixture.resultPath]
             }
             return [FileSearchFixture.resultPath]
         }

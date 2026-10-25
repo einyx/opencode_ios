@@ -36,7 +36,7 @@ final class Tier4OfflineGate {
                 }
             },
             delete: { key in
-                MainActor.assumeIsolated {
+                _ = MainActor.assumeIsolated {
                     Tier4OfflineGate.shared.credentials.removeValue(forKey: key)
                 }
             }
@@ -46,7 +46,7 @@ final class Tier4OfflineGate {
 
 enum Tier4OfflineFixture {
     static let argument = "UITEST_TIER4_OFFLINE_FIXTURE"
-    static let sessionID = "tier4-offline-session"
+    nonisolated static let sessionID = "tier4-offline-session"
     static let priorMessageID = "tier4-prior-user"
     static let serverURL = "https://offline.example.invalid"
     @MainActor private static var cachedState: AppState?
@@ -86,7 +86,7 @@ enum Tier4OfflineFixture {
         state.connectSSE()
     }
 
-    static var session: Session {
+    nonisolated static var session: Session {
         Session(
             id: sessionID,
             slug: sessionID,
@@ -216,7 +216,7 @@ actor Tier4OfflineSSE: SSEClientProtocol {
 
     func connect(baseURL: String, username: String?, password: String?) -> AsyncThrowingStream<SSEEvent, Error> {
         AsyncThrowingStream { continuation in
-            Task { await self.store(continuation) }
+            Task { self.store(continuation) }
         }
     }
 

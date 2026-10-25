@@ -491,7 +491,7 @@ struct MessageRowView: View {
         return message.info.carResponseEnvelope?.speech
     }
 
-    static func taskNotification(for part: Part) -> TaskNotification? {
+    nonisolated static func taskNotification(for part: Part) -> TaskNotification? {
         guard part.isSyntheticText, let text = part.text else { return nil }
         return TaskNotificationParser.parse(text)
     }

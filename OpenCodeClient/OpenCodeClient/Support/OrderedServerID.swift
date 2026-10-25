@@ -1,16 +1,16 @@
 import Foundation
 
 enum OrderedServerID {
-    private static let bodyLength = 26
-    private static let timeLength = 12
-    private static let chars = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
-    private static let state = GeneratorState()
+    nonisolated private static let bodyLength = 26
+    nonisolated private static let timeLength = 12
+    nonisolated private static let chars = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
+    nonisolated private static let state = GeneratorState()
 
-    static func make(prefix: String, timestamp: Int = Int(Date().timeIntervalSince1970 * 1000)) -> String {
+    nonisolated static func make(prefix: String, timestamp: Int = Int(Date().timeIntervalSince1970 * 1000)) -> String {
         makeBatch(prefix: prefix, count: 1, timestamp: timestamp)[0]
     }
 
-    static func makeBatch(prefix: String, count: Int, timestamp: Int) -> [String] {
+    nonisolated static func makeBatch(prefix: String, count: Int, timestamp: Int) -> [String] {
         state.lock.lock()
         defer { state.lock.unlock() }
         if timestamp != state.lastTimestamp {
@@ -23,7 +23,7 @@ enum OrderedServerID {
         }
     }
 
-    static func body(timestamp: Int, counter: Int) -> String {
+    nonisolated static func body(timestamp: Int, counter: Int) -> String {
         let current = UInt64(max(timestamp, 0)) * 0x1000 + UInt64(max(counter, 0))
         var time = ""
         time.reserveCapacity(timeLength)
@@ -36,7 +36,7 @@ enum OrderedServerID {
         return time + randomSuffix(bodyLength - timeLength)
     }
 
-    static func isOrdered(_ id: String, prefix: String) -> Bool {
+    nonisolated static func isOrdered(_ id: String, prefix: String) -> Bool {
         let marker = prefix + "_"
         guard id.hasPrefix(marker) else { return false }
         let body = id.dropFirst(marker.count)
@@ -46,7 +46,7 @@ enum OrderedServerID {
         return time.allSatisfy(\.isHexDigit) && suffix.allSatisfy { chars.contains($0) }
     }
 
-    private static func randomSuffix(_ length: Int) -> String {
+    nonisolated private static func randomSuffix(_ length: Int) -> String {
         var result = ""
         result.reserveCapacity(length)
         for _ in 0..<length {
@@ -56,7 +56,7 @@ enum OrderedServerID {
         return result
     }
 
-    private final class GeneratorState: @unchecked Sendable {
+    nonisolated private final class GeneratorState: @unchecked Sendable {
         let lock = NSLock()
         var lastTimestamp = 0
         var counter = 0

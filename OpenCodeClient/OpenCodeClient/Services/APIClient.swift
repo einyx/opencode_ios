@@ -411,7 +411,7 @@ actor APIClient {
             let (data, _) = try await makeRequest(path: "/api/session/\(sessionID)/message", queryItems: [
                 URLQueryItem(name: "limit", value: "50")
             ])
-            let messages = try await await V2Mapper.messages(from: data, sessionID: sessionID)
+            let messages = try V2Mapper.messages(from: data, sessionID: sessionID)
             guard let answer = messages.last(where: { $0.info.role == "assistant" }) else { continue }
             let answerText = answer.parts
                 .filter { $0.type == "text" }
@@ -1806,7 +1806,7 @@ struct FileStatusEntry: Codable {
     let status: String?  // "added" | "modified" | "deleted" | "untracked"
 }
 
-struct FileDiff: Codable, Identifiable, Hashable {
+nonisolated struct FileDiff: Codable, Identifiable, Hashable {
     var id: String { file }
     let file: String
     let before: String

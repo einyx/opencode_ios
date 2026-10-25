@@ -185,7 +185,7 @@ final class CarLiveReplyBridge {
     func noteMessageUpdated(sessionID: String) {
         routedUpdateCount += 1
         let id = sessionID.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard var sub = subscriptions[id], sub.idleOpen, allows(sub.lease), !sub.pausedHistory else { return }
+        guard let sub = subscriptions[id], sub.idleOpen, allows(sub.lease), !sub.pausedHistory else { return }
         subscriptions[id] = sub
         schedule(id, reason: .completion)
     }
@@ -200,7 +200,7 @@ final class CarLiveReplyBridge {
             let id = UUID()
             let task = Task { [weak self] () -> Void in
                 await self?.confirmReconnect(directory: directory, sessionIDs: ids, lease: lease, run: run)
-                await self?.finishReconnect(id)
+                self?.finishReconnect(id)
                 return
             }
             reconnectTasks[id] = task

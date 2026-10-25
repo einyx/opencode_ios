@@ -95,20 +95,14 @@ extension ChatTabView {
 
     static func requestMicrophonePermissionForRecording() async -> Bool {
         #if os(iOS) || os(visionOS)
-        let session = AVAudioSession.sharedInstance()
-        switch session.recordPermission {
+        let application = AVAudioApplication.shared
+        switch application.recordPermission {
         case .granted:
             return true
         case .denied:
             return false
         case .undetermined:
-            return await withCheckedContinuation { continuation in
-                DispatchQueue.main.async {
-                    session.requestRecordPermission { granted in
-                        continuation.resume(returning: granted)
-                    }
-                }
-            }
+            return await AVAudioApplication.requestRecordPermission()
         @unknown default:
             return false
         }
@@ -248,12 +242,12 @@ extension ChatTabView {
                     }
                 case .partialTranscript(let transcript):
                     await MainActor.run {
-                        guard isCurrentSpeechSession(session),
-                              let liveInput = Self.liveSpeechInput(
-                                  strategy: activeSpeechStrategy,
-                                  prefix: recordingInputPrefix,
-                                  transcript: transcript
-                              ) else { return }
+                        guard isCurrentSpeechSession(session) else { return }
+                        _ = Self.liveSpeechInput(
+                            strategy: activeSpeechStrategy,
+                            prefix: recordingInputPrefix,
+                            transcript: transcript
+                        )
                         publishSpeechTranscript(
                             transcript,
                             prefix: recordingInputPrefix,
@@ -374,7 +368,6 @@ extension ChatTabView {
             let owner = ChatSpeechOwner(sessionID: originSessionID)
             let prefix = recordingInputPrefix
             let engine = activeSpeechStrategy
-            let strategy = engine.captureStrategy
             stopSpeechHeartbeat()
             stopSpeechEventConsumer()
             stopSpeechAudioLevelConsumer()

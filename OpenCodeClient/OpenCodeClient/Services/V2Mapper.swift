@@ -437,7 +437,7 @@ enum V2MappingError: Error {
 }
 
 /// The label → value mapping a V2 form needs when it is replied to.
-struct FormReplyEntry {
+nonisolated struct FormReplyEntry {
     let sessionID: String
     let fields: [Field]
 
@@ -469,7 +469,7 @@ private struct V2SessionTime: Decodable {
     let archived: Int?
 }
 
-private struct V2Session: Decodable {
+nonisolated private struct V2Session: Decodable {
     let id: String
     let projectID: String?
     let title: String?
@@ -543,7 +543,7 @@ private struct V2Content: Decodable {
     }
 }
 
-private struct V2Message: Decodable {
+nonisolated private struct V2Message: Decodable {
     let id: String
     let type: String
     let text: String?
@@ -652,7 +652,7 @@ private struct V2Message: Decodable {
     }
 }
 
-private extension V2Content.V2ToolState {
+nonisolated private extension V2Content.V2ToolState {
     /// Normalize the V2 tool state into the shape `PartStateBridge` reads:
     /// V2 puts the output in a `content` array, V1 in an `output` string.
     func bridge() -> PartStateBridge? {
@@ -677,13 +677,13 @@ private extension V2Content.V2ToolState {
     }
 }
 
-private struct V2Provider: Decodable {
+nonisolated private struct V2Provider: Decodable {
     let id: String
     let name: String?
     let activation: String?
 }
 
-private struct V2Model: Decodable {
+nonisolated private struct V2Model: Decodable {
     let id: String
     let modelID: String?
     let providerID: String
@@ -723,7 +723,7 @@ private struct V2Model: Decodable {
     }
 }
 
-private struct V2Agent: Decodable {
+nonisolated private struct V2Agent: Decodable {
     let id: String
     let name: String?
     let description: String?
@@ -731,12 +731,12 @@ private struct V2Agent: Decodable {
     let hidden: Bool?
 }
 
-private struct V2FileNode: Decodable {
+nonisolated private struct V2FileNode: Decodable {
     let path: String
     let type: String
 }
 
-private struct V2Diff: Decodable {
+nonisolated private struct V2Diff: Decodable {
     let file: String
     let patch: String
     let additions: Int?
@@ -749,7 +749,7 @@ private struct V2ProjectTime: Decodable {
     let updated: Int?
 }
 
-private struct V2Project: Decodable {
+nonisolated private struct V2Project: Decodable {
     let id: String
     let canonical: String
     let vcs: String?
@@ -761,7 +761,7 @@ private struct V2PermissionSource: Decodable {
     let id: String?
 }
 
-private struct V2Permission: Decodable {
+nonisolated private struct V2Permission: Decodable {
     let id: String
     let sessionID: String
     let action: String
@@ -782,7 +782,7 @@ private struct V2FormField: Decodable {
     let options: [V2FormOption]?
 }
 
-private struct V2Form: Decodable {
+nonisolated private struct V2Form: Decodable {
     let id: String
     let sessionID: String
     let title: String?

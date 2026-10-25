@@ -59,7 +59,7 @@ enum TurnStabilityFixture {
         state.messages = messages
     }
 
-    static func forkMarker(messageID: String) -> String {
+    nonisolated static func forkMarker(messageID: String) -> String {
         "W09_FORK_\(messageID)"
     }
 

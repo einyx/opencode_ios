@@ -1,6 +1,6 @@
 import Foundation
 
-struct AIUsageQuotasResponse: Decodable, Equatable {
+nonisolated struct AIUsageQuotasResponse: Decodable, Equatable {
     let generatedAt: String?
     let quotas: [AIUsageQuota]
 

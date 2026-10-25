@@ -44,7 +44,7 @@ struct AppleSpeechTranscriber {
     /// Last-resort recognizer when the locale probes fail, injectable for tests.
     let fallbackRecognizer: @Sendable () -> (any SpeechRecognizing)?
     /// On-device capability probe, injectable for tests.
-    let supportsOnDevice: @Sendable (any SpeechRecognizing) -> Bool
+    let supportsOnDevice: @MainActor @Sendable (any SpeechRecognizing) -> Bool
     /// The actual recognition run, injectable for tests.
     private let recognize: @Sendable (any SpeechRecognizing, SFSpeechURLRecognitionRequest, (@Sendable (String) -> Void)?) async throws -> String
 
@@ -58,7 +58,7 @@ struct AppleSpeechTranscriber {
         },
         makeRecognizer: @escaping @Sendable (Locale) -> (any SpeechRecognizing)? = { SFSpeechRecognizer(locale: $0) },
         fallbackRecognizer: @escaping @Sendable () -> (any SpeechRecognizing)? = { SFSpeechRecognizer() },
-        supportsOnDevice: @escaping @Sendable (any SpeechRecognizing) -> Bool = { $0.supportsOnDeviceRecognition },
+        supportsOnDevice: @escaping @MainActor @Sendable (any SpeechRecognizing) -> Bool = { $0.supportsOnDeviceRecognition },
         recognize: @escaping @Sendable (any SpeechRecognizing, SFSpeechURLRecognitionRequest, (@Sendable (String) -> Void)?) async throws -> String = AppleSpeechTranscriber.defaultRecognize
     ) {
         self.requestAuthorization = requestAuthorization
@@ -112,7 +112,7 @@ struct AppleSpeechTranscriber {
         try await withCheckedThrowingContinuation { continuation in
             var finalized = false
             let lock = NSLock()
-            recognizer.recognitionTask(with: request, resultHandler: { result, error in
+_ = recognizer.recognitionTask(with: request, resultHandler: { result, error in
                 lock.lock()
                 if finalized {
                     lock.unlock()
