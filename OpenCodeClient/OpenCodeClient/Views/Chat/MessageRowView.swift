@@ -9,7 +9,10 @@ import UIKit
 
 struct MessageRowView: View {
     private static let markdownRenderCharacterLimit = 12_000
-    private static let largeMessagePreviewCharacterLimit = 12_000
+    /// A long message is still shown in full: only the Markdown rendering is
+    /// skipped, because MarkdownUI freezes on very large content. The cut is
+    /// only a last resort for a pathologically long payload.
+    private static let largeMessagePreviewCharacterLimit = 500_000
 
     @Bindable var state: AppState
     let message: MessageWithParts
@@ -358,7 +361,11 @@ struct MessageRowView: View {
     /// Android ReasoningCard). Regular text parts keep the >12k plain preview.
     static func renderStyle(for trimmedText: String, forcingMarkdown: Bool) -> TextRenderStyle {
         guard !trimmedText.isEmpty else { return .plain }
-        if forcingMarkdown { return .markdown }
+        if forcingMarkdown {
+            // MarkdownUI freezes on very long or long-lined content, and a
+            // thinking block is server-supplied text of any size.
+            return MarkdownPreviewView.isTooLargeForMarkdown(trimmedText) ? .plain : .markdown
+        }
         if isLargeMessage(trimmedText) { return .largePreview }
         return hasMarkdownSyntax(trimmedText) ? .markdown : .plain
     }
@@ -368,8 +375,13 @@ struct MessageRowView: View {
     }
 
     static func largeMessagePreview(_ text: String) -> String {
-        guard isLargeMessage(text) else { return text }
+        if text.count <= largeMessagePreviewCharacterLimit { return text }
         return String(text.prefix(largeMessagePreviewCharacterLimit))
+    }
+
+    /// Whether the preview had to cut the message.
+    static func largeMessageIsTruncated(_ text: String) -> Bool {
+        text.count > largeMessagePreviewCharacterLimit
     }
 
     static func hasMarkdownSyntax(_ text: String) -> Bool {
@@ -595,12 +607,17 @@ struct MessageRowView: View {
     private struct LargeMessagePreview: View {
         let text: String
         let preview: String
+        var isTruncated: Bool { MessageRowView.largeMessageIsTruncated(text) }
 
         var body: some View {
             VStack(alignment: .leading, spacing: DesignSpacing.sm) {
                 Text(preview)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Text(L10n.t(.chatLargeMessagePreviewNotice, preview.count.formatted(), text.count.formatted()))
+                Text(
+                    isTruncated
+                        ? L10n.t(.chatLargeMessageTruncatedNotice, preview.count.formatted(), text.count.formatted())
+                        : L10n.t(.chatLargeMessagePreviewNotice, text.count.formatted())
+                )
                     .font(DesignTypography.micro)
                     .foregroundStyle(.secondary)
             }

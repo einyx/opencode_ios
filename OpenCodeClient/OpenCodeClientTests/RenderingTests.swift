@@ -308,8 +308,10 @@ struct MessageRenderingHeuristicTests {
     @Test func largeMessageDetectionSkipsExpensiveMarkdownRendering() {
         let text = String(repeating: "- Wells Fargo agreement\n", count: 3_000)
 
+        // The Markdown rendering is skipped, but the text itself is not cut.
         #expect(MessageRowView.isLargeMessage(text) == true)
-        #expect(MessageRowView.largeMessagePreview(text).count == 12_000)
+        #expect(MessageRowView.largeMessagePreview(text).count == text.count)
+        #expect(MessageRowView.largeMessageIsTruncated(text) == false)
     }
 
     @Test func ringStatusConsolePasteSkipsExpensiveMarkdownRendering() {
@@ -317,18 +319,38 @@ struct MessageRenderingHeuristicTests {
 
         #expect(text.count > 12_000)
         #expect(MessageRowView.isLargeMessage(text) == true)
-        #expect(MessageRowView.largeMessagePreview(text).count == 12_000)
+        #expect(MessageRowView.largeMessagePreview(text).count == text.count)
     }
 
-    @Test func thinkingCardForcesMarkdownRenderingRegardlessOfLength() {
+    @Test func aPathologicalMessageIsTheOnlyOneThatIsCut() {
+        let text = String(repeating: "a", count: 600_000)
+
+        #expect(MessageRowView.largeMessageIsTruncated(text))
+        #expect(MessageRowView.largeMessagePreview(text).count == 500_000)
+    }
+
+    @Test func thinkingCardForcesMarkdownRendering() {
         let longPlainText = String(repeating: "a", count: 13_000)
 
         #expect(MessageRowView.renderStyle(for: "", forcingMarkdown: true) == .plain)
         #expect(MessageRowView.renderStyle(for: "just a plain sentence", forcingMarkdown: true) == .markdown)
-        #expect(MessageRowView.renderStyle(for: longPlainText, forcingMarkdown: true) == .markdown)
         #expect(MessageRowView.renderStyle(for: longPlainText, forcingMarkdown: false) == .largePreview)
         #expect(MessageRowView.renderStyle(for: "**bold**", forcingMarkdown: false) == .markdown)
         #expect(MessageRowView.renderStyle(for: "just a plain sentence", forcingMarkdown: false) == .plain)
+    }
+
+    @Test func thinkingCardFallsBackToPlainTextWhenMarkdownWouldFreeze() {
+        // A thinking block is server-supplied text of any size, and MarkdownUI
+        // freezes on a long line or a very large body.
+        let oneLongLine = String(repeating: "a", count: 13_000)
+        let hugeBody = String(repeating: "a\n", count: 40_000)
+
+        #expect(MessageRowView.renderStyle(for: oneLongLine, forcingMarkdown: true) == .plain)
+        #expect(MessageRowView.renderStyle(for: hugeBody, forcingMarkdown: true) == .plain)
+        // The same rule applies to the file browser.
+        #expect(MarkdownPreviewView.isTooLargeForMarkdown(oneLongLine))
+        #expect(MarkdownPreviewView.isTooLargeForMarkdown(hugeBody))
+        #expect(!MarkdownPreviewView.isTooLargeForMarkdown("a normal line"))
     }
 }
 

@@ -192,11 +192,8 @@ struct FileContentView: View {
     }
 
     /// MarkdownUI crashes/freezes on long lines or large content. Skip it entirely for problematic files.
-    private static let markdownMaxLineLength = 5000
-    private static let markdownMaxTotalLength = 60_000
-
     private func useRawTextForMarkdown(_ text: String) -> Bool {
-        return text.count > Self.markdownMaxTotalLength || MarkdownPreviewView.maxLineLength(in: text) > Self.markdownMaxLineLength
+        MarkdownPreviewView.isTooLargeForMarkdown(text)
     }
 
     @ViewBuilder
@@ -367,6 +364,19 @@ struct MarkdownPreviewView: View {
 
     static func maxLineLength(in text: String) -> Int {
         text.split(separator: "\n", omittingEmptySubsequences: false).map(\.count).max() ?? 0
+    }
+
+    /// MarkdownUI crashes or freezes on long lines or large content.
+    ///
+    /// The rule is shared: the file browser and the chat renderer both have to
+    /// fall back to plain text, and server-supplied content can be arbitrarily
+    /// long in either place.
+    static let maxSafeLineLength = 5_000
+    static let maxSafeTotalLength = 60_000
+
+    /// Whether the text is too big or too long-lined for MarkdownUI.
+    static func isTooLargeForMarkdown(_ text: String) -> Bool {
+        text.count > maxSafeTotalLength || maxLineLength(in: text) > maxSafeLineLength
     }
 
     private var useRawTextFallback: Bool {

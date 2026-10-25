@@ -5,7 +5,10 @@
   <!-- Mobile/narrow defaults: this renders inside an iPhone WKWebView. -->
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Markdown Web Preview</title>
-  <!-- All assets are local & relative. No CDN, no network at render time. -->
+  <!-- All renderer assets are local and relative: no CDN is used.
+       The rendered content is not offline, though: sanitized HTML may still
+       reference http(s) images and CSS url()/@import, and the WebView fetches
+       those. See the sanitize config in preview.js. -->
   <link rel="stylesheet" href="preview.css">
   <link rel="stylesheet" href="Temml-Local.css">
 </head>

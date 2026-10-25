@@ -185,6 +185,9 @@ enum L10n {
         case hostPairLinkPlaceholder
         case hostPairRedeeming
         case hostPairPaired
+        case hostPairReplaceTitle
+        case hostPairReplaceConfirm
+        case hostPairReplaceMessage
         case hostPairInvalidLink
         case hostPairCameraDenied
         case hostPairCameraHint
@@ -296,6 +299,7 @@ enum L10n {
         case chatPullToLoadMore
         case chatLoadingMoreHistory
         case chatLargeMessagePreviewNotice
+        case chatLargeMessageTruncatedNotice
         case chatSelectText
         case chatCopyMessage
         case chatEditFromHere
@@ -713,6 +717,9 @@ enum L10n {
         Key.hostPairLinkPlaceholder.rawValue: "http://host:port/auth/connect/…",
         Key.hostPairRedeeming.rawValue: "Pairing…",
         Key.hostPairPaired.rawValue: "Paired with %@",
+        Key.hostPairReplaceTitle.rawValue: "Replace the server address?",
+        Key.hostPairReplaceConfirm.rawValue: "Replace",
+        Key.hostPairReplaceMessage.rawValue: "The pairing code points at %@. This host currently points at %@. Replace the address and use the new credentials?",
         Key.hostPairInvalidLink.rawValue: "That is not an OpenCode pairing link.",
         Key.hostPairCameraDenied.rawValue: "Camera access is off. Enable it in Settings, or paste the pairing link instead.",
         Key.hostPairCameraHint.rawValue: "Run `opencode pair` on the server and point the camera at the QR code.",
@@ -816,7 +823,8 @@ enum L10n {
         Key.chatSessionStatusIdle.rawValue: "Idle",
         Key.chatPullToLoadMore.rawValue: "Pull down to load more history",
         Key.chatLoadingMoreHistory.rawValue: "Loading more history...",
-        Key.chatLargeMessagePreviewNotice.rawValue: "Large message: showing first %@ of %@ characters. Markdown rendering is skipped to keep the app responsive.",
+        Key.chatLargeMessagePreviewNotice.rawValue: "Long message: %@ characters. Markdown rendering is skipped to keep the app responsive.",
+        Key.chatLargeMessageTruncatedNotice.rawValue: "Long message: showing the first %@ of %@ characters. Markdown rendering is skipped to keep the app responsive.",
         Key.chatSelectText.rawValue: "Select Text",
         Key.chatCopyMessage.rawValue: "Copy Message",
         Key.chatEditFromHere.rawValue: "Edit from here",
@@ -1238,6 +1246,9 @@ enum L10n {
         Key.hostPairLinkPlaceholder.rawValue: "http://host:port/auth/connect/…",
         Key.hostPairRedeeming.rawValue: "正在配对…",
         Key.hostPairPaired.rawValue: "已与 %@ 配对",
+        Key.hostPairReplaceTitle.rawValue: "替换服务器地址？",
+        Key.hostPairReplaceConfirm.rawValue: "替换",
+        Key.hostPairReplaceMessage.rawValue: "配对码指向 %@，当前主机指向 %@。要替换地址并使用新的凭据吗？",
         Key.hostPairInvalidLink.rawValue: "这不是 OpenCode 配对链接。",
         Key.hostPairCameraDenied.rawValue: "相机权限未开启。请在系统设置中开启，或直接粘贴配对链接。",
         Key.hostPairCameraHint.rawValue: "在服务器上运行 `opencode pair`，然后用相机对准二维码。",
@@ -1341,7 +1352,8 @@ enum L10n {
         Key.chatSessionStatusIdle.rawValue: "空闲",
         Key.chatPullToLoadMore.rawValue: "下拉加载更多历史消息",
         Key.chatLoadingMoreHistory.rawValue: "正在加载更多历史消息...",
-        Key.chatLargeMessagePreviewNotice.rawValue: "消息较长：当前只显示前 %@ / %@ 个字符。为保持流畅，已跳过 Markdown 渲染。",
+        Key.chatLargeMessagePreviewNotice.rawValue: "消息较长：共 %@ 个字符。为保持流畅，已跳过 Markdown 渲染。",
+        Key.chatLargeMessageTruncatedNotice.rawValue: "消息较长：当前只显示前 %@ / %@ 个字符。为保持流畅，已跳过 Markdown 渲染。",
         Key.chatSelectText.rawValue: "选择文本",
         Key.chatCopyMessage.rawValue: "复制整条消息",
         Key.chatEditFromHere.rawValue: "从这里编辑",

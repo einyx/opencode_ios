@@ -6,7 +6,9 @@
 import SwiftUI
 
 struct ToolPartView: View {
-    private static let outputPreviewCharacterLimit = 12_000
+    /// Tool output is shown in full: the limit is only a guard against a
+    /// pathologically large payload, not a convenience cut.
+    private static let outputPreviewCharacterLimit = 500_000
 
     @Environment(\.colorScheme) private var colorScheme
     let part: Part

@@ -21,6 +21,17 @@ struct PairingTests {
         #expect(link.urls == ["http://192.168.190.237:4096", "http://10.0.0.5:4096"])
     }
 
+    @Test func replacingAnExistingHostNeedsConfirmation() {
+        // A pairing code names the server it belongs to. Repointing a host that
+        // already has an address has to be confirmed by the user.
+        #expect(PairingReplacementPolicy.needsConfirmation(currentURL: "http://192.168.1.10:4096", pairedURL: "http://192.168.1.11:4096"))
+        // The same address is not a replacement.
+        #expect(!PairingReplacementPolicy.needsConfirmation(currentURL: "http://192.168.1.10:4096", pairedURL: "http://192.168.1.10:4096"))
+        // A new host has nothing to replace.
+        #expect(!PairingReplacementPolicy.needsConfirmation(currentURL: "", pairedURL: "http://192.168.1.10:4096"))
+        #expect(!PairingReplacementPolicy.needsConfirmation(currentURL: "   ", pairedURL: "http://192.168.1.10:4096"))
+    }
+
     @Test func linkWithoutConnectPathIsNotAPairingLink() {
         #expect(PairingLink.parse("http://192.168.190.237:4096/session/ses_1") == nil)
         #expect(PairingLink.parse("http://192.168.190.237:4096/auth/connect/") == nil)

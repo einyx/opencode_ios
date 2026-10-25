@@ -7,6 +7,21 @@ import Foundation
 /// same code with every reachable address as `{"code":…,"urls":[…]}`.
 ///
 /// The code is single-use and expires in five minutes.
+/// Whether a redeemed pairing may replace the address of a host without
+/// asking the user.
+///
+/// A pairing code names the server it belongs to, and the host it lands in can
+/// already point somewhere else. Replacing that address silently would let a
+/// scanned code repoint a host the user named themselves, so the user has to
+/// confirm it.
+enum PairingReplacementPolicy {
+    static func needsConfirmation(currentURL: String, pairedURL: String) -> Bool {
+        let current = currentURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !current.isEmpty else { return false }
+        return current != pairedURL
+    }
+}
+
 nonisolated struct PairingLink: Equatable {
     let code: String
     let urls: [String]

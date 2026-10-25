@@ -5,8 +5,10 @@
 //  WebView-based Markdown preview. Loads a bundled local HTML/JS/CSS shell
 //  (preview.html + markdown-it + Temml + DOMPurify) into a WKWebView and renders the
 //  Markdown via window.renderMarkdown({markdown, theme}). The shell is the
-//  gatekeeper: markdown-it parses, Temml emits MathML, and DOMPurify sanitizes. No network at render
-//  time; all renderer assets ship in the app bundle.
+//  gatekeeper: markdown-it parses, Temml emits MathML, and DOMPurify sanitizes.
+//  The renderer assets ship in the app bundle and no CDN is used, but the
+//  rendered content is not offline: sanitized HTML may still reference
+//  http(s) images and CSS url()/@import, and the WebView fetches those.
 //
 //  See docs/archive/2026-06_markdown_web_preview_rfc.md.
 //

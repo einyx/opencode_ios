@@ -170,11 +170,12 @@
       "msqrt", "mstyle", "msub", "msup", "msubsup", "mtable",
       "mtd", "mtext", "mtr", "munder", "munderover", "mprescripts",
       // CAUTION: <style> is allowed so HTML/CSS "cards" render styled.
-      // RISK: CSS can still do visual things (e.g. position/overlay, url() that
-      // hits no network here, expression() is dead in modern engines). We accept
-      // this because card rendering is a product requirement and the content is
-      // user/author markdown, not arbitrary remote pages. DOMPurify keeps the
-      // *markup* safe; it does NOT fully sandbox CSS. See README/caveats.
+      // RISK: DOMPurify does not parse or sanitize CSS at all. A stylesheet can
+      // still position an overlay over the whole surface, and url()/@import/
+      // @font-face make the WebView fetch an address the content chooses (the
+      // device really requests it, with the user's IP). expression() is dead in
+      // modern engines. We accept this because styled cards are a product
+      // requirement; the markup stays safe, the CSS does not.
       "style"
     ],
     ALLOWED_ATTR: [

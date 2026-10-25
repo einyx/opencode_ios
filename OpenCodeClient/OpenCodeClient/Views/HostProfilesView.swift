@@ -556,6 +556,9 @@ struct HostProfileEditorView: View {
     /// being typed is not a link yet, and every attempt would spend the
     /// single-use code.
     @State private var pendingPairingRedeem: Task<Void, Never>?
+    /// A redeemed pairing that would replace the address of a host that
+    /// already has one. It waits for an explicit confirmation.
+    @State private var pendingPairingReplacement: PairingReplacement?
     #if os(iOS)
     @State private var isScanningQR = false
     #endif
@@ -600,20 +603,48 @@ struct HostProfileEditorView: View {
         do {
             let pairing = try await PairingClient().redeem(link)
             lastRedeemedCode = link.code
-            profile.transport = .direct
-            profile.serverURL = pairing.url
-            profile.basicAuth = BasicAuthConfig(
-                username: "opencode",
-                keychainPasswordID: AppState.passwordKeychainID(for: profile.id)
-            )
-            profile.apiGeneration = .v2
-            pairingLinkText = ""
-            pairedHostName = pairing.url
-            credentialDraft.password = pairing.token
-            credentialDraft.passwordDirty = true
+            // A scanned code names the server it belongs to. Replacing the
+            // address of a host that already has one is a decision the user
+            // has to make: a hostile code must not silently repoint a host
+            // that is called something else.
+            if PairingReplacementPolicy.needsConfirmation(
+                currentURL: profile.serverURL,
+                pairedURL: pairing.url
+            ) {
+                pendingPairingReplacement = PairingReplacement(
+                    previousURL: profile.serverURL.trimmingCharacters(in: .whitespacesAndNewlines),
+                    url: pairing.url,
+                    token: pairing.token
+                )
+                return
+            }
+            applyPairing(url: pairing.url, token: pairing.token)
         } catch {
             credentialDraft.errorMessage = error.localizedDescription
         }
+    }
+
+    /// Apply a redeemed pairing to the profile being edited.
+    private func applyPairing(url: String, token: String) {
+        profile.transport = .direct
+        profile.serverURL = url
+        profile.basicAuth = BasicAuthConfig(
+            username: "opencode",
+            keychainPasswordID: AppState.passwordKeychainID(for: profile.id)
+        )
+        profile.apiGeneration = .v2
+        pairingLinkText = ""
+        pairedHostName = url
+        credentialDraft.password = token
+        credentialDraft.passwordDirty = true
+    }
+
+    /// A pairing that wants to replace the address of an existing host.
+    private struct PairingReplacement: Identifiable {
+        let previousURL: String
+        let url: String
+        let token: String
+        var id: String { url }
     }
 
     init(state: AppState, mode: HostProfileEditorMode) {
@@ -851,6 +882,23 @@ struct HostProfileEditorView: View {
                 Button(L10n.t(.commonOk), role: .cancel) {}
             } message: {
                 Text(credentialDraft.errorMessage ?? "")
+            }
+            .alert(L10n.t(.hostPairReplaceTitle), isPresented: Binding(
+                get: { pendingPairingReplacement != nil },
+                set: { if !$0 { pendingPairingReplacement = nil } }
+            )) {
+                Button(L10n.t(.commonCancel), role: .cancel) {
+                    pendingPairingReplacement = nil
+                }
+                Button(L10n.t(.hostPairReplaceConfirm)) {
+                    guard let replacement = pendingPairingReplacement else { return }
+                    pendingPairingReplacement = nil
+                    applyPairing(url: replacement.url, token: replacement.token)
+                }
+            } message: {
+                if let replacement = pendingPairingReplacement {
+                    Text(L10n.t(.hostPairReplaceMessage, replacement.url, replacement.previousURL))
+                }
             }
             #if os(iOS)
             .sheet(isPresented: $isScanningQR) {
