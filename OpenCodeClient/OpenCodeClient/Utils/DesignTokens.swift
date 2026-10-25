@@ -220,22 +220,42 @@ enum DesignCorners {
 
 enum DesignAnimation {
 
+    /// Named timing constants for every preset. The budget (QT-MOTION):
+    /// springs respond in ≤ 0.35 s and transitions run ≤ 0.30 s — asserted
+    /// by `DesignTokenTests`, which reads these values directly (`Animation`
+    /// itself is opaque and cannot be introspected).
+    enum Timing {
+        static let maxResponse: TimeInterval = 0.35
+        static let maxDuration: TimeInterval = 0.30
+
+        static let quickDuration: TimeInterval = 0.15
+        static let standardDuration: TimeInterval = 0.25
+        static let springResponse: TimeInterval = 0.35
+        static let springDamping: Double = 0.80
+        /// Known deviation: exceeds the 0.35 s response ceiling (POL-MOTION-07).
+        static let gentleSpringResponse: TimeInterval = 0.40
+        static let gentleSpringDamping: Double = 0.85
+        static let snappyResponse: TimeInterval = 0.25
+        static let snappyDamping: Double = 0.70
+    }
+
     /// Quick fade (0.15s) — status changes, minor updates
-    static let quick = Animation.easeOut(duration: 0.15)
+    static let quick = Animation.easeOut(duration: Timing.quickDuration)
 
     /// Standard transition (0.25s) — content appearance
-    static let standard = Animation.easeOut(duration: 0.25)
+    static let standard = Animation.easeOut(duration: Timing.standardDuration)
 
     /// Smooth spring — card expand/collapse, sheet interactions
-    static let spring = Animation.spring(response: 0.35, dampingFraction: 0.80)
+    static let spring = Animation.spring(response: Timing.springResponse, dampingFraction: Timing.springDamping)
 
     /// Gentle spring — message appearance
-    static let gentleSpring = Animation.spring(response: 0.4, dampingFraction: 0.85)
+    static let gentleSpring = Animation.spring(response: Timing.gentleSpringResponse, dampingFraction: Timing.gentleSpringDamping)
 
     /// Snappy spring — button presses, micro-interactions
-    static let snappy = Animation.spring(response: 0.25, dampingFraction: 0.7)
+    static let snappy = Animation.spring(response: Timing.snappyResponse, dampingFraction: Timing.snappyDamping)
 
-    /// Breathing animation for empty state logo
+    /// Breathing animation for empty state logo — a 3 s ambient loop, exempt
+    /// from the transition budget (QT-EMPTY / POL-STATE-02).
     static let breathing = Animation.easeInOut(duration: 3.0).repeatForever(autoreverses: true)
 }
 
