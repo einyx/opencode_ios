@@ -104,10 +104,16 @@ final class Tier4DriverUITests: XCTestCase {
     @MainActor
     private func ensureSessionExists(in app: XCUIApplication) {
         let input = app.descendants(matching: .any)["chat-input"]
-        let create = app.descendants(matching: .any)["chat-toolbar-create-session"]
-        if create.waitForExistence(timeout: 10), create.isEnabled {
-            create.tap()
-            RunLoop.current.run(until: Date().addingTimeInterval(2.0))
+        // New session lives in the session sheet (the chat header only carries
+        // view-level controls), so open the sheet before creating one.
+        let sessions = app.descendants(matching: .any)["chat-toolbar-session-list"]
+        if sessions.waitForExistence(timeout: 10) {
+            sessions.tap()
+            let create = app.descendants(matching: .any)["chat-toolbar-create-session"]
+            if create.waitForExistence(timeout: 6), create.isEnabled {
+                create.tap()
+                RunLoop.current.run(until: Date().addingTimeInterval(2.0))
+            }
         }
         XCTAssertTrue(input.waitForExistence(timeout: 20), "chat-input should exist after creating or selecting a session")
     }

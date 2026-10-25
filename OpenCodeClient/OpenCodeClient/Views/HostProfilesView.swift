@@ -123,6 +123,7 @@ struct HostProfilesView: View {
             #endif
         }
         .navigationTitle(L10n.t(.hostHosts))
+        .dismissableKeyboard()
         .onAppear {
             guard UITestFixtures.hasHostEditorCredentialFixture, editorMode == nil else { return }
             guard let profile = state.currentHostProfile ?? state.hostProfiles.first else { return }
@@ -452,6 +453,7 @@ private struct HostProfileDetailView: View {
             }
         }
         .navigationTitle(profile?.displayName ?? L10n.t(.hostTitle))
+        .dismissableKeyboard()
         .alert(L10n.t(.hostErrorTitle), isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
@@ -826,6 +828,7 @@ struct HostProfileEditorView: View {
                 }
             }
             .navigationTitle(isEditing ? L10n.t(.hostEditTitle) : L10n.t(.hostAddTitle))
+            .dismissableKeyboard()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

@@ -13,6 +13,8 @@ struct SessionListView: View {
     @State private var mutatingSessionID: String?
     @State private var actionError: String?
     @State private var showCreateDisabledAlert = false
+    @State private var showRenameAlert = false
+    @State private var renameText = ""
 
     private var activeNodes: [SessionNode] {
         state.sessionTree(archived: false)
@@ -39,6 +41,16 @@ struct SessionListView: View {
 
                 HStack(spacing: 8) {
                     Button {
+                        renameText = state.currentSession?.title ?? ""
+                        showRenameAlert = true
+                    } label: {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 22, weight: .regular))
+                    }
+                    .disabled(state.currentSession == nil)
+                    .accessibilityIdentifier("chat-toolbar-rename-session")
+
+                    Button {
                         Task {
                             await state.createSession()
                             dismiss()
@@ -49,6 +61,7 @@ struct SessionListView: View {
                     }
                     .disabled(!state.canCreateSession)
                     .foregroundColor(state.canCreateSession ? DesignColors.Brand.primary : DesignColors.Neutral.textTertiary)
+                    .accessibilityIdentifier("chat-toolbar-create-session")
 
                     if !state.canCreateSession {
                         Button {
@@ -128,6 +141,16 @@ struct SessionListView: View {
         .modifier(SessionStatusRefresh(state: state))
         .alert(L10n.t(.chatCreateDisabledHint), isPresented: $showCreateDisabledAlert) {
             Button(L10n.t(.commonOk)) {}
+        }
+        .alert(L10n.t(.chatRenameSession), isPresented: $showRenameAlert) {
+            TextField(L10n.t(.chatTitleField), text: $renameText)
+            Button(L10n.t(.commonCancel), role: .cancel) {}
+            Button(L10n.t(.commonOk)) {
+                guard let sessionID = state.currentSessionID else { return }
+                Task { await state.updateSessionTitle(sessionID: sessionID, title: renameText) }
+            }
+        } message: {
+            Text(L10n.t(.chatRenameSessionPlaceholder))
         }
     }
 

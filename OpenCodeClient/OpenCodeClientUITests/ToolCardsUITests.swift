@@ -21,7 +21,7 @@ final class ToolCardsUITests: XCTestCase {
     }
 
     @MainActor
-    func testToolCardsFixtureRendersFileCardsAndMergedToolCalls() throws {
+    func testToolCardsFixtureRendersFileCardsAndToolCallRows() throws {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST_TOOL_CARDS_FIXTURE"]
         app.launch()
@@ -39,13 +39,13 @@ final class ToolCardsUITests: XCTestCase {
 
         // The chat scroll view auto-scrolls to the bottom on launch, so the
         // file-card grid (top of the assistant turn) is un-materialized while
-        // the merged disclosure row (bottom) is visible. Lazy cells only
-        // materialize inside the viewport — assert each region while it is
-        // on screen.
+        // the tool rows (bottom) are visible. Lazy cells only materialize
+        // inside the viewport — assert each region while it is on screen.
 
-        // The merged "N tool calls" disclosure row.
-        let toolCalls = app.descendants(matching: .any)["toolcard.toolcalls"]
-        XCTAssertTrue(toolCalls.waitForExistence(timeout: 8), "toolcard.toolcalls 合并行应存在")
+        // Every non-file tool call renders as its own row (no merged
+        // "N tool calls" group row any more).
+        let bashRow = app.descendants(matching: .any)["toolcard.detail.ap-bash"]
+        XCTAssertTrue(bashRow.waitForExistence(timeout: 8), "每个工具调用应渲染成独立的一行")
 
         // Capture the collapsed state before expanding.
         attachScreenshot(named: "oc_toolcards_collapsed")
@@ -60,18 +60,23 @@ final class ToolCardsUITests: XCTestCase {
         XCTAssertTrue(readCards.firstMatch.waitForExistence(timeout: 4), "至少一个 toolcard.read.* 读文件卡应渲染")
         XCTAssertTrue(writeCards.firstMatch.waitForExistence(timeout: 4), "至少一个 toolcard.write.* 写文件卡应渲染")
 
-        // Scroll back down to the merged row and expand it.
-        while !toolCalls.firstMatch.exists && scrolled > 0 {
+        // Scroll back down to the tool row and expand it.
+        while !bashRow.firstMatch.exists && scrolled > 0 {
             app.swipeUp()
             Thread.sleep(forTimeInterval: 1.0)
             scrolled -= 1
         }
-        toolCalls.firstMatch.tap()
+        if !bashRow.firstMatch.isHittable {
+            app.swipeUp()
+        }
+        bashRow.firstMatch.tap()
 
+        // The command is on the row's header; the output only appears once the
+        // row is expanded.
         let revealed = app.staticTexts.containing(
-            NSPredicate(format: "label CONTAINS[c] 'npm test'")
+            NSPredicate(format: "label CONTAINS[c] 'All tests passed'")
         ).firstMatch
-        XCTAssertTrue(revealed.waitForExistence(timeout: 6), "展开 toolcard.toolcalls 后应出现合并工具的内容（如 'npm test'）")
+        XCTAssertTrue(revealed.waitForExistence(timeout: 6), "展开工具行后应出现工具输出（如 'All tests passed'）")
 
         // Capture the expanded state — primary visual QA artifact.
         attachScreenshot(named: "oc_toolcards")
@@ -82,13 +87,6 @@ final class ToolCardsUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST_TOOL_CARDS_FIXTURE"]
         app.launch()
-
-        let toolCalls = app.descendants(matching: .any)["toolcard.toolcalls"]
-        XCTAssertTrue(toolCalls.waitForExistence(timeout: 8))
-        if !toolCalls.isHittable {
-            app.swipeUp()
-        }
-        toolCalls.tap()
 
         tapUniqueToolDetail("toolcard.detail.ap-todo-error", in: app)
         let todoError = app.descendants(matching: .any)["toolcard.error.ap-todo-error"]

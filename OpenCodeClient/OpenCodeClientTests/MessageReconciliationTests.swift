@@ -865,6 +865,7 @@ struct MessageReconciliationTests {
         let coordinator = ChatComposerTextView.Coordinator(
             text: binding,
             hasMarkedText: .constant(false),
+            contentHeight: .constant(DesignControls.composerTextMinHeight),
             onSubmit: {}
         )
         coordinator.textViewDidChange(textView)

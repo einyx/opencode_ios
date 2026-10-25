@@ -9,7 +9,8 @@ final class TurnStabilityUITests: XCTestCase {
     @MainActor
     func testExpandedToolsStayExpandedWhenPartAndStepAppend() {
         let app = launch(mode: "append")
-        let tools = app.descendants(matching: .any)["toolcard.toolcalls"]
+        // Every tool call is its own row now — the merged group row is gone.
+        let tools = app.descendants(matching: .any)["toolcard.detail.p1"]
         let thinking = app.descendants(matching: .any)["message-thinking-card"]
         XCTAssertTrue(tools.waitForExistence(timeout: 12))
         XCTAssertTrue(thinking.waitForExistence(timeout: 8))

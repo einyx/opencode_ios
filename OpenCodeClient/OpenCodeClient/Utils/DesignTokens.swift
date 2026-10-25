@@ -78,10 +78,6 @@ enum DesignColors {
         static let borderStroke: Double = 0.12
         /// Card / info border stroke in dark mode
         static let borderStrokeDark: Double = 0.15
-        /// User message background
-        static let userMessageFill: Double = 0.10
-        /// User message background in dark mode
-        static let userMessageFillDark: Double = 0.14
         /// User message border
         static let userMessageBorder: Double = 0.18
         /// Selected row / active highlight
@@ -92,6 +88,8 @@ enum DesignColors {
         static let recordingActionFill: Double = 0.16
         /// Recording action button border. Stronger than the default border because it carries active-state color.
         static let recordingActionBorder: Double = 0.36
+        /// Inline chip/pill fill (e.g. the tool card status pill).
+        static let chipFill: Double = 0.14
     }
 
     /// Returns the appropriate surface fill opacity for the current color scheme.
@@ -104,12 +102,6 @@ enum DesignColors {
     @MainActor
     static func borderStroke(for scheme: ColorScheme) -> Double {
         scheme == .dark ? Opacity.borderStrokeDark : Opacity.borderStroke
-    }
-
-    /// Returns the appropriate user message fill opacity for the current color scheme.
-    @MainActor
-    static func userMessageFill(for scheme: ColorScheme) -> Double {
-        scheme == .dark ? Opacity.userMessageFillDark : Opacity.userMessageFill
     }
 }
 
@@ -168,6 +160,10 @@ enum DesignSpacing {
 
 enum DesignControls {
     static let indicatorSize: CGFloat = 6
+
+    /// Longest user message bubble. Keeps the bubble reading as a bubble
+    /// instead of a full-width band, on phones and on the iPad chat column.
+    static let userBubbleMaxWidth: CGFloat = 320
     static let indicatorSizeEmphasis: CGFloat = 8
     static let indicatorColumnWidth: CGFloat = DesignSpacing.md
     static let indicatorColumnWidthMaximum: CGFloat = 18

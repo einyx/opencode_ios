@@ -56,6 +56,26 @@ struct ToolPartView: View {
         DesignColors.Neutral.text.opacity(DesignColors.surfaceFill(for: colorScheme))
     }
 
+    /// The tool's subject line: the reason when the call carries one, else
+    /// the raw status word. Shown trailing so the tool name never has to
+    /// share a line with it.
+    private var toolSubjectText: String? {
+        if let reason = part.toolReason ?? part.metadata?.title, !reason.isEmpty {
+            return reason
+        }
+        return nil
+    }
+
+    /// The status word, shown as a pill. It is dropped when the call already
+    /// carries a subject line, so the row never repeats itself.
+    private var toolStatusText: String? {
+        guard toolSubjectText == nil else { return nil }
+        if let status = part.stateDisplay, !status.isEmpty {
+            return status
+        }
+        return nil
+    }
+
     private var imageCandidatePaths: [String] {
         var candidates = part.filePathsForNavigation
         if let path = part.state?.pathFromInput, !path.isEmpty {
@@ -86,201 +106,176 @@ struct ToolPartView: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 6) {
-        DisclosureGroup(isExpanded: $isExpanded) {
-            VStack(alignment: .leading, spacing: 8) {
-                if let reason = part.toolReason ?? part.metadata?.title, !reason.isEmpty {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(L10n.t(.toolReason))
-                            .font(DesignTypography.micro)
-                            .foregroundStyle(.secondary)
-                        Text(reason)
-                            .font(DesignTypography.micro)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-
-                if part.tool == "todowrite" {
-                    let todos = sessionTodos.isEmpty ? part.toolTodos : sessionTodos
-                    if !todos.isEmpty {
-                        let completed = todos.count { $0.isCompleted }
-                        Text(String(format: L10n.t(.todoUpdatedBadge), completed, todos.count))
-                            .font(DesignTypography.micro)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                if part.tool != "todowrite",
-                   let input = part.toolInputSummaryForDisplay ?? part.metadata?.input.map(DisplayTextDecoder.decodeJSONUnicodeEscapes),
-                   !input.isEmpty {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(L10n.t(.toolCommandInput))
-                            .font(DesignTypography.micro)
-                            .foregroundStyle(.secondary)
-                        Text(input)
-                            .font(DesignTypography.microMono)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-                if let path = part.metadata?.path {
-                    LabeledContent(L10n.t(.toolPath), value: path)
-                }
-                switch part.toolDetailPresentation(isImageFile: isImageFile) {
-                case .hidden:
-                    EmptyView()
-                case .successImage:
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(L10n.t(.toolOutput))
-                            .font(DesignTypography.micro)
-                            .foregroundStyle(.secondary)
-                        if let img = decodedImage {
-                            Image(uiImage: img)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(maxHeight: 200)
-                                .clipShape(RoundedRectangle(cornerRadius: DesignCorners.small))
-                                .onTapGesture { showImageSheet = true }
-                        } else {
-                            HStack(spacing: 8) {
-                                Image(systemName: "photo")
-                                    .foregroundStyle(.secondary)
-                                Text(L10n.t(.toolImageFile))
-                                    .font(DesignTypography.micro)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                case .text(let output):
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(L10n.t(.toolOutput))
-                            .font(DesignTypography.micro)
-                            .foregroundStyle(.secondary)
-                        detailOutputText(output)
-                        if Self.isOutputTruncated(output) {
-                            Text("Output truncated: showing first \(Self.outputPreviewCharacterLimit.formatted()) of \(output.count.formatted()) characters.")
-                                .font(DesignTypography.micro)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .center, spacing: 6) {
+                toolTag
                 if !part.filePathsForNavigation.isEmpty {
-                    ForEach(part.filePathsForNavigation, id: \.self) { path in
-                        Button {
-                            openFile(path)
-                        } label: {
-                            Label(L10n.toolOpenFileLabel(path: path), systemImage: "folder.badge.plus")
-                                .font(DesignTypography.micro)
-                        }
-                    }
+                    headerFileOpenButton
                 }
             }
-            .font(DesignTypography.micro)
-            .padding(DesignSpacing.cardPadding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "wrench.and.screwdriver.fill")
-                    .foregroundStyle(toolAccentColor)
-                    .font(.caption)
-                Text(toolDisplayName)
-                    .fontWeight(.medium)
-                    .foregroundStyle(toolAccentColor)
-                if let reason = part.toolReason ?? part.metadata?.title, !reason.isEmpty {
-                    Text("·")
-                        .foregroundStyle(.secondary)
-                    Text(reason)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                        .truncationMode(.tail)
-                } else if let status = part.stateDisplay, !status.isEmpty {
-                    Text(status)
-                        .foregroundStyle(.secondary)
-                }
-                if part.stateDisplay?.lowercased() == "running" {
-                    ProgressView()
-                        .scaleEffect(0.5)
-                }
-                Spacer()
+
+            if isExpanded {
+                detailContent
+                    .transition(.opacity)
             }
-            .font(DesignTypography.micro)
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("toolcard.detail.\(part.id)")
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        // Let the DisclosureGroup chevron take the accent — it's the expand
-        // affordance, and a blue chevron reinforces that the card is tappable.
-        .tint(DesignColors.Brand.primary)
         .onChange(of: part.stateDisplay) { _, newValue in
             if newValue?.lowercased() == "completed" {
                 isExpanded = false
             }
         }
-        if !part.filePathsForNavigation.isEmpty {
-            headerFileOpenButton
+    }
+
+    /// Compact tag: icon, tool name, subject line, status, chevron. It hugs
+    /// its content — a full-width slab per tool call turned the transcript
+    /// into a stack of grey rectangles.
+    private var toolTag: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "wrench.and.screwdriver.fill")
+                .foregroundStyle(toolAccentColor)
+                .font(.caption)
+            Text(toolDisplayName)
+                .fontWeight(.medium)
+                .foregroundStyle(toolAccentColor)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+            if let subject = toolSubjectText {
+                Text(subject)
+                    .font(DesignTypography.micro)
+                    .foregroundStyle(DesignColors.Neutral.textSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            if let status = toolStatusText {
+                Text(status)
+                    .font(DesignTypography.micro)
+                    .foregroundStyle(DesignColors.Neutral.textSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+                    .background(
+                        Capsule().fill(
+                            DesignColors.Neutral.textSecondary.opacity(DesignColors.Opacity.chipFill)
+                        )
+                    )
+            }
+            if part.stateDisplay?.lowercased() == "running" {
+                ProgressView()
+                    .scaleEffect(0.5)
+            }
+            Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                .font(.caption2)
+                .foregroundStyle(DesignColors.Neutral.textTertiary)
         }
+        .font(DesignTypography.micro)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(DesignColors.Neutral.text.opacity(DesignColors.surfaceFill(for: colorScheme)))
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation(DesignAnimation.spring) { isExpanded.toggle() }
         }
-        .task(id: part.id) {
-            decodedImage = nil
-            if isImageFile, let output = part.toolOutput {
-                if let data = Data(base64Encoded: output), let img = UIImage(data: data) {
-                    decodedImage = img
-                } else {
-                    let cleaned = output
-                        .replacingOccurrences(of: "\n", with: "")
-                        .replacingOccurrences(of: "\r", with: "")
-                        .replacingOccurrences(of: " ", with: "")
-                    if let data = Data(base64Encoded: cleaned), let img = UIImage(data: data) {
-                        decodedImage = img
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("toolcard.detail.\(part.id)")
+        .accessibilityValue(isExpanded ? "已展开" : "已收起")
+        .accessibilityAddTraits(.isButton)
+    }
+
+    /// The expanded detail: indented under the tag, with no container of its
+    /// own — the mono type carries the hierarchy.
+    private var detailContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let reason = part.toolReason ?? part.metadata?.title, !reason.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L10n.t(.toolReason))
+                        .font(DesignTypography.micro)
+                        .foregroundStyle(.secondary)
+                    Text(reason)
+                        .font(DesignTypography.micro)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+            if part.tool == "todowrite" {
+                let todos = sessionTodos.isEmpty ? part.toolTodos : sessionTodos
+                if !todos.isEmpty {
+                    let completed = todos.count { $0.isCompleted }
+                    Text(String(format: L10n.t(.todoUpdatedBadge), completed, todos.count))
+                        .font(DesignTypography.micro)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if part.tool != "todowrite",
+               let input = part.toolInputSummaryForDisplay ?? part.metadata?.input.map(DisplayTextDecoder.decodeJSONUnicodeEscapes),
+               !input.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L10n.t(.toolCommandInput))
+                        .font(DesignTypography.micro)
+                        .foregroundStyle(.secondary)
+                    Text(input)
+                        .font(DesignTypography.microMono)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            if let path = part.metadata?.path {
+                LabeledContent(L10n.t(.toolPath), value: path)
+            }
+            switch part.toolDetailPresentation(isImageFile: isImageFile) {
+            case .hidden:
+                EmptyView()
+            case .successImage:
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L10n.t(.toolOutput))
+                        .font(DesignTypography.micro)
+                        .foregroundStyle(.secondary)
+                    if let img = decodedImage {
+                        Image(uiImage: img)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(maxHeight: 200)
+                            .clipShape(RoundedRectangle(cornerRadius: DesignCorners.small))
+                            .onTapGesture { showImageSheet = true }
+                    } else {
+                        HStack(spacing: 8) {
+                            Image(systemName: "photo")
+                                .foregroundStyle(.secondary)
+                            Text(L10n.t(.toolImageFile))
+                                .font(DesignTypography.micro)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            case .text(let output):
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L10n.t(.toolOutput))
+                        .font(DesignTypography.micro)
+                        .foregroundStyle(.secondary)
+                    detailOutputText(output)
+                    if Self.isOutputTruncated(output) {
+                        Text("Output truncated: showing first \(Self.outputPreviewCharacterLimit.formatted()) of \(output.count.formatted()) characters.")
+                            .font(DesignTypography.micro)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(toolBackgroundColor)
-        .clipShape(RoundedRectangle(cornerRadius: DesignCorners.medium))
-        .contextMenu {
             if !part.filePathsForNavigation.isEmpty {
                 ForEach(part.filePathsForNavigation, id: \.self) { path in
-                    Button(L10n.toolOpenFileLabel(path: path)) {
+                    Button {
                         openFile(path)
+                    } label: {
+                        Label(L10n.toolOpenFileLabel(path: path), systemImage: "folder.badge.plus")
+                            .font(DesignTypography.micro)
                     }
                 }
             }
         }
-        .confirmationDialog(L10n.t(.toolOpenFile), isPresented: $showOpenFileSheet) {
-            ForEach(part.filePathsForNavigation, id: \.self) { path in
-                Button(L10n.toolOpenFileLabel(path: path)) {
-                    openFile(path)
-                }
-            }
-            Button(L10n.t(.commonCancel), role: .cancel) {}
-        } message: {
-            Text(L10n.t(.toolSelectFile))
-        }
-        .sheet(isPresented: $showImageSheet) {
-            if let img = decodedImage {
-                NavigationStack {
-                    ImageView(uiImage: img)
-                        .navigationTitle(imageDisplayName)
-                        .navigationBarTitleDisplayMode(.inline)
-                        .toolbar {
-                            ToolbarItem(placement: .primaryAction) {
-                                ShareLink(
-                                    item: Image(uiImage: img),
-                                    preview: SharePreview(imageDisplayName, image: Image(uiImage: img))
-                                ) {
-                                    Image(systemName: "square.and.arrow.up")
-                                }
-                            }
-                            ToolbarItem(placement: .cancellationAction) {
-                                Button(L10n.t(.appClose)) {
-                                    showImageSheet = false
-                                }
-                            }
-                        }
-                }
-            }
-        }
+        .font(DesignTypography.micro)
+        .padding(.leading, DesignSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder

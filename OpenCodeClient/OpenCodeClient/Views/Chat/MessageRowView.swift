@@ -25,12 +25,10 @@ struct MessageRowView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var showsTextSelection = false
 
-    // iPhone packs process tiles (thinking / merged tool calls / file cards)
-    // two-up to keep information density high; iPad has room for a 3-up grid.
+    // iPhone packs file-operation cards two-up to keep information density
+    // high; iPad has room for a 3-up grid. Thinking and tool-call tiles are
+    // not part of that grid — they take a full-width row of their own.
     private var cardGridColumnCount: Int { effectiveLayout == .regular ? 3 : 2 }
-    private var cardGridColumns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: DesignSpacing.sm), count: cardGridColumnCount)
-    }
 
     /// Assistant footer line: "provider/model", then the general (persisted)
     /// throughput when present, then the best-effort SSE-derived "decoding"
@@ -111,13 +109,12 @@ struct MessageRowView: View {
     }
 
     /// One cell of the assistant card grid. Every process tile (thinking,
-    /// merged non-file tool calls, file-operation cards) shares the same
-    /// 2-up (iPhone) / 3-up (iPad) LazyVGrid and is always half-width, laid
-    /// out in part order.
+    /// merged non-file tool calls, file-operation cards) is produced in part
+    /// order; the row layout below decides which of them share a grid row.
     enum CardGridTile: Identifiable {
         case thinking(Part)
         case fileCard(Part)
-        case toolCalls([Part])
+        case toolCall(Part)
 
         var id: String {
             switch self {
@@ -125,10 +122,44 @@ struct MessageRowView: View {
                 return "tile-thinking-\(part.id)"
             case .fileCard(let part):
                 return "tile-file-\(part.id)"
-            case .toolCalls(let parts):
-                return "tile-toolcalls-\(parts.first?.id ?? "nil")"
+            case .toolCall(let part):
+                return "tile-toolcall-\(part.id)"
             }
         }
+    }
+
+    /// A rendered row of process tiles. File cards share a grid row (2-up on
+    /// iPhone, 3-up on iPad); a thinking or tool-call tile always occupies a
+    /// full-width row, because a tool command wrapped into a half-width tile
+    /// is unreadable.
+    struct ProcessTileRow: Identifiable {
+        let id: String
+        let tiles: [CardGridTile]
+        let isFullWidth: Bool
+    }
+
+    static func processTileRows(for tiles: [CardGridTile], columnCount: Int) -> [ProcessTileRow] {
+        var rows: [ProcessTileRow] = []
+        var pending: [CardGridTile] = []
+
+        func flushPending() {
+            guard !pending.isEmpty else { return }
+            rows.append(ProcessTileRow(id: "row-\(pending[0].id)", tiles: pending, isFullWidth: false))
+            pending.removeAll()
+        }
+
+        for tile in tiles {
+            switch tile {
+            case .fileCard:
+                pending.append(tile)
+                if pending.count == columnCount { flushPending() }
+            case .thinking, .toolCall:
+                flushPending()
+                rows.append(ProcessTileRow(id: "row-\(tile.id)", tiles: [tile], isFullWidth: true))
+            }
+        }
+        flushPending()
+        return rows
     }
 
     // A "file operation" is a patch part, or a tool whose name matches one of the
@@ -198,8 +229,11 @@ struct MessageRowView: View {
                 for filePart in fileParts {
                     tiles.append(.fileCard(filePart))
                 }
-                if !otherParts.isEmpty {
-                    tiles.append(.toolCalls(otherParts))
+                // Every remaining tool call gets its own row: a merged
+                // "N tool calls" tile stacked a group disclosure on top of
+                // each card's own disclosure.
+                for otherPart in otherParts {
+                    tiles.append(.toolCall(otherPart))
                 }
             case .text, .attachment:
                 break
@@ -613,11 +647,11 @@ struct MessageRowView: View {
             }
 
             if !bubbleParts.isEmpty || !attachments.isEmpty {
+                // Claude-style bubble: right-aligned, capped width, one
+                // rounded corner tucked in. The old accent stripe read as a
+                // system event rather than as something the person said.
                 HStack(spacing: 0) {
-                    Rectangle()
-                        .fill(DesignColors.Brand.primary)
-                        .frame(width: 4)
-
+                    Spacer(minLength: 0)
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(bubbleParts, id: \.id) { part in
                             markdownText(part.text ?? "", isUser: true)
@@ -630,10 +664,19 @@ struct MessageRowView: View {
                                 .padding(.bottom, 10)
                         }
                     }
+                    .frame(maxWidth: DesignControls.userBubbleMaxWidth, alignment: .leading)
+                    .background(
+                        DesignColors.Neutral.text.opacity(DesignColors.surfaceFill(for: colorScheme))
+                    )
+                    .clipShape(
+                        UnevenRoundedRectangle(
+                            topLeadingRadius: 20,
+                            bottomLeadingRadius: 20,
+                            bottomTrailingRadius: 6,
+                            topTrailingRadius: 20
+                        )
+                    )
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(DesignColors.Brand.primary.opacity(DesignColors.userMessageFill(for: colorScheme)))
-                .clipShape(RoundedRectangle(cornerRadius: DesignCorners.large))
             }
 
             // Inline send-failure banner (async session.error or failed HTTP
@@ -695,30 +738,23 @@ struct MessageRowView: View {
 
             let layout = assistantLayout(for: presentation.parts)
 
-            // All process tiles (thinking / merged tool calls / file cards)
-            // share one 2-up (iPhone) / 3-up (iPad) grid and are always
-            // half-width, laid out in part order. Full-width text and
-            // attachments render after the grid (accepted reading order).
+            // File cards keep the 2-up (iPhone) / 3-up (iPad) grid. Thinking and
+            // tool-call tiles get a full-width row each, in part order.
             if !layout.tiles.isEmpty {
-                LazyVGrid(columns: cardGridColumns, alignment: .leading, spacing: DesignSpacing.sm) {
-                    ForEach(layout.tiles) { tile in
-                        switch tile {
-                        case .thinking(let part):
-                            thinkingCard(part)
-                        case .fileCard(let part):
-                            FileCardView(
-                                part: part,
-                                workspaceDirectory: workspaceDirectory,
-                                onOpenResolvedPath: onOpenResolvedPath,
-                                onOpenFilesTab: onOpenFilesTab
-                            )
-                        case .toolCalls(let parts):
-                            ToolCallsRowView(
-                                parts: parts,
-                                sessionTodos: sessionTodos,
-                                workspaceDirectory: workspaceDirectory,
-                                onOpenResolvedPath: onOpenResolvedPath
-                            )
+                VStack(alignment: .leading, spacing: DesignSpacing.sm) {
+                    ForEach(Self.processTileRows(for: layout.tiles, columnCount: cardGridColumnCount)) { row in
+                        if row.isFullWidth {
+                            tileView(row.tiles[0])
+                        } else {
+                            HStack(alignment: .top, spacing: DesignSpacing.sm) {
+                                ForEach(row.tiles) { tile in
+                                    tileView(tile)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                if row.tiles.count < cardGridColumnCount {
+                                    Color.clear.frame(maxWidth: .infinity)
+                                }
+                            }
                         }
                     }
                 }
@@ -777,13 +813,33 @@ struct MessageRowView: View {
             markdownText(part.text ?? "", isUser: false, forcingMarkdown: true)
         }
     }
+
+    @ViewBuilder
+    private func tileView(_ tile: CardGridTile) -> some View {
+        switch tile {
+        case .thinking(let part):
+            thinkingCard(part)
+        case .fileCard(let part):
+            FileCardView(
+                part: part,
+                workspaceDirectory: workspaceDirectory,
+                onOpenResolvedPath: onOpenResolvedPath,
+                onOpenFilesTab: onOpenFilesTab
+            )
+        case .toolCall(let part):
+            ToolPartView(
+                part: part,
+                sessionTodos: sessionTodos,
+                workspaceDirectory: workspaceDirectory,
+                onOpenResolvedPath: onOpenResolvedPath
+            )
+        }
+    }
 }
 
-// Always-half-width process tile: the width comes from the LazyVGrid column
-// (2-up on iPhone, 3-up on iPad), never full width. The self-drawn header is
-// the only tappable element and toggles expansion in place; the revealed
-// content stays inside the narrow tile, so the tile grows and the grid
-// reflows (no animation, first-version accepted behavior).
+// Full-width process row: the thinking card is prose, so it takes the whole
+// content width instead of a grid column. The self-drawn header is the only
+// tappable element and toggles expansion in place.
 private struct ThinkingCard<Content: View>: View {
     @State private var expanded = false
     private let content: Content
@@ -817,55 +873,6 @@ private struct ThinkingCard<Content: View>: View {
             if expanded {
                 content
                     .foregroundStyle(DesignColors.Neutral.textSecondary)
-            }
-        }
-    }
-}
-
-// Always-half-width process tile for the merged non-file tool calls, sharing
-// the same LazyVGrid as thinking and file-card tiles. Header is plain text
-// (no icon, parity with Android) with a trailing chevron; the whole tile is
-// half-width whether collapsed or expanded — the revealed ToolPartViews stay
-// inside the narrow column.
-private struct ToolCallsRowView: View {
-    let parts: [Part]
-    let sessionTodos: [TodoItem]
-    let workspaceDirectory: String?
-    let onOpenResolvedPath: (String) -> Void
-    @State private var expanded = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: DesignSpacing.sm) {
-            // Vertical padding inside the header (before contentShape) so the
-            // 4pt band is part of the button hit area.
-            HStack(spacing: DesignSpacing.xs) {
-                Text(L10n.toolCallsCount(parts.count))
-                Spacer()
-                Image(systemName: expanded ? "chevron.down" : "chevron.right")
-            }
-            .font(DesignTypography.micro)
-            .fontWeight(.medium)
-            .foregroundStyle(DesignColors.Brand.primary)
-            .padding(.vertical, DesignSpacing.xs)
-            .contentShape(Rectangle())
-            .onTapGesture { expanded.toggle() }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(L10n.toolCallsCount(parts.count))
-            .accessibilityIdentifier("toolcard.toolcalls")
-            .accessibilityAddTraits(.isButton)
-            .accessibilityValue(expanded ? "已展开" : "已收起")
-
-            if expanded {
-                VStack(alignment: .leading, spacing: DesignSpacing.sm) {
-                    ForEach(parts, id: \.id) { part in
-                        ToolPartView(
-                            part: part,
-                            sessionTodos: sessionTodos,
-                            workspaceDirectory: workspaceDirectory,
-                            onOpenResolvedPath: onOpenResolvedPath
-                        )
-                    }
-                }
             }
         }
     }

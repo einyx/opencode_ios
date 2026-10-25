@@ -471,6 +471,7 @@ struct EffectiveLayoutTests {
         let coordinator = ChatComposerTextView.Coordinator(
             text: .constant("hello"),
             hasMarkedText: .constant(false),
+            contentHeight: .constant(DesignControls.composerTextMinHeight),
             onSubmit: {}
         )
         coordinator.requestsFirstResponder = false

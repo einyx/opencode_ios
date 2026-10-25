@@ -188,12 +188,13 @@ struct ChatTabView: View {
     @Bindable var state: AppState
     var showSettingsInToolbar: Bool = false
     var showSessionListInToolbar: Bool = true
-    var showCreateSessionInToolbar: Bool = true
     var onSettingsTap: (() -> Void)?
     @State var inputText = ""
     @State private var hasMarkedText = false
     @State private var isComposerEditing = false
     @State private var composerHasCaretFocus = false
+    @State private var composerContentHeight: CGFloat = DesignControls.composerTextMinHeight
+    @State private var composerDockHeight: CGFloat = 0
     @State private var composerFocusResetEpoch = 0
     @State private var composerSelectionUTF16 = NSRange(location: NSNotFound, length: 0)
     #if DEBUG
@@ -206,8 +207,6 @@ struct ChatTabView: View {
     @State private var isSending = false
     @State private var isSyncingDraft = false
     @State private var showSessionList = false
-    @State private var showRenameAlert = false
-    @State private var renameText = ""
     @State var microphone = VoiceFlowMicrophone()
     @State var speechSession: VoiceFlowSession?
     @State var speechAudioSender: OrderedSpeechAudioSender?
@@ -255,6 +254,12 @@ struct ChatTabView: View {
 
     private var showsVoiceRail: Bool {
         state.isChatSpeechConfigured || isSpeechCaptureActive || isShowingTranscribingUI || hasPreservedSpeechAudioForUI
+    }
+
+    /// The docked file preview takes over the whole screen, so the chat's own
+    /// navigation bar has to stay visible for its close button.
+    private var inlinePreviewActive: Bool {
+        effectiveLayout == .compact && state.inlinePreviewPath != nil
     }
 
     private var composerActionSlotWidth: CGFloat {
@@ -693,7 +698,6 @@ struct ChatTabView: View {
         let text = ComposerActivityText.text(presentation: presentation, activity: activity, voice: voiceStatusText)
         // 6pt gap: xs (4) read as cramped between the two lines.
         return VStack(alignment: .leading, spacing: 6) {
-            sessionStatsLine
             if let first = runningBackgroundSubagents.first {
                 backgroundTaskNavigationRow(first)
             }
@@ -876,8 +880,151 @@ struct ChatTabView: View {
         .padding(.bottom, 6)
     }
 
-    private var composerActions: some View {
+    /// The floating header: a glass pill that hovers over the conversation
+    /// instead of a navigation bar above a second row of buttons.
+    private var chatHeader: some View {
+        ChatHeaderPill(
+            state: state,
+            showSessionList: $showSessionList,
+            showSettingsInToolbar: showSettingsInToolbar,
+            showSessionListInToolbar: showSessionListInToolbar,
+            onSettingsTap: onSettingsTap
+        )
+    }
+
+    /// Room for the floating header above the first message.
+    private var chatHeaderInset: CGFloat { 56 }
+
+    /// The floating composer: turn state, the chip row and the glass input
+    /// surface. It floats over the conversation (the message list scrolls
+    /// underneath it) and sits above the tab bar.
+    private var composerDock: some View {
         VStack(spacing: DesignSpacing.sm) {
+            if shouldShowComposerStatus {
+                quietComposerStatus
+            }
+
+            if showsVoiceRail {
+                voiceRail
+            }
+
+            if !imageAttachments.isEmpty || isLoadingAttachment || attachmentError != nil {
+                attachmentStrip
+            }
+
+            composerChipRow
+
+            HStack(alignment: .bottom, spacing: DesignSpacing.sm) {
+                ZStack(alignment: .leading) {
+                    ChatComposerTextView(
+                        text: composerInputBinding,
+                        hasMarkedText: $hasMarkedText,
+                        contentHeight: $composerContentHeight,
+                        isEditable: ComposerFocusPolicy.isTextEditable(
+                            voiceFirst: voiceFirstEnabled,
+                            isEditing: isComposerEditing
+                        ),
+                        requestsFirstResponder: ComposerFocusPolicy.requestsFirstResponder(
+                            voiceFirst: voiceFirstEnabled,
+                            isEditing: isComposerEditing
+                        ),
+                        suppressesSoftwareKeyboard: ComposerFocusPolicy.suppressesSoftwareKeyboard(
+                            voiceFirst: voiceFirstEnabled,
+                            isEditing: isComposerEditing
+                        ),
+                        focusResetEpoch: composerFocusResetEpoch,
+                        preferredCursorUTF16: preferredCursorUTF16,
+                        placeholder: L10n.t(.chatInputPlaceholder),
+                        autoScrollToBottomOnTextChange: Self.shouldAutoScrollSpeechTranscript(
+                            isTranscribing: isTranscribing,
+                            isRetryingSpeech: isRetryingSpeech
+                        ),
+                        onSubmit: sendCurrentInput,
+                        onEndEditing: { isComposerEditing = false },
+                        onCaretFocusChange: { composerHasCaretFocus = $0 },
+                        onSelectionUTF16: { range in
+                            if composerSelectionUTF16 != range {
+                                composerSelectionUTF16 = range
+                            }
+                        },
+                        onCaretProbe: { value in
+                            #if DEBUG
+                            if UITestFixtures.hasUITestSessionTreeFixture, caretProbeValue != value {
+                                caretProbeValue = value
+                            }
+                            #endif
+                        }
+                    )
+                    .frame(height: composerContentHeight)
+                    .accessibilityIdentifier("chat-input")
+
+                    if inputText.isEmpty {
+                        Text(composerPlaceholderText)
+                            .foregroundStyle(DesignColors.Neutral.textTertiary)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
+                    #if DEBUG
+                    if UITestFixtures.hasUITestSessionTreeFixture {
+                        Color.clear
+                            .frame(width: 1, height: 1)
+                            .accessibilityElement()
+                            .accessibilityIdentifier("chat-input-caret-probe")
+                            .accessibilityValue(caretProbeValue)
+                    }
+                    #endif
+                }
+                .environment(\.layoutDirection, textLayoutDirection)
+
+                composerActions
+                    .environment(\.layoutDirection, textLayoutDirection)
+            }
+            .padding(.horizontal, DesignSpacing.sm)
+            .padding(.vertical, 6)
+            .glassSurface(cornerRadius: 26, interactive: true)
+            .environment(\.layoutDirection, composerControlDirection)
+        }
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8)
+        .background {
+            // Measure the dock so the conversation can scroll under it.
+            GeometryReader { geo in
+                Color.clear
+                    .onChange(of: geo.size.height, initial: true) { _, newValue in
+                        composerDockHeight = newValue
+                    }
+            }
+        }
+    }
+
+    /// Session context above the composer: the model picker and the live
+    /// session counters. The counters stay plain text — a second glass chip
+    /// next to the first one just made the row heavier.
+    private var composerChipRow: some View {
+        HStack(spacing: DesignSpacing.sm) {
+            ChatModelChip(state: state)
+                .glassSurface(cornerRadius: 15)
+            ChatTodoChip(state: state)
+                .glassSurface(cornerRadius: 15)
+            sessionStatsText
+            Spacer(minLength: 0)
+        }
+    }
+
+    @ViewBuilder
+    private var sessionStatsText: some View {
+        if sessionStats != nil {
+            sessionStatsLine
+                .fixedSize(horizontal: true, vertical: false)
+        }
+    }
+
+    /// Photo and send share one bottom-aligned row. They used to be stacked in
+    /// a column, which made that column taller than the input field: the photo
+    /// button floated mid-height and send dropped below the input baseline.
+    /// Send keeps its slot at the trailing edge of the row.
+    private var composerActions: some View {
+        HStack(spacing: DesignSpacing.xs) {
             if state.showImageAttachmentButton {
                 PhotosPicker(selection: $selectedPhotoItems, maxSelectionCount: 4, matching: .images) {
                     ZStack {
@@ -922,7 +1069,6 @@ struct ChatTabView: View {
             .accessibilityIdentifier("chat-send")
             .disabled(!canSendNow)
         }
-        .frame(width: composerActionSlotWidth)
     }
 
     var body: some View {
@@ -944,17 +1090,6 @@ struct ChatTabView: View {
                     )
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 } else {
-                    ChatToolbarView(
-                        state: state,
-                        showSessionList: $showSessionList,
-                        showRenameAlert: $showRenameAlert,
-                        renameText: $renameText,
-                        showSettingsInToolbar: showSettingsInToolbar,
-                        showSessionListInToolbar: showSessionListInToolbar,
-                        showCreateSessionInToolbar: showCreateSessionInToolbar,
-                        onSettingsTap: onSettingsTap
-                    )
-
                     ScrollViewReader { proxy in
                     GeometryReader { scrollGeometry in
                         ScrollView {
@@ -1101,6 +1236,8 @@ struct ChatTabView: View {
                                     )
                             }
                             .padding()
+                            .padding(.top, chatHeaderInset)
+                            .padding(.bottom, composerDockHeight + DesignSpacing.md)
                         }
                         .coordinateSpace(name: "chatScrollView")
                         .refreshable {
@@ -1144,99 +1281,19 @@ struct ChatTabView: View {
                         .id(state.currentSessionID)
                     }
                     }
+                    .overlay(alignment: .top) {
+                        chatHeader
+                            .padding(.horizontal, 12)
+                            .padding(.top, 6)
+                    }
                 }
 
-                 VStack(spacing: 0) {
-                    if shouldShowComposerStatus {
-                        quietComposerStatus
-                    }
-
-                    if showsVoiceRail {
-                        voiceRail
-                    }
-
-                    if !imageAttachments.isEmpty || isLoadingAttachment || attachmentError != nil {
-                        attachmentStrip
-                    }
-
-                    HStack(alignment: .bottom, spacing: DesignSpacing.sm) {
-                        ZStack(alignment: .topLeading) {
-                            ChatComposerTextView(
-                                text: composerInputBinding,
-                                hasMarkedText: $hasMarkedText,
-                                isEditable: ComposerFocusPolicy.isTextEditable(
-                                    voiceFirst: voiceFirstEnabled,
-                                    isEditing: isComposerEditing
-                                ),
-                                requestsFirstResponder: ComposerFocusPolicy.requestsFirstResponder(
-                                    voiceFirst: voiceFirstEnabled,
-                                    isEditing: isComposerEditing
-                                ),
-                                suppressesSoftwareKeyboard: ComposerFocusPolicy.suppressesSoftwareKeyboard(
-                                    voiceFirst: voiceFirstEnabled,
-                                    isEditing: isComposerEditing
-                                ),
-                                focusResetEpoch: composerFocusResetEpoch,
-                                preferredCursorUTF16: preferredCursorUTF16,
-                                placeholder: L10n.t(.chatInputPlaceholder),
-                                autoScrollToBottomOnTextChange: Self.shouldAutoScrollSpeechTranscript(
-                                    isTranscribing: isTranscribing,
-                                    isRetryingSpeech: isRetryingSpeech
-                                ),
-                                onSubmit: sendCurrentInput,
-                                onEndEditing: { isComposerEditing = false },
-                                onCaretFocusChange: { composerHasCaretFocus = $0 },
-                                onSelectionUTF16: { range in
-                                    if composerSelectionUTF16 != range {
-                                        composerSelectionUTF16 = range
-                                    }
-                                },
-                                onCaretProbe: { value in
-                                    #if DEBUG
-                                    if UITestFixtures.hasUITestSessionTreeFixture, caretProbeValue != value {
-                                        caretProbeValue = value
-                                    }
-                                    #endif
-                                }
-                            )
-                            .frame(
-                                minHeight: DesignControls.composerTextMinHeight,
-                                maxHeight: DesignControls.composerTextMaxHeight
-                            )
-                            .accessibilityIdentifier("chat-input")
-
-                            if inputText.isEmpty {
-                                Text(composerPlaceholderText)
-                                    .foregroundStyle(DesignColors.Neutral.textTertiary)
-                                    .allowsHitTesting(false)
-                                    .accessibilityHidden(true)
-                            }
-                            #if DEBUG
-                            if UITestFixtures.hasUITestSessionTreeFixture {
-                                Color.clear
-                                    .frame(width: 1, height: 1)
-                                    .accessibilityElement()
-                                    .accessibilityIdentifier("chat-input-caret-probe")
-                                    .accessibilityValue(caretProbeValue)
-                            }
-                            #endif
-                        }
-                        .environment(\.layoutDirection, textLayoutDirection)
-
-                        composerActions
-                            .environment(\.layoutDirection, textLayoutDirection)
-                    }
-                    .environment(\.layoutDirection, composerControlDirection)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
-                .background(colorScheme == .dark ? DesignColors.Neutral.composerDark : DesignColors.Neutral.composerLight)
-                .clipShape(RoundedRectangle(cornerRadius: DesignCorners.large))
-                .padding(.horizontal, DesignControls.composerContainerHorizontalPadding)
-                .padding(.vertical, 5)
-                .background(.bar)
             }
-            .navigationTitle(state.currentSession?.title ?? L10n.t(.appChat))
+            .overlay(alignment: .bottom) {
+                composerDock
+            }
+            .toolbar(inlinePreviewActive ? .visible : .hidden, for: .navigationBar)
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showSessionList) {
                 SessionListView(state: state)
@@ -1250,17 +1307,6 @@ struct ChatTabView: View {
                 if let error = state.sendError {
                     Text(error)
                 }
-            }
-            .alert(L10n.t(.chatRenameSession), isPresented: $showRenameAlert) {
-                TextField(L10n.t(.chatTitleField), text: $renameText)
-                Button(L10n.t(.commonCancel), role: .cancel) { showRenameAlert = false }
-                Button(L10n.t(.commonOk)) {
-                    guard let id = state.currentSessionID else { return }
-                    Task { await state.updateSessionTitle(sessionID: id, title: renameText) }
-                    showRenameAlert = false
-                }
-            } message: {
-                Text(L10n.t(.chatRenameSessionPlaceholder))
             }
             .alert(L10n.t(.chatSpeechTitle), isPresented: Binding(
                 get: { speechError != nil },

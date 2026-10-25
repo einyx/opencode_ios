@@ -33,9 +33,11 @@ final class ComposerControlsUITests: XCTestCase {
         XCTAssertLessThan(mic.frame.maxY, send.frame.minY)
         if imageVisible {
             XCTAssertTrue(photo.exists)
-            XCTAssertEqual(photo.frame.midX, send.frame.midX, accuracy: 1)
+            // Photo and send share one bottom-aligned row: photo sits to the
+            // left of send, both bottom-aligned with the input field.
+            XCTAssertLessThan(photo.frame.maxX, send.frame.minX)
+            XCTAssertEqual(photo.frame.maxY, send.frame.maxY, accuracy: 1)
             XCTAssertLessThan(mic.frame.maxY, photo.frame.minY)
-            XCTAssertLessThan(photo.frame.maxY, send.frame.minY)
             XCTAssertTrue(photo.isHittable)
         } else {
             XCTAssertFalse(photo.exists)

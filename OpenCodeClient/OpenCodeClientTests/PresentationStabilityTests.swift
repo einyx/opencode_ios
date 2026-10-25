@@ -44,14 +44,16 @@ struct PresentationStabilityTests {
 
         let before = MessageRowView.cardGridTiles(for: [first])
         let after = MessageRowView.cardGridTiles(for: [first, second])
-        #expect(tileIDs(before) == ["tile-toolcalls-p1"])
-        #expect(tileIDs(after) == tileIDs(before))
+        // Every tool call is its own row now, so appending one appends a row
+        // and never rewrites the identity of the rows before it.
+        #expect(tileIDs(before) == ["tile-toolcall-p1"])
+        #expect(tileIDs(after) == ["tile-toolcall-p1", "tile-toolcall-p2"])
         #expect(!tileIDs(after)[0].contains("p2"))
 
         let split = MessageRowView.cardGridTiles(for: [first, thinking, third])
         let grown = MessageRowView.cardGridTiles(for: [first, thinking, third, fourth])
-        #expect(tileIDs(split) == ["tile-toolcalls-p1", "tile-thinking-r1", "tile-toolcalls-p3"])
-        #expect(tileIDs(grown) == tileIDs(split))
+        #expect(tileIDs(split) == ["tile-toolcall-p1", "tile-thinking-r1", "tile-toolcall-p3"])
+        #expect(tileIDs(grown) == ["tile-toolcall-p1", "tile-thinking-r1", "tile-toolcall-p3", "tile-toolcall-p4"])
     }
 
     @Test func laterStepErrorSpeechAndFooterStayWithTheirMessage() throws {

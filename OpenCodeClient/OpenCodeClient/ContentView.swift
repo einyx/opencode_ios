@@ -508,8 +508,7 @@ struct ContentView: View {
         ChatTabView(
             state: state,
             showSettingsInToolbar: false,
-            showSessionListInToolbar: !useSplitLayout,
-            showCreateSessionInToolbar: !useSplitLayout
+            showSessionListInToolbar: !useSplitLayout
         )
     }
 

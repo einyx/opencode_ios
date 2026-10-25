@@ -319,6 +319,10 @@ struct SettingsTabView: View {
                 }
             }
             .navigationTitle(L10n.t(.settingsTitle))
+            // Inline, not a large title: the list scrolls under the bar, and
+            // a large title left the scrolled content legible through it.
+            .navigationBarTitleDisplayMode(.inline)
+            .dismissableKeyboard()
             .onAppear {
                 #if !os(visionOS)
                 _ = try? state.sshTunnelManager.readPublicKey()
@@ -477,6 +481,7 @@ struct SSHTunnelSetupGuideView: View {
                 }
             }
             .navigationTitle(L10n.t(.settingsSshSetupGuideTitle))
+            .dismissableKeyboard()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -529,6 +534,7 @@ struct PublicKeySheet: View {
                 .disabled(publicKey.isEmpty)
             }
             .navigationTitle(L10n.t(.settingsPublicKeyTitle))
+            .dismissableKeyboard()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

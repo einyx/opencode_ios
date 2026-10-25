@@ -25,6 +25,11 @@ enum ChatComposerSendGate {
 struct ChatComposerTextView: UIViewRepresentable {
     @Binding var text: String
     @Binding var hasMarkedText: Bool
+    /// Height the composer field should take for the current content. A
+    /// scrollable UITextView reports no intrinsic height, so SwiftUI would
+    /// otherwise stretch the field to its maximum and leave the empty
+    /// composer reserving four text lines.
+    @Binding var contentHeight: CGFloat
     var isEditable: Bool = true
     var requestsFirstResponder: Bool = false
     var suppressesSoftwareKeyboard: Bool = false
@@ -39,7 +44,7 @@ struct ChatComposerTextView: UIViewRepresentable {
     var onCaretProbe: (String) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text, hasMarkedText: $hasMarkedText, onSubmit: onSubmit)
+        Coordinator(text: $text, hasMarkedText: $hasMarkedText, contentHeight: $contentHeight, onSubmit: onSubmit)
     }
 
     func makeUIView(context: Context) -> IMEAwareTextView {
@@ -96,6 +101,7 @@ struct ChatComposerTextView: UIViewRepresentable {
             }
         }
         uiView.accessibilityLabel = placeholder
+        context.coordinator.publishContentHeight(for: uiView)
         uiView.onShiftReturn = {
             context.coordinator.insertNewline(into: uiView)
         }
@@ -123,6 +129,7 @@ struct ChatComposerTextView: UIViewRepresentable {
     final class Coordinator: NSObject, UITextViewDelegate {
         @Binding private var text: String
         @Binding private var hasMarkedText: Bool
+        @Binding private var contentHeight: CGFloat
         private let onSubmit: () -> Void
         private var isInsertingShiftNewline = false
         var onEndEditing: () -> Void = {}
@@ -144,10 +151,27 @@ struct ChatComposerTextView: UIViewRepresentable {
             }
         }
 
-        init(text: Binding<String>, hasMarkedText: Binding<Bool>, onSubmit: @escaping () -> Void) {
+        init(
+            text: Binding<String>,
+            hasMarkedText: Binding<Bool>,
+            contentHeight: Binding<CGFloat>,
+            onSubmit: @escaping () -> Void
+        ) {
             _text = text
             _hasMarkedText = hasMarkedText
+            _contentHeight = contentHeight
             self.onSubmit = onSubmit
+        }
+
+        /// Publish the height the composer field needs for its current content,
+        /// clamped to the one-line minimum and the four-line maximum.
+        func publishContentHeight(for textView: UITextView) {
+            let height = min(
+                max(textView.contentSize.height, DesignControls.composerTextMinHeight),
+                DesignControls.composerTextMaxHeight
+            )
+            guard abs(contentHeight - height) > 0.5 else { return }
+            contentHeight = height
         }
 
         func textViewDidBeginEditing(_ textView: UITextView) {
@@ -166,6 +190,7 @@ struct ChatComposerTextView: UIViewRepresentable {
             text = textView.text
             updateMarkedTextState(for: textView)
             onSelectionUTF16(textView.selectedRange)
+            publishContentHeight(for: textView)
         }
 
         func textViewDidChangeSelection(_ textView: UITextView) {

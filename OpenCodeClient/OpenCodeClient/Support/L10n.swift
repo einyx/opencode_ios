@@ -1640,6 +1640,8 @@ enum L10n {
         return String(format: template, locale: currentLocale, arguments: arguments)
     }
 
+    /// Kept for the session sheet / tool summaries; the chat itself renders
+    /// one row per tool call.
     static func toolCallsCount(_ count: Int) -> String {
         let key: Key = count == 1 ? .toolCallsCountOne : .toolCallsCountMany
         return formatCount(key: key, count: count)

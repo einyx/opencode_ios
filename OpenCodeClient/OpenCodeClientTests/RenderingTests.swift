@@ -840,14 +840,13 @@ struct DesignTokensTests {
         #expect(DesignColors.Opacity.surfaceFill > 0 && DesignColors.Opacity.surfaceFill < 0.2)
         #expect(DesignColors.Opacity.surfaceFillDark > 0 && DesignColors.Opacity.surfaceFillDark < 0.2)
         #expect(DesignColors.Opacity.borderStroke > 0 && DesignColors.Opacity.borderStroke < 0.3)
-        #expect(DesignColors.Opacity.userMessageFill > 0 && DesignColors.Opacity.userMessageFill < 0.2)
+        #expect(DesignColors.Opacity.chipFill > 0 && DesignColors.Opacity.chipFill < 0.2)
         #expect(DesignColors.Opacity.selectionFill > 0 && DesignColors.Opacity.selectionFill < 0.2)
     }
 
     @Test func darkModeOpacityHigherThanLight() {
         #expect(DesignColors.Opacity.surfaceFillDark > DesignColors.Opacity.surfaceFill)
         #expect(DesignColors.Opacity.borderStrokeDark > DesignColors.Opacity.borderStroke)
-        #expect(DesignColors.Opacity.userMessageFillDark > DesignColors.Opacity.userMessageFill)
     }
 
     @Test func animationPresetSlotsArePopulated() {

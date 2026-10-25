@@ -96,13 +96,27 @@ Corner radius specs are globally unified: 12pt for information/action cards, 16p
 
 ## Message Area
 
-- User messages: **full width + a 3pt `accent` stripe on the leading edge + an `accent.muted` fill**, with the Body Prominent weight. This form is isomorphic with the action cards (the leading stripe as a global, thread-through design language). The right-aligned bubble form is abandoned — bubbles use screen space inefficiently on wide iPad screens, while the stripe approach looks more modern and crisp.
+- User messages: **a right-aligned bubble**, capped at 320pt, one tucked corner (20 / 20 / 6 / 20), filled with a neutral surface tint. This is Claude's treatment: a bubble reads as "the person said this", while a full-width accent stripe read as a system event. The Body Prominent weight stays.
 - AI replies: **no container wrapper at all**; plain `text.primary` body text is laid out directly on the `bg.primary` background, separated from user messages only by 20pt of vertical spacing. Streaming text renders smoothly word by word, with no extra entrance animation.
 - Message spacing is set to 20pt (the original 12pt was too cramped). Treat every message as an independent unit of thought, with generous whitespace providing breathing room.
+
+## Chat Screen (Claude interaction model + Liquid Glass)
+
+The chat screen follows the Claude iOS app's interaction model: minimal chrome, content scrolling under floating surfaces, and nothing on screen that is not either conversation or a control for it.
+
+- **One floating glass header.** Two small capsules, not a full-width bar: the session entry button and the session title on the left, the quota badge and the context ring on the right. A bar the width of the screen with rounded corners reads as a floating card, not as chrome. The navigation bar is hidden; the docked file preview keeps it visible, because that preview brings its own close button.
+- **One floating glass composer.** A 26pt-radius glass surface above the tab bar. On iOS 26 it is the tab view's **bottom accessory**, so the system stacks it above the floating tab bar and the two read as one glass island — the composer can never end up underneath the bar. On iOS 17–25 it stays in the layout above the classic tab bar.
+- **Chips above the composer.** The model picker and the todo list are chips on a row above the field; the live session counters stay plain text on the same row. Session context belongs next to the input, not in the title bar. The counters keep ticking (they carry the turn stopwatch).
+- **Turn state is transient.** The indicator, the activity text and the abort menu appear only while there is something to say; they are not a permanent block above the input.
+- **One row per tool call.** There is no merged "N tool calls" group: every call renders the same compact row (icon, name, subject line, chevron) and expands in place. A group disclosure stacked on top of each card's own disclosure was a double disclosure.
+- **User message = bubble.** Right-aligned, capped at 320pt, one tucked corner — Claude's treatment. The full-width accent stripe read as a system event rather than as something the person said.
+- **Glass everywhere it is a surface.** Every floating surface goes through one `glassSurface` modifier: `glassEffect(.regular.interactive())` on iOS 26, a translucent material with a hairline edge on iOS 17–25, so the fallback never drifts from the design.
 
 ## Composer
 
 - Input field: drop the stroke, use only a `bg.secondary` fill with a 16pt corner radius. Strokes often imply form fields; a free-text input area should feel borderless.
+- The field **hugs its content**: one line by default, growing up to about four lines as the text grows. A scrollable text view reports no intrinsic height, so the composer publishes the measured content height — otherwise the empty composer reserves four lines and the input area looks half-empty.
+- The photo button shares the **bottom row** with send, side by side. Only transient actions (stop, retry) may stack above send; a permanent control in that column made the column taller than the field, so the photo button floated mid-height while send dropped below the input baseline.
 - text review field: during voice transcription or retry, the partial transcript that is continuously appended or replaced must drive the text field to auto-scroll to the end, presenting the latest text output in a typewriter-like fashion; in manual editing and draft restoration scenarios it keeps the system default scrolling behavior to avoid disturbing the user's cursor.
 - Send: a standalone rounded-rectangle button (not a circular icon), with a solid `accent` fill and a white icon, hugging the bottom-right of the input field and acting visually as "an organic part of the input area".
 - mic: moved to the **inner left side of the input field**, presented as an in-field functional icon (`text.secondary`).
@@ -113,7 +127,7 @@ Corner radius specs are globally unified: 12pt for information/action cards, 16p
 
 - User message entrance: an offset y transition from 16→0 with opacity from 0→1, over an ease-out of 0.28s. AI streaming text gets no entrance animation at all.
 - Tool card expansion: a custom spring (response 0.32, damping 0.82), giving a more compact and lively expansion than the system default DisclosureGroup.
-- Thinking / "N tool calls" half-width process tile expansion: **no animation**; the custom-drawn header toggles directly on tap, and the tile height change triggers a grid reflow (accepted in the first version, no expansion animation).
+- Thinking / "N tool calls" full-width process row expansion: **no animation**; the custom-drawn header toggles directly on tap, and the row grows in place.
 - Permission/Question card entrance: slides in from below (offset y from 24→0) together with a fade-in, which guides the user's visual focus more effectively than a pure fade.
 - Session switching: the message list uses a 0.2s opacity crossfade transition, removing the abrupt pause caused by a hard cut.
 - Explicitly out of scope: splash launch animations, bouncing spring motion, and gradient backgrounds (avoiding the visual cheapness that over-decoration brings).
@@ -126,13 +140,13 @@ While keeping brand, tokens, colors, typography, and the card design language **
 
 - Single-column architecture: bottom tab navigation (Chat / Files / Settings). The Session list is triggered from a Chat top entry that pushes in (or slides down) and does not permanently occupy the screen.
 - Restrained whitespace: message spacing is 20pt, card padding is 14pt, and screen horizontal margins are 16pt. Breathing room is guaranteed while the vertical display space is fully used.
-- The Toolbar is trimmed to 4 items: the session entry, configuration items (model and agent consolidated into a unified sheet), the context ring (18pt), and settings. Rename is demoted to a swipe action in the session list.
-- Compact Composer: single-line height by default, self-expanding up to about ~100pt.
+- The header is **one band**: the session entry button and the session title sit in the leading group (the title is left-aligned, so it never fights the trailing controls), and the trailing group carries the model chip, the quota badge, the todo panel (only when there are todos), the context ring (18pt) and settings. Rename and new-session moved to the session sheet, where the other session-level actions live.
+- Compact Composer: the input hugs its content — one line by default, growing to about four lines — and the photo button shares the bottom row with send, so neither button floats away from the field.
 
 ```
  iPhone — Chat (dark)
  ┌──────────────────────────────┐
- │ ‹  my-session      ◌  ⚙       │  ← trimmed toolbar, ◌=context ring
+ │ ≡  my-session           ◌  ⚙    │  ← one header band, ◌=context ring
  ├──────────────────────────────┤
  │ ▎Refactor the auth module     │  ← user message: left accent stripe + muted fill
  │                               │
@@ -276,19 +290,23 @@ The core idea of the design is to clearly delineate the two roles through a **di
 
 **File-operation tools (covering the four types patch / edit / write / read)** are uniformly rendered as **file cards**: a clean, modern **file icon** on the left of the card, the filename or path in monospace in the middle, and a chevron icon on the right that triggers navigation or expansion. Each tool call corresponds to one card, **arranged in a 2-column grid** (two cards side by side per row, aligned with the iPhone's existing 2-column grid spec; it can extend to 3 columns on iPad). The logical decision rule is `part.tool ∈ {apply_patch, edit_file, write_file, read_file}` (including historical compatibility aliases).
 
-## Three, Merge into "N tool calls" (Half-Width Tile)
+## Three, One Row Per Tool Call
 
-**All remaining tools besides file operations (including bash / test / grep / glob / list / webfetch / task, etc.) are uniformly merged into a single "N tool calls" tile**, with the text format uniformly defined as **"N tool calls"** (for example `3 tool calls`) — a moderate abstraction that does not expose the specific tool category while collapsed. The component is collapsed by default and is a **tile that is always half-width**: it shares the two-column (iPhone) / three-column (iPad) grid with the file cards, its width is determined by the grid column, and **it never stretches to full width whether collapsed or expanded**.
+**All remaining tools besides file operations (including bash / test / grep / glob / list / webfetch / task, etc.) each render as their own row**: icon, tool name, the call's subject line (the command or the reason), the status, and a chevron. The row is collapsed by default and expands in place to show the input and the output.
 
-The tile uses a custom disclosure (not the system DisclosureGroup): the header is plain text (no icon, consistent with Android) plus a chevron on the right, with font/weight/color following the process row spec (micro / medium / accent blue); tapping the header toggles the expansion, and once expanded it lists the individual tools it contains item by item (reusing the existing ToolPartView expansion logic), with **the content staying inside the half-width tile** (narrow column) — the tile grows taller and the grid reflows.
+The merged "N tool calls" group is gone. A group disclosure stacked on top of each card's own disclosure was a double disclosure, and the group header hid which tool was actually running.
 
-## Arrangement: Half-Width Tiles Share a Two-Column Grid
+Each row's header is a single line: the tool name keeps its natural width and the subject line is truncated, so neither can wrap mid-word. The status is a trailing pill and is dropped when the row already carries a subject line, so the row never repeats itself.
 
-thinking (ThinkingCard), the merged "N tool calls" tile, and the file cards **all enter the same LazyVGrid two-column (iPhone) / three-column (iPad) grid**, with the tiles laid out in the original part order: reasoning produces a half-width ThinkingCard tile, file operations each produce a half-width file card tile, and non-file tools cluster together and merge into **one** half-width "N tool calls" tile. All process tiles are **always half-width** — the width is determined by the grid column and does not stretch to full width when expanded; **the expanded content stays inside the half-width tile** (narrow column), the tile grows taller, and the grid reflows (accepted in the first version, no animation).
+The row is a **compact tag that hugs its content**, not a full-width slab: six tool calls stacked as full-width cards turned the transcript into a wall of grey rectangles. The expanded detail drops below the tag, indented, with no container of its own — the mono type carries the hierarchy.
+
+## Arrangement: File Cards Keep the Grid, Everything Else Is Full Width
+
+file cards **enter a two-column (iPhone) / three-column (iPad) grid**, with the tiles laid out in the original part order: file operations each produce a half-width file card tile, and every other tool call produces a full-width row of its own. The thinking card **takes a full-width row** — its content is prose, not thumbnails. A file card row that has fewer tiles than columns keeps its grid positions (the empty cell stays empty), so a lone file card still occupies half the width.
 
 text and attachment blocks do not enter the grid and are **rendered full width after the grid** (reading order: the grid first, the full-width text after; users accept this). There is no extra grouping overall, and no category headings like "Files updated" or "Actions" are added.
 
-File cards follow the Quiet Tech neutral card spec (neutral `surface` fill, no border stroke, 12pt corner radius); the thinking / tool calls tiles keep the lightweight process row form (no heavy card surface), with color accents restricted to the file icon, the header, and the chevron area — ensuring at most one blue emphasis remains on screen.
+File cards follow the Quiet Tech neutral card spec (neutral `surface` fill, no border stroke, 12pt corner radius); the thinking / tool rows keep the lightweight process row form (no heavy card surface), with color accents restricted to the file icon, the header, and the chevron area — ensuring at most one blue emphasis remains on screen.
 
 ![Tool cards: speaker differentiation + 2-column file cards + N tool calls](design_images/tool_cards_chronological.png)
 
