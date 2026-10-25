@@ -56,7 +56,7 @@ change the backlog, so they are corrected here rather than averaged in:
    literals, a second blue (`DesignColors.Semantic.info` at `QuestionCardView.swift:21` —
    a *different* blue from `Brand.primary`), a red error block that `docs/design.md`
    explicitly forbids (`MessageRowView.swift:648,651` uses
-   `DesignColors.Semantic.error`), out-of-scale literal fonts, 66 hardcoded spacings, and
+   `DesignColors.Semantic.error`), out-of-scale literal fonts, 62 hardcoded spacings, and
    5 `.font(.system(size: 1))` accessibility-probe hacks. **Phase 2 below is re-scoped to
    these seams** — it delivers exactly what the personas asked for ("fix or explicitly
    retire the broken seams before styling around them") without inventing work.
@@ -697,7 +697,7 @@ why TENSION B resolves to *sequencing*, not to "pilot first".
 ## Backlog ranking
 
 Ranked by **user-visible impact ÷ review cost**, measured against the Phase 0 audit
-([`audit.md`](audit.md): 102 rubric rows → **42 PASS, 7 PARTIAL, 14 REVIEW, 39 FAIL**,
+([`audit.md`](audit.md): 102 rubric rows → **43 PASS, 8 PARTIAL, 14 REVIEW, 37 FAIL**,
 re-measured against the merged tree).
 This ranking drives the Phase 5–7 sequencing.
 
