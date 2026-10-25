@@ -40,6 +40,14 @@ final class CarLiveController {
     private let audioSendTimeout: TimeInterval?
     private var runToken: UInt64 = 0
     private var captureGeneration: UInt64 = 0
+    /// True from the moment a capture is *requested* until the handle is
+    /// released.
+    ///
+    /// `audio.startCapture()` opens the engine on the audio queue and only
+    /// returns afterwards, so `captureGeneration` is assigned strictly after
+    /// the microphone is live. This flag closes that window — it is set before
+    /// the await and cleared only once the engine is confirmed closed.
+    private var captureStartPending = false
     private var captureToken: UInt64 = 0
     private var earlyCapture: CarLiveCaptureHandle?
     private var captureCleanup: Task<Void, Never>?
@@ -205,6 +213,30 @@ final class CarLiveController {
     var runTokenForPolicy: UInt64 { runToken }
     var sessionOwnerForPolicy: String { sessionOwner }
     var isClosingForPolicy: Bool { closing }
+
+    /// True while the device microphone may be open.
+    ///
+    /// Deliberately conservative: it may report a capture where the engine has
+    /// already closed, but it never reports "closed" while the engine is still
+    /// capturing. Callers use it to decide whether an event may be announced
+    /// audibly or haptically.
+    ///
+    /// - `captureStartPending` covers the window in which `audio.startCapture()`
+    ///   is suspended and the engine has already been started on the audio
+    ///   queue but `captureGeneration` has not been assigned yet. It is set
+    ///   before the await and cleared only once the engine is confirmed closed.
+    /// - `captureGeneration` covers a capture that is established. It is cleared
+    ///   *after* `audio.stopCapture()` returns, so it over-approximates during
+    ///   the shutdown — the safe direction.
+    /// - `earlyCapture` covers a capture taken before the connection opened.
+    ///   On iOS that path does not exist (`startsBeforeConnection` is watchOS
+    ///   only), but it is retained for the platforms that do take it.
+    /// - The phase cases cover a capture that is established, and the connecting
+    ///   phase, during which a capture may already be running.
+    var isMicrophoneCaptureActiveForPolicy: Bool {
+        captureStartPending || captureGeneration != 0 || earlyCapture != nil
+            || phase == .listening || phase == .speaking || phase == .connecting
+    }
 
     func acceptsExternalHold(generation: UInt64) -> Bool {
         BackgroundVoicePolicy.shouldApplyAudioHold(
@@ -412,6 +444,12 @@ final class CarLiveController {
         }
         do {
             let handle: CarLiveCaptureHandle
+            // The engine opens *inside* `audio.startCapture()`, on the audio queue,
+            // and `captureGeneration` is only assigned after that await returns.
+            // Mark the capture as pending across the await so the
+            // microphone-open window is never reported as closed — including
+            // when a backgrounding cancel clears the phase underneath it.
+            captureStartPending = true
             if let prepared = earlyCapture {
                 earlyCapture = nil
                 handle = prepared
@@ -421,9 +459,11 @@ final class CarLiveController {
             guard token == runToken, !closing, !blocksNewCapture else {
                 handle.finish()
                 await audio.stopCapture(generation: handle.generation)
+                captureStartPending = false
                 resumeWaiter(false)
                 return
             }
+            captureStartPending = false
             captureGeneration = handle.generation
             captureToken = token
             phase = .listening
@@ -500,6 +540,7 @@ final class CarLiveController {
             }
             resumeWaiter(true)
         } catch {
+            captureStartPending = false
             resumeWaiter(false)
             await failLive(CarLiveCopy.microphoneUnavailable, token: token)
         }

@@ -96,10 +96,10 @@
   },
   "voiceflow": {
     "name": "VoiceFlowKit",
-    "spdx": "NOASSERTION",
-    "copyright": "",
-    "url": "https://github.com/grapeot/voiceflow",
-    "licenseFile": null,
-    "note": "The upstream repository ships no licence file, so there is no grant to redistribute this code. A licence has to be added to the upstream repository (or the package replaced) before the app can be distributed."
+    "spdx": "Apache-2.0",
+    "copyright": "Copyright 2026 grapeot and the VoiceFlow contributors",
+    "url": "https://github.com/einyx/voiceflow",
+    "licenseFile": "Apache-2.0.txt",
+    "notice": "Fork of https://github.com/grapeot/voiceflow, which shipped no licence file. The fork adds the Apache License 2.0 and keeps the upstream authorship; the full upstream history is preserved."
   }
 }

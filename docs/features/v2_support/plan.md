@@ -111,9 +111,20 @@ now-working write, and `opencode pair --remote` (OpenTunnel).
   ./scripts/test_ui.sh
   ```
 
-  Without both variables the tests skip. Run artifacts (xcresult bundles,
-  screenshots) land in `.occlient/`, which is gitignored — a failing run can
-  contain the typed password, so that directory stays untracked.
+  Without both variables the tests skip. `xcodebuild` does not forward the
+  environment to the test process, so the server can also be described by
+  `/tmp/opencode-ios-live-server-config.json` (`server_url`, `username`,
+  `password`, mode 0600). That path is its own on purpose:
+  `/tmp/opencode-ios-tier4-config.json` belongs to the Tier 4 fixtures, and
+  writing it would make those tests read a live server.
+
+  The test saves a real host profile, so it runs on its own and the app state
+  is reset afterwards (`xcrun simctl uninstall <udid>
+  com.grapeot.OpenCodeClient`).
+
+  Run artifacts (xcresult bundles, screenshots) land in `.occlient/`, which is
+  gitignored — a failing run can contain the typed password, so that directory
+  stays untracked.
 
 ## Implementation notes
 

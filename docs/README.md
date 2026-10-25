@@ -10,7 +10,7 @@
 | `OpenCode_iOS_Client_RFC.md` | Technical architecture design (the client's full path) | living |
 | `WORKING.md` | Progress, troubleshooting and decision log (changelog) | living |
 | `tests.md` | Test system design spec (Tier 1–4) | living |
-| `design.md` | Visual design spec (Quiet Tech style) | living |
+| `design.md` | Visual design spec (Quiet Tech style). Sections carry stable `QT-*` clause IDs; the machine-checkable form is `features/polish/rubric.md` | living |
 | `OpenCode_Web_API.md` | OpenCode server HTTP API reference (upstream snapshot; the official docs and the live `/doc` are authoritative) | living reference |
 | `lessons.md` | Engineering retrospectives and reusable lessons | living |
 
@@ -28,6 +28,7 @@
 | `agent_catalog_validation/` | Agent catalog validation and visible delete failures | `notes.md` | shipped; the selected agent is checked against the current server `/agent`, and a non-2xx delete carries the status code and body |
 | `watch_ambient/` | Watch connects to Live directly, tools execute through the phone | `prd.md` / `rfc.md` | **Experimental**; it can still drop during an answer or on the second turn, and sustained background use is not accepted (PR #223) |
 | `v2_support/` | OpenCode V2 server support + `opencode pair` QR onboarding | `plan.md` | implemented; see `../v2_server_compatibility.md` for the wire contract |
+| `polish/` | Superpolished app experience — the "Quiet Tech" conformance initiative | `plan.md` / `rubric.md` / `audit.md` / `linear-backlog.md` | **Phase 0 complete** (rubric + measured audit + ranked backlog); **R1 (haptics) implemented, awaiting the privacy review**. 102 rubric rows: 44 PASS, 35 FAIL, 9 PARTIAL, 14 REVIEW. Tracked in Linear as `PRY-5`…`PRY-40`; `features/polish/rubric.md` is the machine-checkable form of `../design.md`, and `features/polish/audit.md` is the measured baseline it is enforced against |
 
 ## archive/ — one-off work records and frozen decisions (append only, never edited)
 
