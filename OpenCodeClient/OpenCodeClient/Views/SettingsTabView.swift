@@ -316,6 +316,12 @@ struct SettingsTabView: View {
                     if let version = state.serverVersion {
                         LabeledContent(L10n.t(.settingsServerVersion), value: version)
                     }
+                    NavigationLink {
+                        OpenSourceLicencesView()
+                    } label: {
+                        Text(L10n.t(.settingsOpenSourceLicences))
+                    }
+                    .accessibilityIdentifier("settings-open-source-licences")
                 }
             }
             .navigationTitle(L10n.t(.settingsTitle))

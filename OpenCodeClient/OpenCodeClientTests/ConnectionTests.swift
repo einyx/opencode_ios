@@ -174,15 +174,60 @@ struct HostProfileTests {
         }
     }
 
-    @Test @MainActor func deleteOnlyHostThrows() throws {
-        withIsolatedHostProfileDefaults {
-            let state = makeIsolatedAppState(apiClient: MockAPIClient(), sseClient: MockSSEClient())
+    @Test @MainActor func deletingTheOnlyHostLeavesNoHost() throws {
+        try withIsolatedHostProfileDefaults {
+            let defaults = makeIsolatedUserDefaults()
+            let state = makeIsolatedAppState(
+                apiClient: MockAPIClient(),
+                sseClient: MockSSEClient(),
+                userDefaults: defaults
+            )
             let profile = state.currentHostProfile!
 
-            #expect(throws: HostProfileError.cannotDeleteOnlyHost) {
-                try state.deleteHostProfile(profile)
-            }
-            #expect(state.hostProfiles.count == 1)
+            try state.deleteHostProfile(profile)
+
+            #expect(state.hostProfiles.isEmpty)
+            #expect(state.currentHostProfile == nil)
+            // The empty list is persisted, so the host does not come back on
+            // the next launch.
+            let stored = defaults.data(forKey: AppState.hostProfilesKey)
+            #expect(stored != nil)
+            #expect((try? JSONDecoder().decode([HostProfile].self, from: stored ?? Data()))?.isEmpty == true)
+        }
+    }
+
+    @Test @MainActor func freshInstallHasNoHost() {
+        withIsolatedHostProfileDefaults {
+            let state = makeIsolatedAppState(
+                apiClient: MockAPIClient(),
+                sseClient: MockSSEClient(),
+                seedHost: false
+            )
+
+            // A fresh install used to seed a "Local OpenCode" profile that
+            // pointed at the device's own loopback, which is never the right
+            // server on a phone.
+            #expect(state.hostProfiles.isEmpty)
+            #expect(state.currentHostProfile == nil)
+        }
+    }
+
+    @Test @MainActor func removingEveryHostStaysRemovedOnTheNextLaunch() {
+        withIsolatedHostProfileDefaults {
+            let defaults = makeIsolatedUserDefaults()
+            let first = makeIsolatedAppState(
+                apiClient: MockAPIClient(),
+                sseClient: MockSSEClient(),
+                userDefaults: defaults
+            )
+            try? first.deleteHostProfile(first.currentHostProfile!)
+
+            let second = makeIsolatedAppState(
+                apiClient: MockAPIClient(),
+                sseClient: MockSSEClient(),
+                userDefaults: defaults
+            )
+            #expect(second.hostProfiles.isEmpty)
         }
     }
 }

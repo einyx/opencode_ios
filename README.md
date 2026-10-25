@@ -105,4 +105,11 @@ xcodebuild -project "OpenCodeClient.xcodeproj" \
 
 ## License
 
-MIT
+Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+
+The app links the packages listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Their licences are reproduced in full in the app (Settings → About → Open source
+licences) and in
+[`OpenCodeClient/OpenCodeClient/Resources/ThirdPartyNotices.txt`](OpenCodeClient/OpenCodeClient/Resources/ThirdPartyNotices.txt),
+which is generated from `Package.resolved` by
+`python3 scripts/generate_third_party_notices.py`.

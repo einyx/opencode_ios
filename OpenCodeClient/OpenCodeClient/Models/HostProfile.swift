@@ -178,12 +178,10 @@ struct HostProfileExportSSH: Codable, Equatable {
 
 enum HostProfileError: LocalizedError, Equatable {
     case invalidImport(String)
-    case cannotDeleteOnlyHost
 
     var errorDescription: String? {
         switch self {
         case .invalidImport(let message): return message
-        case .cannotDeleteOnlyHost: return L10n.t(.hostDeleteOnlyHostError)
         }
     }
 }

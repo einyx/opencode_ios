@@ -34,12 +34,29 @@ extension AppState {
 
     func loadHostProfilesFromStorageOrLegacy(allowLegacyPersist: Bool = true) {
         guard let data = defaults.data(forKey: Self.hostProfilesKey) else {
-            installLegacyHostProfile(persist: allowLegacyPersist)
+            // A fresh install has no host to migrate. The old flat preferences
+            // are only migrated when they hold a host the user configured: a
+            // fresh install used to seed a "Local OpenCode" profile that
+            // pointed at the device's own loopback, which is never the right
+            // server on a phone. The host is added with the host form or a
+            // pairing link instead.
+            if hasLegacyHostConfiguration {
+                installLegacyHostProfile(persist: allowLegacyPersist)
+            } else {
+                applyNoHostProfiles()
+            }
             return
         }
         if let decoded = try? JSONDecoder().decode([HostProfile].self, from: data) {
             if decoded.isEmpty {
-                installLegacyHostProfile(persist: allowLegacyPersist)
+                // An empty list means the user removed every host, unless the
+                // flat preferences still hold a host they configured: that is
+                // an install from before the host list existed.
+                if hasLegacyHostConfiguration {
+                    installLegacyHostProfile(persist: allowLegacyPersist)
+                } else {
+                    applyNoHostProfiles()
+                }
             } else {
                 applyDecodedHostProfiles(decoded)
             }
@@ -48,6 +65,22 @@ extension AppState {
         hostProfileBlobUnreadable = true
         hostProfileLoadError = L10n.t(.hostConnectionErrorGeneric)
         installLegacyHostProfile(persist: false)
+    }
+
+    /// Whether the flat preferences hold a host the user configured.
+    private var hasLegacyHostConfiguration: Bool {
+        if !_username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return true }
+        if !_password.isEmpty { return true }
+        let server = _serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !server.isEmpty && server != APIClient.defaultServer
+    }
+
+    /// No host is configured. The user adds one with the host form or a
+    /// pairing link.
+    func applyNoHostProfiles() {
+        hostProfileBlobUnreadable = false
+        hostProfileLoadError = nil
+        hostProfiles = []
     }
 
     func applyDecodedHostProfiles(_ decoded: [HostProfile]) {
@@ -102,8 +135,9 @@ extension AppState {
 
     func saveHostProfiles() {
         guard !hostProfileBlobUnreadable else { return }
-        guard !hostProfiles.isEmpty,
-              let data = try? JSONEncoder().encode(hostProfiles) else { return }
+        // An empty list is persisted as well: otherwise removing the last
+        // host would not stick and it would come back on the next launch.
+        guard let data = try? JSONEncoder().encode(hostProfiles) else { return }
         defaults.set(data, forKey: Self.hostProfilesKey)
     }
 
@@ -356,8 +390,18 @@ extension AppState {
         await retryClientCapabilityOutbox()
     }
 
+    /// Drop the credentials of the host that is gone.
+    private func clearRuntimeHostCredentials() {
+        _serverURL = APIClient.defaultServer
+        _username = ""
+        _password = ""
+        defaults.removeObject(forKey: Self.serverURLKey)
+        defaults.removeObject(forKey: Self.usernameKey)
+        try? hostCredentialAccess.delete(Self.passwordKeychainKey)
+        Task { await configureAPIClientFromCurrentHost() }
+    }
+
     func deleteHostProfile(_ profile: HostProfile) throws {
-        guard hostProfiles.count > 1 else { throw HostProfileError.cannotDeleteOnlyHost }
         let wasCurrent = profile.id == currentHostProfileID
         if let passwordID = profile.basicAuth?.keychainPasswordID {
             do {
@@ -368,8 +412,20 @@ extension AppState {
         }
         hostProfiles.removeAll { $0.id == profile.id }
         messageStore.removeOutboundSends(hostProfileID: profile.id)
-        if wasCurrent, let first = hostProfiles.first {
-            beginHostTransportTransition(to: first.id)
+        if wasCurrent {
+            if let first = hostProfiles.first {
+                beginHostTransportTransition(to: first.id)
+            } else {
+                // The last host is gone: stop talking to it and start over
+                // with an empty host list. The credentials it used are
+                // dropped as well, so the removed host cannot come back
+                // through the legacy migration on the next launch.
+                disconnectSSE()
+                hostRequestGeneration &+= 1
+                currentHostProfileID = UUID()
+                applyNoHostProfiles()
+                clearRuntimeHostCredentials()
+            }
         }
         saveHostProfiles()
     }

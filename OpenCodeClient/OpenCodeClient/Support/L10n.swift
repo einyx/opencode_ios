@@ -100,6 +100,8 @@ enum L10n {
         case settingsTestConnectionScope
         case settingsAbout
         case settingsServerVersion
+        case settingsOpenSourceLicences
+        case settingsOpenSourceLicencesMissing
         case settingsExperimentalFeatures
         case settingsCarMode
         case settingsModelShortlist
@@ -205,7 +207,6 @@ enum L10n {
         case hostDuplicateName
         case hostImportErrorDirectRequiresServerURL
         case hostImportErrorSSHTunnelRequiresSSHSettings
-        case hostDeleteOnlyHostError
         case hostImportErrorInvalidUTF8
         case hostExportErrorEncodeConfigJSON
         case hostConnectionErrorInvalidURL
@@ -622,6 +623,8 @@ enum L10n {
         Key.settingsTestConnectionScope.rawValue: "Test Connection checks endpoint and token access only. It does not validate the selected transcription strategy.",
         Key.settingsAbout.rawValue: "About",
         Key.settingsServerVersion.rawValue: "Server Version",
+        Key.settingsOpenSourceLicences.rawValue: "Open source licences",
+        Key.settingsOpenSourceLicencesMissing.rawValue: "The licence notices are missing from this build.",
         Key.settingsExperimentalFeatures.rawValue: "Experimental Features",
         Key.settingsCarMode.rawValue: "Ambient Mode",
         Key.settingsModelShortlist.rawValue: "Models",
@@ -725,7 +728,6 @@ enum L10n {
         Key.hostDuplicateName.rawValue: "%@ Copy",
         Key.hostImportErrorDirectRequiresServerURL.rawValue: "Direct host config requires serverURL.",
         Key.hostImportErrorSSHTunnelRequiresSSHSettings.rawValue: "SSH Tunnel host config requires ssh settings.",
-        Key.hostDeleteOnlyHostError.rawValue: "Add another host before deleting this one.",
         Key.hostImportErrorInvalidUTF8.rawValue: "Host config is not valid UTF-8.",
         Key.hostExportErrorEncodeConfigJSON.rawValue: "Could not encode Host Config JSON.",
         Key.hostConnectionErrorInvalidURL.rawValue: "Invalid OpenCode URL. Check the host address and port.",
@@ -1143,6 +1145,8 @@ enum L10n {
         Key.settingsTestConnectionScope.rawValue: "测试连接只检查服务地址和令牌是否可用，不验证当前选择的转写策略。",
         Key.settingsAbout.rawValue: "关于",
         Key.settingsServerVersion.rawValue: "服务器版本",
+        Key.settingsOpenSourceLicences.rawValue: "开源许可证",
+        Key.settingsOpenSourceLicencesMissing.rawValue: "此构建缺少许可证声明。",
         Key.settingsExperimentalFeatures.rawValue: "实验性功能",
         Key.settingsCarMode.rawValue: "Ambient Mode",
         Key.settingsModelShortlist.rawValue: "模型",
@@ -1249,7 +1253,6 @@ enum L10n {
         Key.hostDuplicateName.rawValue: "%@ 副本",
         Key.hostImportErrorDirectRequiresServerURL.rawValue: "直连配置需要 serverURL。",
         Key.hostImportErrorSSHTunnelRequiresSSHSettings.rawValue: "SSH 隧道配置需要 ssh 设置。",
-        Key.hostDeleteOnlyHostError.rawValue: "请先添加另一个主机，再删除这个主机。",
         Key.hostImportErrorInvalidUTF8.rawValue: "Host config 不是有效的 UTF-8。",
         Key.hostExportErrorEncodeConfigJSON.rawValue: "无法生成 Host Config JSON。",
         Key.hostConnectionErrorInvalidURL.rawValue: "OpenCode 地址无效，请检查主机地址和端口。",

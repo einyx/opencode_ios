@@ -13,6 +13,8 @@
 			</array>
 		</dict>
 	</array>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
@@ -28,6 +30,12 @@
 			</dict>
 		</dict>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>OpenCode uses the camera to scan the pairing QR code that `opencode pair` prints, so this device can connect to your server.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>OpenCode connects to the OpenCode server you add, including one running on your own local network.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>OpenCode records your voice when you dictate a message in the chat, or when you talk to the assistant in Ambient mode.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
