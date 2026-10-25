@@ -21,6 +21,10 @@ extension View {
 
 private struct KeyboardDismissModifier: ViewModifier {
     func body(content: Content) -> some View {
+        // `scrollDismissesKeyboard` and `ToolbarItemGroup(placement: .keyboard)`
+        // are API_UNAVAILABLE(visionos); the hardware/soft keyboard model there
+        // has no dismiss toolbar, so the modifier is a no-op off iOS.
+        #if os(iOS)
         content
             .scrollDismissesKeyboard(.immediately)
             .toolbar {
@@ -36,5 +40,8 @@ private struct KeyboardDismissModifier: ViewModifier {
                     }
                 }
             }
+        #else
+        content
+        #endif
     }
 }
