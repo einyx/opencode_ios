@@ -5,13 +5,13 @@
 
 import Foundation
 
-struct QuestionOption: Codable, Identifiable {
+nonisolated struct QuestionOption: Codable, Identifiable {
     var id: String { label }
     let label: String
     let description: String
 }
 
-struct QuestionInfo: Codable, Identifiable {
+nonisolated struct QuestionInfo: Codable, Identifiable {
     var id: String { header }
     let question: String
     let header: String
@@ -23,7 +23,7 @@ struct QuestionInfo: Codable, Identifiable {
     var allowCustom: Bool { custom ?? true }
 }
 
-struct QuestionRequest: Codable, Identifiable {
+nonisolated struct QuestionRequest: Codable, Identifiable {
     let id: String
     let sessionID: String
     let questions: [QuestionInfo]

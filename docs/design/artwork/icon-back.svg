@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    
+  <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+    <feGaussianBlur stdDeviation="26"/>
+  </filter>
+  <filter id="soft2" x="-40%" y="-40%" width="180%" height="180%">
+    <feGaussianBlur stdDeviation="12"/>
+  </filter>
+
+    
+  </defs>
+  
+  <defs>
+    <linearGradient id="wash" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#FBF8F2"/>
+      <stop offset="0.6" stop-color="#F7F2EA"/>
+      <stop offset="1" stop-color="#EFE6D8"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#wash)"/>
+  <rect width="1024" height="1024" filter="url(#grain)" opacity="0.06"/>
+
+</svg>

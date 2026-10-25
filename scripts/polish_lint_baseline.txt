@@ -49,10 +49,6 @@ OpenCodeClient/OpenCodeClient/Views/Chat/AIUsageQuotaView.swift:POL-TYPE-08
 OpenCodeClient/OpenCodeClient/Views/Chat/AIUsageQuotaView.swift:POL-TYPE-08
 OpenCodeClient/OpenCodeClient/Views/Chat/AIUsageQuotaView.swift:POL-TYPE-08
 OpenCodeClient/OpenCodeClient/Views/Chat/AIUsageQuotaView.swift:POL-TYPE-08
-OpenCodeClient/OpenCodeClient/Views/Chat/ChatTabView.swift:POL-COLOR-08
-OpenCodeClient/OpenCodeClient/Views/Chat/ChatTabView.swift:POL-COLOR-08
-OpenCodeClient/OpenCodeClient/Views/Chat/ChatTabView.swift:POL-COLOR-09
-OpenCodeClient/OpenCodeClient/Views/Chat/ChatTabView.swift:POL-COLOR-09
 OpenCodeClient/OpenCodeClient/Views/Chat/ChatTabView.swift:POL-COLOR-09
 OpenCodeClient/OpenCodeClient/Views/Chat/ChatTabView.swift:POL-COLOR-09
 OpenCodeClient/OpenCodeClient/Views/Chat/ChatTabView.swift:POL-COLOR-09
@@ -70,11 +66,7 @@ OpenCodeClient/OpenCodeClient/Views/Chat/ChatTabView.swift:POL-COLOR-19
 OpenCodeClient/OpenCodeClient/Views/Chat/ChatTabView.swift:POL-COLOR-19
 OpenCodeClient/OpenCodeClient/Views/Chat/ChatTabView.swift:POL-COLOR-19
 OpenCodeClient/OpenCodeClient/Views/Chat/ChatTabView.swift:POL-COLOR-19
-OpenCodeClient/OpenCodeClient/Views/Chat/ChatTabView.swift:POL-COLOR-19
-OpenCodeClient/OpenCodeClient/Views/Chat/ChatTabView.swift:POL-COLOR-19
-OpenCodeClient/OpenCodeClient/Views/Chat/ChatTabView.swift:POL-COLOR-19
 OpenCodeClient/OpenCodeClient/Views/Chat/ChatTabView.swift:POL-MOTION-09
-OpenCodeClient/OpenCodeClient/Views/Chat/ChatTabView.swift:POL-TYPE-07
 OpenCodeClient/OpenCodeClient/Views/Chat/ChatTabView.swift:POL-TYPE-07
 OpenCodeClient/OpenCodeClient/Views/Chat/ChatTabView.swift:POL-TYPE-07
 OpenCodeClient/OpenCodeClient/Views/Chat/ChatTabView.swift:POL-TYPE-08
@@ -247,10 +239,6 @@ OpenCodeClient/OpenCodeClient/Views/SessionListView.swift:POL-TYPE-07
 OpenCodeClient/OpenCodeClient/Views/SessionListView.swift:POL-TYPE-07
 OpenCodeClient/OpenCodeClient/Views/SettingsDetailViews.swift:POL-COLOR-11
 OpenCodeClient/OpenCodeClient/Views/SettingsDetailViews.swift:POL-COLOR-11
-OpenCodeClient/OpenCodeClient/Views/SettingsDetailViews.swift:POL-TYPE-08
-OpenCodeClient/OpenCodeClient/Views/SettingsDetailViews.swift:POL-TYPE-08
-OpenCodeClient/OpenCodeClient/Views/SettingsDetailViews.swift:POL-TYPE-08
-OpenCodeClient/OpenCodeClient/Views/SettingsDetailViews.swift:POL-TYPE-08
 OpenCodeClient/OpenCodeClient/Views/SettingsDetailViews.swift:POL-TYPE-08
 OpenCodeClient/OpenCodeClient/Views/SettingsTabView.swift:POL-COLOR-09
 OpenCodeClient/OpenCodeClient/Views/SettingsTabView.swift:POL-COLOR-09

@@ -1,6 +1,6 @@
 import Foundation
 
-struct HostRequestSnapshot: Equatable, Sendable {
+nonisolated struct HostRequestSnapshot: Equatable, Sendable {
     var hostProfileID: UUID
     var generation: UInt64
 }
@@ -10,13 +10,13 @@ struct HostCredentialAccess {
     var load: (String) throws -> String?
     var delete: (String) throws -> Void
 
-    static let keychain = HostCredentialAccess(
+    nonisolated static let keychain = HostCredentialAccess(
         save: { value, key in try KeychainHelper.save(value, forKey: key) },
         load: { key in try KeychainHelper.load(forKey: key) },
         delete: { key in try KeychainHelper.delete(key) }
     )
 
-    static let noExternal = HostCredentialAccess(
+    nonisolated static let noExternal = HostCredentialAccess(
         save: { _, _ in },
         load: { _ in nil },
         delete: { _ in }

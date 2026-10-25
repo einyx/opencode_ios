@@ -48,7 +48,7 @@ private final class CarLiveHoldLink: CarLiveLink, @unchecked Sendable {
     }
 }
 
-private final class CarLiveGateTransport: CarLiveTransporting, @unchecked Sendable {
+nonisolated private final class CarLiveGateTransport: CarLiveTransporting, @unchecked Sendable {
     private let lock = NSLock()
     private var waiters: [CheckedContinuation<any CarLiveLink, Error>] = []
     private(set) var openCount = 0
@@ -760,7 +760,7 @@ private final class ToolHold: @unchecked Sendable {
     }
 }
 
-private final class CarLiveFixedReadyTransport: CarLiveTransporting, @unchecked Sendable {
+nonisolated private final class CarLiveFixedReadyTransport: CarLiveTransporting, @unchecked Sendable {
     var link: CarLiveHoldLink
     private(set) var openCount = 0
 

@@ -3,7 +3,7 @@ import SwiftUI
 #if canImport(UIKit)
 import UIKit
 
-enum ChatComposerKeyAction: Equatable {
+nonisolated enum ChatComposerKeyAction: Equatable {
     case system
     case insertNewline
     case submit

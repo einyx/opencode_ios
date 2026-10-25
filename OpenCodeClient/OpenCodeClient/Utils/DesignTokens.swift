@@ -36,6 +36,14 @@ enum DesignColors {
         static let info = Color(red: 0.25, green: 0.47, blue: 0.85)
     }
 
+    /// The live-capture accent. A dedicated token so the mic control and the
+    /// voice rail share one recording colour instead of each reaching for a
+    /// raw system red. It reuses `Semantic.error` — the same dynamic system
+    /// red — so the indicator keeps its light/dark adaptation.
+    enum Recording {
+        static let active = Semantic.error
+    }
+
     enum SessionIndicator {
         static let failed = Color(red: 229.0 / 255, green: 72.0 / 255, blue: 77.0 / 255)
         static let runningLight = Color(red: 22.0 / 255, green: 124.0 / 255, blue: 69.0 / 255)

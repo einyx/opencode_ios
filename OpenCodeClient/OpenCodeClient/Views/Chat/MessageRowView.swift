@@ -53,7 +53,7 @@ struct MessageRowView: View {
     /// Compact token count for the session status line: raw value below 1000,
     /// then K/M/B/T with one decimal at >= 10 and two below, trailing zeros
     /// stripped: 950, 85.2K, 1.11M, 2B. Mirrors the Android formatter.
-    static func compactTokenCount(_ value: Int) -> String {
+    nonisolated static func compactTokenCount(_ value: Int) -> String {
         guard value > 0 else { return "0" }
         if value < 1_000 { return String(value) }
         var scaled: Double
@@ -357,7 +357,7 @@ struct MessageRowView: View {
         Self.hasMarkdownSyntax(text)
     }
 
-    enum TextRenderStyle {
+    nonisolated enum TextRenderStyle {
         case markdown
         case plain
         case largePreview

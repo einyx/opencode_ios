@@ -15,7 +15,7 @@ import NIOSSH
 import Network
 #endif
 
-enum SSHConnectionStatus: Equatable {
+nonisolated enum SSHConnectionStatus: Equatable {
     case disconnected
     case connecting
     case connected
@@ -119,7 +119,7 @@ private final class SSHTOFUHostKeyValidator: NIOSSHClientServerAuthenticationDel
 }
 #endif
 
-struct SSHTunnelConfig: Codable, Equatable {
+nonisolated struct SSHTunnelConfig: Codable, Equatable {
     var isEnabled: Bool = false
     var host: String = ""
     var port: Int = 8006

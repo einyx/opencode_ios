@@ -259,7 +259,7 @@ struct MessageReconciliationTests {
         await state.loadMessages()
         #expect(state.messages.map(\.info.id) == [failedID])
         #expect(state.messages.first?.parts.contains { $0.filename == "photo.jpg" } == true)
-        #expect(state.messageStore.failedSendReasonsByID[failedID ?? ""]?.isEmpty == false)
+        #expect(state.messageStore.failedSendReasonsByID[failedID]?.isEmpty == false)
     }
 
     @Test @MainActor func staleSnapshotDoesNotRollBackSSEDeleteOrNewerRequest() async {
@@ -1210,7 +1210,7 @@ private actor IndexedGate {
 
     func waitUntilEntered(_ count: Int) async {
         if entered >= count { return }
-        await withCheckedContinuation { (cont: CheckedContinuation<Int, Never>) in
+        _ = await withCheckedContinuation { (cont: CheckedContinuation<Int, Never>) in
             if entered >= count {
                 cont.resume(returning: entered)
             } else {

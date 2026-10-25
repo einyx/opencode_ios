@@ -56,6 +56,10 @@ final class CarModeUITests: XCTestCase {
         app.tabBars.buttons.element(boundBy: 2).tap()
         // Let the settings screen settle at the top before scrolling.
         XCTAssertTrue(app.buttons["settings-current-host"].waitForExistence(timeout: 5))
+        let advanced = app.buttons["settings-advanced"]
+        for _ in 0..<3 where !advanced.isHittable { app.swipeUp() }
+        XCTAssertTrue(advanced.waitForExistence(timeout: 4))
+        advanced.tap()
         let toggle = app.switches["settings-car-mode-toggle"]
         // The toggle sits ~42% of the scrollable settings content below the
         // top. Slow press-then-drag steps (minimal fling inertia) scroll it
@@ -98,6 +102,10 @@ final class CarModeUITests: XCTestCase {
         XCTAssertFalse(app.otherElements["car-mode-root"].exists)
         XCTAssertFalse(app.otherElements["car-live-root"].exists)
         app.buttons["ipad-settings-button"].tap()
+        let advanced = app.buttons["settings-advanced"]
+        for _ in 0..<3 where !advanced.isHittable { app.swipeUp() }
+        XCTAssertTrue(advanced.waitForExistence(timeout: 4))
+        advanced.tap()
         XCTAssertFalse(app.switches["settings-car-mode-toggle"].exists)
     }
 

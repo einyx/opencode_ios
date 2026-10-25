@@ -47,6 +47,10 @@ final class OpenCodeClientUITests: XCTestCase {
         XCTAssertGreaterThan(tabBar.buttons.count, 0)
         tabBar.buttons.element(boundBy: tabBar.buttons.count - 1).tap()
 
+        let inputVoice = app.buttons["settings-input-voice"]
+        for _ in 0..<3 where !inputVoice.isHittable { app.swipeUp() }
+        XCTAssertTrue(inputVoice.waitForExistence(timeout: 4))
+        inputVoice.tap()
         let picker = app.descendants(matching: .any)["settings-recording-strategy"]
         for _ in 0..<5 where !picker.exists {
             app.swipeUp()

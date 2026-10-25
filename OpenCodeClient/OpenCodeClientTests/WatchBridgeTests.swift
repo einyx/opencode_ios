@@ -87,7 +87,7 @@ struct WatchBridgeTests {
 }
 
 #if os(iOS)
-private final class WatchHealthHTTP: URLProtocol, @unchecked Sendable {
+private final class WatchHealthHTTP: URLProtocol {
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {

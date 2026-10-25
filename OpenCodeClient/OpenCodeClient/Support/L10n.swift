@@ -1,7 +1,7 @@
 import Foundation
 
 enum L10n {
-    enum LanguagePreference: String, CaseIterable, Identifiable {
+    nonisolated enum LanguagePreference: String, CaseIterable, Identifiable {
         case system
         case en
         case zh
@@ -17,7 +17,7 @@ enum L10n {
         }
     }
 
-    static let languagePreferenceUserDefaultsKey = "languagePreference"
+    nonisolated static let languagePreferenceUserDefaultsKey = "languagePreference"
 
     enum Key: String, CaseIterable {
         case appChat
@@ -119,6 +119,7 @@ enum L10n {
         case settingsCarMode
         case settingsAppleOnDevice
         case settingsAppleOnDeviceFooter
+        case settingsVoiceCloudDisclosure
         case settingsModelShortlist
         case settingsModelShortlistFooter
         case settingsModelShortlistEmpty
@@ -668,6 +669,7 @@ enum L10n {
         Key.settingsCarMode.rawValue: "Ambient Mode",
         Key.settingsAppleOnDevice.rawValue: "Apple On-Device (private, no setup)",
         Key.settingsAppleOnDeviceFooter.rawValue: "Transcription runs entirely on this device with Apple's speech recognizer. Nothing is uploaded and no account is needed.",
+        Key.settingsVoiceCloudDisclosure.rawValue: "Audio is captured on this device and uploaded to the speech service for transcription.",
         Key.settingsModelShortlist.rawValue: "Models",
         Key.settingsModelShortlistFooter.rawValue: "The chat picker only shows this shortlist. Add models from the connected server.",
         Key.settingsModelShortlistEmpty.rawValue: "No models yet. Tap + to search and add.",
@@ -1216,6 +1218,7 @@ enum L10n {
         Key.settingsCarMode.rawValue: "Ambient Mode",
         Key.settingsAppleOnDevice.rawValue: "Apple 设备端识别（私密，无需配置）",
         Key.settingsAppleOnDeviceFooter.rawValue: "转写完全在这台设备上用 Apple 语音识别完成，不上传任何数据，也无需账号。",
+        Key.settingsVoiceCloudDisclosure.rawValue: "录音在这台设备上采集，并上传到语音服务进行转写。",
         Key.settingsModelShortlist.rawValue: "模型",
         Key.settingsModelShortlistFooter.rawValue: "聊天栏只显示这份短名单。从已连接的 server 目录里搜索添加。",
         Key.settingsModelShortlistEmpty.rawValue: "还没有模型。点右上角 + 搜索添加。",
@@ -1666,13 +1669,13 @@ enum L10n {
         Key.todoUpdatedBadge.rawValue: "任务更新 · %d/%d",
     ]
 
-    static var ephemeralLanguageOverride: LanguagePreference?
+    nonisolated(unsafe) static var ephemeralLanguageOverride: LanguagePreference?
 
     static func useEphemeralLanguage(_ preference: LanguagePreference) {
         ephemeralLanguageOverride = preference
     }
 
-    static var languagePreference: LanguagePreference {
+    nonisolated static var languagePreference: LanguagePreference {
         get {
             if let ephemeralLanguageOverride { return ephemeralLanguageOverride }
             let raw = UserDefaults.standard.string(forKey: languagePreferenceUserDefaultsKey)
@@ -1687,14 +1690,14 @@ enum L10n {
         }
     }
 
-    static var currentLocale: Locale {
+    nonisolated static var currentLocale: Locale {
         if let identifier = languagePreference.localeIdentifier {
             return Locale(identifier: identifier)
         }
         return Locale.current
     }
 
-    private static var languageIsChinese: Bool {
+    nonisolated private static var languageIsChinese: Bool {
         switch languagePreference {
         case .system:
             let preferred = Locale.preferredLanguages.first ?? "en"
@@ -1710,12 +1713,12 @@ enum L10n {
         return (en, languageIsChinese ? zh : en)
     }
 
-    static func t(_ key: Key) -> String {
+    nonisolated static func t(_ key: Key) -> String {
         let translations = languageIsChinese ? zh : en
         return translations[key.rawValue] ?? en[key.rawValue] ?? key.rawValue
     }
 
-    static func t(_ key: Key, _ arguments: CVarArg...) -> String {
+    nonisolated static func t(_ key: Key, _ arguments: CVarArg...) -> String {
         let template = t(key)
         guard !arguments.isEmpty else { return template }
         return String(format: template, locale: currentLocale, arguments: arguments)

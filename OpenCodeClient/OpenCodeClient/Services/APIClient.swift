@@ -1786,7 +1786,7 @@ actor APIClient {
     }
 }
 
-struct FileNode: Codable, Identifiable {
+nonisolated struct FileNode: Codable, Identifiable {
     var id: String { path }
     let name: String
     let path: String
@@ -1801,7 +1801,7 @@ nonisolated struct FileContent: Codable {
     var text: String? { type == "text" ? content : nil }
 }
 
-struct FileStatusEntry: Codable {
+nonisolated struct FileStatusEntry: Codable {
     let path: String?
     let status: String?  // "added" | "modified" | "deleted" | "untracked"
 }

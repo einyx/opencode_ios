@@ -4,6 +4,15 @@
 
 ## Current Status
 
+### OpenCodex Settings — approved preview implemented
+
+- Implemented the approved warm light/dark Settings concept. The overview now groups Connection, Workspace, Preferences and About, with one connection-status line, Check, and Manage Hosts. Input & Voice and Advanced are native pushed forms retaining the existing state bindings and control accessibility identifiers.
+- A checking diagnostic no longer uses failure treatment: SSH setup, health probing and bootstrap show neutral progress; only `.failed` gets the warning symbol/error color. A successful connection no longer repeats its diagnostic block. Unrelated data-loading errors are not displayed underneath Connected.
+- New copy is localized in English and Simplified Chinese. Settings-only palette and system typography preserve the rest of the app's appearance and Dynamic Type. The capability task's concurrent host-scoped permission summary was retained in the Advanced page.
+- Final full unit verification: **1,090 tests / 111 suites passed**, exit 0, parsed Passed result bundle at `.occlient/test-runs/unit-20261025T203411Z-zHqvc9/test.xcresult`. An earlier run had one killed archive-tool test; its suite subsequently passed 36/36 and the full rerun passed.
+- Settings UI: 2 tests passed with a finalized result bundle in the isolated verification worktree. Both tests also passed their assertions in the main tree, but that runner stalled while finalizing results and hit the 180-second timeout; it is not claimed as a clean runner pass. Native light/dark screenshots were then captured and inspected on a second simulator using offline fixture data (`.occlient/settings-final-light.png`, `.occlient/settings-final-dark.png`).
+- Design and verification details: `docs/features/polish/settings-design.md` and `settings-plan.md`. No physical-device install, commit, or push was performed for this change; unrelated signing, web-preview and capability edits were left intact.
+
 ### Superpolished app experience — initiative kickoff (plan confirmed, Phase 0 pending)
 
 - [x] The user asked for the app experience to be "superpolished". A four-lens dev-team session (PM / Architect / Developer / QA) ran against the working tree and produced three candidate backlogs, which converged on a single shape: **a checkable rubric and an executable enforcement layer first, then a conformance-driven sweep, then one vertical slice.** No persona was willing to write polish code before the definition of done existed.

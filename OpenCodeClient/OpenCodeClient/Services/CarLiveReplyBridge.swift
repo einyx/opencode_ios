@@ -1,6 +1,6 @@
 import Foundation
 
-struct CarLiveReplyReservation: Sendable, Equatable {
+nonisolated struct CarLiveReplyReservation: Sendable, Equatable {
     var token: String
     var sessionID: String
     var directory: String

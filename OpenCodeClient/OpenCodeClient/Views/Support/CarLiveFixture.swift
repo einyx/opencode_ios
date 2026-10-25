@@ -7,7 +7,7 @@ enum CarVoiceMode {
     static let turnByTurn = "turnByTurn"
 }
 
-enum CarLiveRow: Equatable, Identifiable {
+nonisolated enum CarLiveRow: Equatable, Identifiable {
     case caption(id: String, role: String, text: String)
     case tool(id: String, name: String, arguments: String, status: String, result: String)
 
@@ -31,7 +31,7 @@ enum CarLiveRow: Equatable, Identifiable {
 }
 
 enum CarLiveTimeline {
-    static func rows(captions: [CarLiveCaption], activities: [CarLiveActivity]) -> [CarLiveRow] {
+    nonisolated static func rows(captions: [CarLiveCaption], activities: [CarLiveActivity]) -> [CarLiveRow] {
         var indexed: [(sequence: Int, tie: Int, row: CarLiveRow)] = []
         for (offset, caption) in captions.enumerated() {
             indexed.append((
@@ -92,7 +92,7 @@ enum CarLivePresentation {
     }
 }
 
-struct CarLiveSnapshot: Equatable {
+nonisolated struct CarLiveSnapshot: Equatable {
     var phase: CarLivePhase = .idle
     var captions: [CarLiveCaption] = []
     var activities: [CarLiveActivity] = []

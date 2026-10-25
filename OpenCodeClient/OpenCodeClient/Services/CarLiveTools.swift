@@ -78,9 +78,9 @@ enum CarLiveRunOwner {
 }
 
 enum CarLiveModel {
-    static let deepseek = "ollama-cloud/deepseek-v4.1-flash"
+    nonisolated static let deepseek = "ollama-cloud/deepseek-v4.1-flash"
     static let sol = "openai/gpt-6.1-sol"
-    static let refs = [deepseek, sol]
+    nonisolated static let refs = [deepseek, sol]
 
     static func canonicalize(_ raw: String?) -> Result<String, CarLiveModelError> {
         let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -147,7 +147,7 @@ enum CarLivePromptWire {
         return try JSONSerialization.data(withJSONObject: body)
     }
 
-    static func object(_ data: Data) -> [String: Any] {
+    nonisolated static func object(_ data: Data) -> [String: Any] {
         (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
     }
 }

@@ -5,6 +5,8 @@ opencode-official/
 
 # Python tooling (scripts/resize_icon.py)
 .venv/
+__pycache__/
+*.pyc
 
 # Xcode
 build/

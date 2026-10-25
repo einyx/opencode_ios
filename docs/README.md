@@ -30,6 +30,11 @@
 | `v2_support/` | OpenCode V2 server support + `opencode pair` QR onboarding | `plan.md` | implemented; see `../v2_server_compatibility.md` for the wire contract |
 | `polish/` | Superpolished app experience — the "Quiet Tech" conformance initiative | `plan.md` / `rubric.md` / `audit.md` / `linear-backlog.md` | **Phase 0 complete** (rubric + measured audit + ranked backlog); **R1 (haptics) implemented, awaiting the privacy review**. 102 rubric rows: 44 PASS, 35 FAIL, 9 PARTIAL, 14 REVIEW. Tracked in Linear as `PRY-5`…`PRY-40`; `features/polish/rubric.md` is the machine-checkable form of `../design.md`, and `features/polish/audit.md` is the measured baseline it is enforced against |
 
+The approved OpenCodex Settings refresh is described in
+[`features/polish/settings-design.md`](features/polish/settings-design.md), with its
+implementation and verification checklist in
+[`features/polish/settings-plan.md`](features/polish/settings-plan.md).
+
 ## archive/ — one-off work records and frozen decisions (append only, never edited)
 
 | File | Content |

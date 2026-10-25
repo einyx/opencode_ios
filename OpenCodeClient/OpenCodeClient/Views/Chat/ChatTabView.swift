@@ -251,8 +251,15 @@ struct ChatTabView: View {
 
     private var voiceFirstEnabled: Bool { state.voiceFirstInput && state.isChatSpeechConfigured }
 
+    /// The mic lives in the composer action cluster (photo, mic, send). Voice
+    /// first mode owns the rail instead, so it does not show the mic button.
+    private var showsComposerMicButton: Bool { !voiceFirstEnabled }
+
+    /// The rail is the voice-first control surface, and the live surface while
+    /// a capture is running. In the default layout the mic lives in the
+    /// action row, so an idle rail would only add a stray waveform track.
     private var showsVoiceRail: Bool {
-        state.isChatSpeechConfigured || isSpeechCaptureActive || isShowingTranscribingUI || hasPreservedSpeechAudioForUI
+        voiceFirstEnabled || isSpeechCaptureActive || isShowingTranscribingUI || hasPreservedSpeechAudioForUI
     }
 
     private var composerActionSlotWidth: CGFloat {
@@ -693,12 +700,12 @@ struct ChatTabView: View {
                 } else {
                     Image(systemName: voiceRailTransportIcon)
                         .font(DesignControls.composerActionIconFont.weight(.semibold))
-                        .foregroundStyle(isRecording ? Color.red : DesignColors.Brand.primary)
+                        .foregroundStyle(isRecording ? DesignColors.Recording.active : DesignColors.Brand.primary)
                 }
             }
             .frame(width: DesignControls.composerActionButtonSize, height: DesignControls.composerActionButtonSize)
             .background {
-                Circle().fill((isRecording ? Color.red : DesignColors.Brand.primary).opacity(0.14))
+                Circle().fill((isRecording ? DesignColors.Recording.active : DesignColors.Brand.primary).opacity(0.14))
             }
             .frame(width: composerActionSlotWidth, height: max(ComposerHitTarget.minimum, DesignControls.composerActionButtonSize))
             .contentShape(Rectangle())
@@ -713,6 +720,15 @@ struct ChatTabView: View {
 
     private var voiceRail: some View {
         HStack(spacing: DesignSpacing.sm) {
+            // Voice-first owns the rail: the transport sits on the leading
+            // edge, the waveform and status fill the middle (PRD anatomy).
+            // Otherwise the action row carries the mic, so the rail only
+            // shows the live waveform and its recovery actions.
+            if voiceFirstEnabled {
+                voiceRailTransportButton
+                    .environment(\.layoutDirection, textLayoutDirection)
+            }
+
             voiceRailWaveform
                 .environment(\.layoutDirection, textLayoutDirection)
 
@@ -729,9 +745,6 @@ struct ChatTabView: View {
                 }
             }
             .environment(\.layoutDirection, textLayoutDirection)
-
-            voiceRailTransportButton
-                .environment(\.layoutDirection, textLayoutDirection)
         }
         .environment(\.layoutDirection, composerControlDirection)
         // Align the waveform track with the input field: inside the glass
@@ -763,10 +776,36 @@ struct ChatTabView: View {
                     voiceRail
                 }
 
+                // Passive, inline feedback: a voice problem is reported where
+                // the action happened, quietly and dismissibly, instead of as a
+                // modal alert that interrupts the conversation (HIG: Feedback).
+                if let error = speechError, !isSpeechCaptureActive {
+                    HStack(spacing: DesignSpacing.xs) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(DesignTypography.meta)
+                            .foregroundStyle(DesignColors.Brand.primary)
+                        Text(error)
+                            .font(DesignTypography.meta)
+                            .foregroundStyle(DesignColors.Neutral.text)
+                            .lineLimit(2)
+                        Spacer(minLength: 0)
+                        Button {
+                            speechError = nil
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(DesignTypography.meta.weight(.semibold))
+                                .foregroundStyle(DesignColors.Neutral.textSecondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("speech-error-dismiss")
+                    }
+                    .padding(.horizontal, DesignSpacing.md)
+                    .padding(.top, DesignSpacing.xs)
+                }
+
                 HStack(alignment: .bottom, spacing: DesignSpacing.sm) {
                 VStack(alignment: .leading, spacing: DesignSpacing.xs) {
-                    ZStack(alignment: .leading) {
-                        ChatComposerTextView(
+                    ZStack(alignment: .leading) {                        ChatComposerTextView(
                             text: composerInputBinding,
                             hasMarkedText: $hasMarkedText,
                             contentHeight: $composerContentHeight,
@@ -879,15 +918,41 @@ struct ChatTabView: View {
                                 .font(DesignControls.composerActionIconFont)
                         }
                     }
+                    .foregroundStyle(DesignColors.Neutral.textSecondary)
                     .frame(width: DesignControls.composerPrimaryActionButtonSize, height: DesignControls.composerPrimaryActionButtonSize)
-                    .foregroundStyle(DesignColors.Brand.primary)
-                    .background(DesignColors.Brand.primary.opacity(0.10))
-                    .clipShape(RoundedRectangle(cornerRadius: DesignCorners.medium))
                     .frame(width: composerActionSlotWidth, height: max(ComposerHitTarget.minimum, DesignControls.composerPrimaryActionButtonSize))
                     .contentShape(Rectangle())
                 }
                 .disabled(isLoadingAttachment || isSending)
                 .accessibilityIdentifier("chat-attach-image")
+            }
+
+            // Dictation sits in the same cluster as photo and send, the way
+            // Messages does it: one row of equal-weight glyphs, with the send
+            // button the only filled one. A mic parked elsewhere — floating
+            // over the card or inside the text field — reads as clutter.
+            if showsComposerMicButton {
+                Button {
+                    Task { await toggleRecording() }
+                } label: {
+                    ZStack {
+                        if isStartingRecording || isRetryingSpeech {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Image(systemName: isRecording ? "stop.circle.fill" : "mic.fill")
+                                .font(DesignControls.composerActionIconFont)
+                        }
+                    }
+                    .foregroundStyle(isRecording ? DesignColors.Recording.active : DesignColors.Neutral.textSecondary)
+                    .frame(width: DesignControls.composerPrimaryActionButtonSize, height: DesignControls.composerPrimaryActionButtonSize)
+                    .frame(width: composerActionSlotWidth, height: max(ComposerHitTarget.minimum, DesignControls.composerPrimaryActionButtonSize))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(isSending || isShowingTranscribingUI || isStartingRecording || isRetryingSpeech
+                          || speechConfigurationCleanupTask != nil || (!state.isChatSpeechConfigured && !isRecording))
+                .accessibilityIdentifier("speech-transport")
+                .accessibilityLabel(isRecording ? L10n.t(.chatSpeechListening) : L10n.t(.chatSpeechTapToSpeak))
             }
 
             Button(action: sendCurrentInput) {
@@ -1151,8 +1216,8 @@ struct ChatTabView: View {
                 }
             }
             .alert(L10n.t(.chatSpeechTitle), isPresented: Binding(
-                get: { speechError != nil },
-                set: { if !$0 { speechError = nil } }
+                get: { false },
+                set: { _ in }
             )) {
                 Button(L10n.t(.commonOk)) { speechError = nil }
             } message: {
@@ -1342,19 +1407,9 @@ struct ChatTabView: View {
                 waveform
                     .frame(minWidth: 36, maxWidth: .infinity)
                     .layoutPriority(-1)
-            } else if voiceRailMode == .idle {
-                // Idle without voice-first: a bare dashed track reads as a
-                // glitch. A quiet caption makes the affordance self-explanatory.
-                ZStack {
-                    waveform
-                    Text(L10n.t(.chatSpeechTapToSpeak))
-                        .font(DesignTypography.meta)
-                        .foregroundStyle(DesignColors.Neutral.textTertiary)
-                        .lineLimit(1)
-                        .padding(.horizontal, DesignSpacing.sm)
-                        .glassSurface(cornerRadius: 12)
-                }
             } else {
+                // The rail is only up when a capture is live or audio was
+                // preserved, so the waveform is never an idle dashed track.
                 waveform
             }
         }
@@ -1672,15 +1727,17 @@ struct ChatTabView: View {
         Group {
             if state.currentSessionID == nil {
                 VStack(spacing: DesignSpacing.md) {
-                    Image(systemName: "bubble.left.and.bubble.right.fill")
-                        .font(.system(size: 34))
-                        .foregroundStyle(DesignColors.Brand.primary.opacity(0.2))
+                    Image("EmptyChatArt")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 232, height: 232)
+                        .accessibilityHidden(true)
                     Text(L10n.t(.chatSelectSessionFirst))
                         .font(DesignTypography.headline)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
-                .padding(.top, 60)
+                .padding(.top, 40)
                 .frame(maxWidth: .infinity)
             } else if isCurrentSessionBusy {
                 // If busy but there is no user turn yet, show a lightweight placeholder.

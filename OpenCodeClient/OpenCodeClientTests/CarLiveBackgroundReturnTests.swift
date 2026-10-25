@@ -156,7 +156,7 @@ struct CarLiveBackgroundReturnTests {
         #expect(await waitUntil(0.8) { transport.count() == 2 })
         transport.link(1)?.emit(.started(sessionID: "new"))
         await restart.value
-        let generation = await audio.currentGeneration()
+        let generation = audio.currentGeneration()
         #expect(controller.phase == .listening)
         #expect(generation != 0)
         first.release()

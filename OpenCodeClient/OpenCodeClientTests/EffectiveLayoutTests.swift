@@ -486,7 +486,7 @@ struct EffectiveLayoutTests {
     @MainActor
     @Test func pasteCallbackInsertsAtMiddleSelection() async {
         let coordinator = ComposerPasteButton.Coordinator()
-        var selection = NSRange(location: 1, length: 0)
+        let selection = NSRange(location: 1, length: 0)
         var merged = ""
         coordinator.beginPaste = {
             let captured = selection

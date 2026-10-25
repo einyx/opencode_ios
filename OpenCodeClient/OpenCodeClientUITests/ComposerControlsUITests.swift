@@ -29,22 +29,21 @@ final class ComposerControlsUITests: XCTestCase {
         let input = app.textViews["chat-input"]
         XCTAssertTrue(mic.waitForExistence(timeout: 4), app.debugDescription)
         XCTAssertTrue(send.exists)
-        // The mic lives in the voice rail above the composer; the composer
-        // actions sit in one row at the trailing edge of the chosen side, so
-        // the two share a side, not a column.
+        // The mic is part of the composer action cluster (photo, mic, send):
+        // one row of equal-weight glyphs at the trailing edge, with the send
+        // button the only filled one.
         if left {
             XCTAssertLessThan(mic.frame.maxX, send.frame.maxX)
         } else {
             XCTAssertGreaterThan(mic.frame.minX, send.frame.minX)
         }
-        XCTAssertLessThan(mic.frame.maxY, send.frame.minY)
         if imageVisible {
             XCTAssertTrue(photo.exists)
-            // Photo and send share one bottom-aligned row: photo sits to the
-            // left of send, both bottom-aligned with the input field.
-            XCTAssertLessThan(photo.frame.maxX, send.frame.minX)
+            // Photo, mic and send share one bottom-aligned row.
+            XCTAssertLessThan(photo.frame.maxX, mic.frame.minX)
+            XCTAssertLessThan(mic.frame.maxX, send.frame.minX)
             XCTAssertEqual(photo.frame.maxY, send.frame.maxY, accuracy: 1)
-            XCTAssertLessThan(mic.frame.maxY, photo.frame.minY)
+            XCTAssertEqual(mic.frame.maxY, send.frame.maxY, accuracy: 1)
             XCTAssertTrue(photo.isHittable)
         } else {
             XCTAssertFalse(photo.exists)
@@ -105,6 +104,10 @@ final class ComposerControlsUITests: XCTestCase {
         XCTAssertTrue((app.textViews["chat-input"].value as? String)?.contains(sentinel) == true)
         app.tabBars.buttons["Settings"].tap()
         XCTAssertTrue(app.buttons["settings-current-host"].waitForExistence(timeout: 4))
+        let inputVoice = app.buttons["settings-input-voice"]
+        for _ in 0..<3 where !inputVoice.isHittable { app.swipeUp() }
+        XCTAssertTrue(inputVoice.waitForExistence(timeout: 4))
+        inputVoice.tap()
         let picker = app.descendants(matching: .any)["settings-composer-action-side"]
         for _ in 0..<6 {
             if picker.exists && picker.isHittable { break }

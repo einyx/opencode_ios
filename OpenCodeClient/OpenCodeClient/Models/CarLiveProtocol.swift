@@ -38,7 +38,7 @@ nonisolated enum CarLiveToolDefaults {
     static let archivedOnly = true
     static let skip = 0
     static let count = 10
-    static let deepseek = "ollama-cloud/deepseek-v4.1-flash"
+    nonisolated static let deepseek = "ollama-cloud/deepseek-v4.1-flash"
     static let sol = "openai/gpt-6.1-sol"
     static let schemaRefs = [deepseek, sol]
 }

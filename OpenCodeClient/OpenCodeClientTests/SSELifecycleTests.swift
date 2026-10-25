@@ -95,7 +95,7 @@ struct SSELifecycleTests {
         state.sseReconnectSleep = { seconds in
             delays.append(seconds)
             if delays.count == 3 {
-                await state.disconnectSSE()
+                state.disconnectSSE()
             }
         }
         state.connectSSE()
@@ -129,7 +129,7 @@ struct SSELifecycleTests {
         await sse.setScripts([.finish])
         state.serverURL = "http://127.0.0.1:9"
         state.sseReconnectSleep = { _ in
-            await state.disconnectSSE()
+            state.disconnectSSE()
         }
         await state.testConnection()
         await state.sseTask?.value
@@ -156,7 +156,7 @@ struct SSELifecycleTests {
         await sse.setScripts([.finish])
         state.serverURL = "http://127.0.0.1:9"
         state.sseReconnectSleep = { _ in
-            await state.disconnectSSE()
+            state.disconnectSSE()
         }
         await state.refresh()
         await state.sseTask?.value
@@ -176,7 +176,7 @@ struct SSELifecycleTests {
         state.sseReconnectSleep = { seconds in
             delays.append(seconds)
             if delays.count == 2 {
-                await state.disconnectSSE()
+                state.disconnectSSE()
             }
         }
         state.connectSSE()
@@ -671,7 +671,7 @@ actor ScriptedSSEClient: SSEClientProtocol {
     }
 }
 
-final class SSEHold: @unchecked Sendable {
+nonisolated final class SSEHold: @unchecked Sendable {
     private let lock = NSLock()
     private var continuation: AsyncThrowingStream<SSEEvent, Error>.Continuation?
 
@@ -682,15 +682,16 @@ final class SSEHold: @unchecked Sendable {
     }
 
     func finish() {
-        lock.lock()
-        let continuation = self.continuation
-        self.continuation = nil
-        lock.unlock()
+        let continuation = lock.withLock { () -> AsyncThrowingStream<SSEEvent, Error>.Continuation? in
+            let continuation = self.continuation
+            self.continuation = nil
+            return continuation
+        }
         continuation?.finish()
     }
 }
 
-final class RecordingSSEOpener: SSEHTTPOpener, @unchecked Sendable {
+nonisolated final class RecordingSSEOpener: SSEHTTPOpener, @unchecked Sendable {
     var statusCode = 200
     var contentType: String? = "text/event-stream"
     var body = Data()
@@ -716,42 +717,37 @@ final class RecordingSSEOpener: SSEHTTPOpener, @unchecked Sendable {
     }
 }
 
-final class TrackedSSEResponse: @unchecked Sendable {
+nonisolated final class TrackedSSEResponse: @unchecked Sendable {
     private let lock = NSLock()
     private var continuation: AsyncThrowingStream<UInt8, Error>.Continuation?
     private var cancelled = false
     private var cancelWaiters: [CheckedContinuation<Void, Never>] = []
 
     var isCancelled: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return cancelled
+        lock.withLock { cancelled }
     }
 
     func hold(_ continuation: AsyncThrowingStream<UInt8, Error>.Continuation) {
-        lock.lock()
-        let already = cancelled
-        if !already {
+        let already = lock.withLock { () -> Bool in
+            if cancelled { return true }
             self.continuation = continuation
+            return false
         }
-        lock.unlock()
         if already {
             continuation.finish()
         }
     }
 
     func cancel() {
-        lock.lock()
-        if cancelled {
-            lock.unlock()
-            return
+        let (continuation, waiters) = lock.withLock { () -> (AsyncThrowingStream<UInt8, Error>.Continuation?, [CheckedContinuation<Void, Never>]) in
+            if cancelled { return (nil, []) }
+            cancelled = true
+            let continuation = self.continuation
+            self.continuation = nil
+            let waiters = cancelWaiters
+            cancelWaiters.removeAll()
+            return (continuation, waiters)
         }
-        cancelled = true
-        let continuation = self.continuation
-        self.continuation = nil
-        let waiters = cancelWaiters
-        cancelWaiters.removeAll()
-        lock.unlock()
         continuation?.finish()
         waiters.forEach { $0.resume() }
     }
@@ -765,26 +761,19 @@ final class TrackedSSEResponse: @unchecked Sendable {
     }
 
     func waitUntilCancelled() async {
-        lock.lock()
-        if cancelled {
-            lock.unlock()
-            return
-        }
-        lock.unlock()
+        if lock.withLock({ cancelled }) { return }
         await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-            lock.lock()
-            if cancelled {
-                lock.unlock()
-                cont.resume()
-                return
+            let resumeNow = lock.withLock { () -> Bool in
+                if cancelled { return true }
+                cancelWaiters.append(cont)
+                return false
             }
-            cancelWaiters.append(cont)
-            lock.unlock()
+            if resumeNow { cont.resume() }
         }
     }
 }
 
-final class TrackingSSEOpener: SSEHTTPOpener, @unchecked Sendable {
+nonisolated final class TrackingSSEOpener: SSEHTTPOpener, @unchecked Sendable {
     var frame = Data()
     private let lock = NSLock()
     private var openCountStorage = 0
@@ -793,30 +782,25 @@ final class TrackingSSEOpener: SSEHTTPOpener, @unchecked Sendable {
     private var openWaiters: [(Int, CheckedContinuation<Void, Never>)] = []
 
     var openCount: Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return openCountStorage
+        lock.withLock { openCountStorage }
     }
 
     var requestURL: URL? {
-        lock.lock()
-        defer { lock.unlock() }
-        return requestURLStorage
+        lock.withLock { requestURLStorage }
     }
 
     func open(_ request: URLRequest) async throws -> SSEHTTPResponse {
         let tracked = TrackedSSEResponse()
-        let id: Int
-        let payload: Data
-        lock.lock()
-        openCountStorage += 1
-        id = openCountStorage
-        requestURLStorage = request.url
-        responses[id] = tracked
-        payload = id == 1 ? frame : Data()
-        let ready = openWaiters.filter { id >= $0.0 }.map(\.1)
-        openWaiters.removeAll { id >= $0.0 }
-        lock.unlock()
+        let (payload, ready) = lock.withLock { () -> (Data, [CheckedContinuation<Void, Never>]) in
+            openCountStorage += 1
+            let id = openCountStorage
+            requestURLStorage = request.url
+            responses[id] = tracked
+            let payload = id == 1 ? frame : Data()
+            let ready = openWaiters.filter { id >= $0.0 }.map(\.1)
+            openWaiters.removeAll { id >= $0.0 }
+            return (payload, ready)
+        }
         ready.forEach { $0.resume() }
         return SSEHTTPResponse(
             statusCode: 200,
@@ -832,28 +816,19 @@ final class TrackingSSEOpener: SSEHTTPOpener, @unchecked Sendable {
     }
 
     func isCancelled(_ id: Int) -> Bool {
-        lock.lock()
-        let tracked = responses[id]
-        lock.unlock()
+        let tracked = lock.withLock { responses[id] }
         return tracked?.isCancelled ?? false
     }
 
     func waitUntilOpenCount(_ count: Int) async {
-        lock.lock()
-        if openCountStorage >= count {
-            lock.unlock()
-            return
-        }
-        lock.unlock()
+        if lock.withLock({ openCountStorage >= count }) { return }
         await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-            lock.lock()
-            if openCountStorage >= count {
-                lock.unlock()
-                cont.resume()
-                return
+            let resumeNow = lock.withLock { () -> Bool in
+                if openCountStorage >= count { return true }
+                openWaiters.append((count, cont))
+                return false
             }
-            openWaiters.append((count, cont))
-            lock.unlock()
+            if resumeNow { cont.resume() }
         }
     }
 
@@ -873,7 +848,7 @@ final class TrackingSSEOpener: SSEHTTPOpener, @unchecked Sendable {
     }
 }
 
-final class LateOpenSSEOpener: SSEHTTPOpener, @unchecked Sendable {
+nonisolated final class LateOpenSSEOpener: SSEHTTPOpener, @unchecked Sendable {
     let gate = BootstrapHold()
     private let lock = NSLock()
     private var cancelWaiters: [CheckedContinuation<Void, Never>] = []

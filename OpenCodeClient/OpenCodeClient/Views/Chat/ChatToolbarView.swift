@@ -68,7 +68,9 @@ struct ChatModelChip: View {
                 Image(systemName: "chevron.down")
                     .font(.caption2)
             }
-            .foregroundStyle(DesignColors.Brand.primary)
+            // Quiet by design: the send button is the only accent in the
+            // composer, so the model chip reads as context, not as an action.
+            .foregroundStyle(DesignColors.Neutral.textSecondary)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
             // The chip keeps its natural width; the counters next to it are the

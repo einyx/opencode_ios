@@ -10,7 +10,7 @@ nonisolated struct AIUsageQuotasResponse: Decodable, Equatable {
     }
 }
 
-struct AIUsageQuota: Decodable, Equatable, Identifiable {
+nonisolated struct AIUsageQuota: Decodable, Equatable, Identifiable {
     var id: String { "\(provider)|\(label)" }
 
     let provider: String
@@ -83,7 +83,7 @@ struct AIUsageQuota: Decodable, Equatable, Identifiable {
 }
 
 private extension KeyedDecodingContainer {
-    func decodeRoundedPercentage(forKey key: Key) throws -> Int {
+    nonisolated func decodeRoundedPercentage(forKey key: Key) throws -> Int {
         let value = try decode(Double.self, forKey: key)
         guard value.isFinite, let rounded = Int(exactly: value.rounded()) else {
             throw DecodingError.dataCorruptedError(
@@ -139,7 +139,7 @@ enum AIUsageQuotaState: Equatable {
     }
 }
 
-struct AIUsageQuotaKey: Equatable {
+nonisolated struct AIUsageQuotaKey: Equatable {
     let provider: String
     let label: String
 }

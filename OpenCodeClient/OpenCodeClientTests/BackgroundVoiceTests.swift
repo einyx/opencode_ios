@@ -499,7 +499,7 @@ private final class VoiceLink: CarLiveLink, @unchecked Sendable {
     var closes: Int { lock.withLock { closeCount } }
 }
 
-private final class ImmediateTransport: CarLiveTransporting, @unchecked Sendable {
+nonisolated private final class ImmediateTransport: CarLiveTransporting, @unchecked Sendable {
     var link: VoiceLink
     private let lock = NSLock()
     private var openCount = 0
@@ -516,7 +516,7 @@ private final class ImmediateTransport: CarLiveTransporting, @unchecked Sendable
     var opens: Int { lock.withLock { openCount } }
 }
 
-private final class TwoStepTransport: CarLiveTransporting, @unchecked Sendable {
+nonisolated private final class TwoStepTransport: CarLiveTransporting, @unchecked Sendable {
     let first = VoiceLink()
     private let lock = NSLock()
     private var openCount = 0
@@ -545,7 +545,7 @@ private final class TwoStepTransport: CarLiveTransporting, @unchecked Sendable {
     var opens: Int { lock.withLock { openCount } }
 }
 
-private final class HoldingTransport: CarLiveTransporting, @unchecked Sendable {
+nonisolated private final class HoldingTransport: CarLiveTransporting, @unchecked Sendable {
     private let lock = NSLock()
     private var waiters: [CheckedContinuation<any CarLiveLink, Error>] = []
     private var openCount = 0

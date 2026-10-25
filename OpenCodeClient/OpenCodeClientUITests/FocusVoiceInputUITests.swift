@@ -318,6 +318,11 @@ final class FocusVoiceInputUITests: XCTestCase {
 
     @MainActor
     private func revealVoiceFirstSwitch(_ app: XCUIApplication) -> XCUIElement {
+        let inputVoice = app.buttons["settings-input-voice"]
+        if !app.switches["settings-voice-first"].exists {
+            for _ in 0..<3 where !inputVoice.isHittable { app.swipeUp() }
+            if inputVoice.exists { inputVoice.tap() }
+        }
         let toggle = app.switches["settings-voice-first"]
         if toggle.waitForExistence(timeout: 1), toggle.isHittable {
             return toggle
@@ -362,6 +367,7 @@ final class FocusVoiceInputUITests: XCTestCase {
         if ipadSettings.exists {
             XCTAssertTrue(ipadSettings.isHittable, "ipad-settings-button 不可点。\(navigationSummary(app))")
             ipadSettings.tap()
+            returnToSettingsRoot(app)
             return
         }
         guard let settings = waitForChrome(app, label: "Settings") else {
@@ -370,6 +376,14 @@ final class FocusVoiceInputUITests: XCTestCase {
         }
         XCTAssertTrue(settings.isHittable, "设置入口不可点。\(navigationSummary(app))")
         settings.tap()
+        returnToSettingsRoot(app)
+    }
+
+    @MainActor
+    private func returnToSettingsRoot(_ app: XCUIApplication) {
+        // A tab preserves its pushed page when switching back from Chat.
+        let back = app.navigationBars.buttons["Back"]
+        if back.exists, back.isHittable { back.tap() }
     }
 
     @MainActor
@@ -392,6 +406,11 @@ final class FocusVoiceInputUITests: XCTestCase {
     @MainActor
     private func selectLayoutSegment(_ app: XCUIApplication, index: Int) {
         openSettings(app)
+        let advanced = app.buttons["settings-advanced"]
+        if !marked(app, "settings-layout-preference").exists {
+            for _ in 0..<3 where !advanced.isHittable { app.swipeUp() }
+            if advanced.exists { advanced.tap() }
+        }
         let picker = reveal("settings-layout-preference", in: app)
         let buttons = picker.descendants(matching: .button)
         XCTAssertEqual(buttons.count, 2, "settings-layout-preference 应只有两段。不回退到菜单文本")

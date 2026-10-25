@@ -30,7 +30,7 @@ enum WindowWidthClass: Equatable {
     }
 }
 
-enum EffectiveLayout: Equatable {
+nonisolated enum EffectiveLayout: Equatable {
     case compact
     case regular
 }
@@ -57,7 +57,7 @@ extension EnvironmentValues {
     }
 }
 
-struct LayoutPreviewSlots: Equatable {
+nonisolated struct LayoutPreviewSlots: Equatable {
     var inlinePath: String?
     var inlineWorkspace: String?
     var columnPath: String?
@@ -230,7 +230,7 @@ enum ComposerHitTarget {
     static let minimum: CGFloat = 44
 }
 
-struct ComposerWriteOrigin: Equatable, Sendable {
+nonisolated struct ComposerWriteOrigin: Equatable, Sendable {
     var sessionID: String?
     var host: HostRequestSnapshot
 }
@@ -331,7 +331,7 @@ enum ComposerFocusPolicy {
     }
 }
 
-enum ComposerPastePlacement: Equatable {
+nonisolated enum ComposerPastePlacement: Equatable {
     case append
     case insert(NSRange)
     case deferUntilMarkedTextEnds

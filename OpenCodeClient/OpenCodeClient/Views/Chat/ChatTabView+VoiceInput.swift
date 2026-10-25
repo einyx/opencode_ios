@@ -49,7 +49,7 @@ final class SpeechPartialTranscriptBuffer: Sendable {
 
 extension VoiceFlowMicrophone: ChatSpeechMicrophoneControlling {}
 
-enum ChatSpeechOwner: Hashable {
+nonisolated enum ChatSpeechOwner: Hashable {
     case session(String)
     case noSession
 
