@@ -1,0 +1,105 @@
+{
+  "bigint": {
+    "name": "BigInt",
+    "spdx": "MIT",
+    "copyright": "Copyright (c) 2016-2017 Károly Lőrentey",
+    "url": "https://github.com/attaswift/BigInt",
+    "licenseFile": "MIT.txt"
+  },
+  "citadel": {
+    "name": "Citadel",
+    "spdx": "MIT",
+    "copyright": "Copyright (c) 2022 Orlandos",
+    "url": "https://github.com/orlandos-nl/Citadel",
+    "licenseFile": "MIT.txt"
+  },
+  "networkimage": {
+    "name": "NetworkImage",
+    "spdx": "MIT",
+    "copyright": "Copyright (c) 2020 Guille Gonzalez",
+    "url": "https://github.com/grapeot/NetworkImage",
+    "licenseFile": "MIT.txt"
+  },
+  "swift-asn1": {
+    "name": "swift-asn1",
+    "spdx": "Apache-2.0",
+    "copyright": "The SwiftASN1 Project",
+    "url": "https://github.com/apple/swift-asn1",
+    "licenseFile": "Apache-2.0.txt",
+    "notice": "Copyright (c) 2015 - 2024 Apple Inc. and the SwiftNIO project authors. Licensed under Apache License v2.0 with Runtime Library Exception."
+  },
+  "swift-atomics": {
+    "name": "swift-atomics",
+    "spdx": "Apache-2.0",
+    "copyright": "The Swift Atomics project authors",
+    "url": "https://github.com/apple/swift-atomics",
+    "licenseFile": "Apache-2.0.txt"
+  },
+  "swift-cmark": {
+    "name": "swift-cmark",
+    "spdx": "BSD-2-Clause",
+    "copyright": "Copyright (c) 2014, John MacFarlane",
+    "url": "https://github.com/swiftlang/swift-cmark",
+    "licenseFile": "BSD-2-Clause.txt"
+  },
+  "swift-collections": {
+    "name": "swift-collections",
+    "spdx": "Apache-2.0",
+    "copyright": "The Swift Collections project authors",
+    "url": "https://github.com/apple/swift-collections",
+    "licenseFile": "Apache-2.0.txt"
+  },
+  "swift-crypto": {
+    "name": "swift-crypto",
+    "spdx": "Apache-2.0",
+    "copyright": "The SwiftCrypto Project",
+    "url": "https://github.com/apple/swift-crypto",
+    "licenseFile": "Apache-2.0.txt",
+    "notice": "Copyright (c) 2019 Apple Inc. and the SwiftCrypto project authors. Licensed under Apache License v2.0 with Runtime Library Exception."
+  },
+  "swift-log": {
+    "name": "swift-log",
+    "spdx": "Apache-2.0",
+    "copyright": "The SwiftLog Project",
+    "url": "https://github.com/apple/swift-log",
+    "licenseFile": "Apache-2.0.txt",
+    "notice": "Copyright (c) 2017-2024 Apple Inc. and the SwiftLog project authors. Licensed under Apache License v2.0 with Runtime Library Exception."
+  },
+  "swift-markdown-ui": {
+    "name": "swift-markdown-ui",
+    "spdx": "MIT",
+    "copyright": "Copyright (c) 2020 Guillermo Gonzalez",
+    "url": "https://github.com/grapeot/swift-markdown-ui",
+    "licenseFile": "MIT.txt"
+  },
+  "swift-nio": {
+    "name": "swift-nio",
+    "spdx": "Apache-2.0",
+    "copyright": "The SwiftNIO Project",
+    "url": "https://github.com/apple/swift-nio",
+    "licenseFile": "Apache-2.0.txt",
+    "notice": "Copyright (c) 2015 - 2024 Apple Inc. and the SwiftNIO project authors. Licensed under Apache License v2.0 with Runtime Library Exception."
+  },
+  "swift-nio-ssh": {
+    "name": "swift-nio-ssh",
+    "spdx": "Apache-2.0",
+    "copyright": "The SwiftNIO SSH project authors",
+    "url": "https://github.com/apple/swift-nio-ssh",
+    "licenseFile": "Apache-2.0.txt"
+  },
+  "swift-system": {
+    "name": "swift-system",
+    "spdx": "Apache-2.0",
+    "copyright": "The Swift System project authors",
+    "url": "https://github.com/apple/swift-system",
+    "licenseFile": "Apache-2.0.txt"
+  },
+  "voiceflow": {
+    "name": "VoiceFlowKit",
+    "spdx": "NOASSERTION",
+    "copyright": "",
+    "url": "https://github.com/grapeot/voiceflow",
+    "licenseFile": null,
+    "note": "The upstream repository ships no licence file, so there is no grant to redistribute this code. A licence has to be added to the upstream repository (or the package replaced) before the app can be distributed."
+  }
+}
