@@ -56,7 +56,7 @@ change the backlog, so they are corrected here rather than averaged in:
    literals, a second blue (`DesignColors.Semantic.info` at `QuestionCardView.swift:21` —
    a *different* blue from `Brand.primary`), a red error block that `docs/design.md`
    explicitly forbids (`MessageRowView.swift:648,651` uses
-   `DesignColors.Semantic.error`), out-of-scale literal fonts, 57 hardcoded spacings, and
+   `DesignColors.Semantic.error`), out-of-scale literal fonts, 66 hardcoded spacings, and
    5 `.font(.system(size: 1))` accessibility-probe hacks. **Phase 2 below is re-scoped to
    these seams** — it delivers exactly what the personas asked for ("fix or explicitly
    retire the broken seams before styling around them") without inventing work.
@@ -178,6 +178,11 @@ TENSION A decision is recorded.
 - NEW `docs/features/polish/rubric.md` — the checkable rubric
 - NEW `docs/features/polish/audit.md` — measured baseline snapshot (file/line evidence,
   explicitly non-gating)
+- NEW `docs/features/polish/gen_audit.py` — **the audit is generated, not hand-written.**
+  It measures the working tree at generation time, so every `file:line` anchor is
+  produced by running the grep then. Hand-maintained anchors were the defect the third
+  review round found: the merge rewrote six measured files and silently invalidated
+  most of them, and three rows ended up citing evidence that no longer existed.
 - NEW `docs/features/polish/plan.md` — this file (phase tracker + decision log)
 - MODIFY `docs/design.md` — add stable clause IDs (e.g. `QT-TYPE-1`, `QT-MOTION-3`,
   `QT-CARD-2`) to the 19 existing `##` sections so the rubric can reference clauses
@@ -291,7 +296,7 @@ Precedes all sensory work. No visual delta intended (pure refactor to tokens).
 
 - `Utils/DesignTokens.swift` — scope the `Semantic` namespace (`error` → destructive-only;
   retire `success`/`warning`/`info` per `design.md:210` "cleaning up ... redundant
-  Semantic color definitions"), add missing `Opacity` entries for the 38 ad-hoc opacities
+  Semantic color definitions"), add missing `Opacity` entries for the 39 ad-hoc opacities
 - `Views/Chat/QuestionCardView.swift:21,125,235` — `DesignColors.Semantic.info` (a second
   blue) → `DesignColors.Brand.primary`; `Color.blue.opacity(0.08)` → token
 - `Views/Chat/MessageRowView.swift:648,651` — `DesignColors.Semantic.error` red block →
@@ -303,7 +308,7 @@ Precedes all sensory work. No visual delta intended (pure refactor to tokens).
   `Color.white`, `Color.primary.opacity(...)`, `Color.secondary.opacity(0.45)` → tokens
 - `Views/Support/QRScannerView.swift:27` — `Color.black` → allowed (full-bleed camera
   backdrop), allowlist entry
-- All Views — 57 hardcoded numeric spacings → `DesignSpacing.*`
+- All Views — 66 hardcoded numeric spacings → `DesignSpacing.*`
 - NEW `Utils/AccessibilityProbe.swift` — replace the 5 `.font(.system(size: 1))` probe
   hacks (`MessageRowView.swift:664`, `ChatTabView.swift:964`, `ContentView.swift:232,305`,
   `FileContentReuseFixture.swift:110`, `FileSearchFixture.swift:239,245`) with one named,
@@ -349,7 +354,7 @@ to Phase 7 and land after the host-profile PR merges.
 **3a — call-site migration, deliberately zero visual delta**
 
 **Files touched:** `Utils/DesignTokens.swift` (add the missing roles; keep current values
-so nothing moves) and all 102 raw system-font call sites across `Views/Chat/*`
+so nothing moves) and all 101 raw system-font call sites across `Views/Chat/*`
 (`MessageRowView.swift:553,752`, `ChatToolbarView.swift:102,118,157,258,263,317,344`,
 `QuestionCardView.swift:81,84,90,119,157,168,179,226,228`,
 `PermissionCardView.swift:46,56,67`, `AIUsageQuotaView.swift:71,155,179`),
@@ -369,7 +374,7 @@ update.
 1. Extend `DesignTypography` with the roles the spec's four steps imply
    (`display`/`body`/`meta`/`micro`/`microMono`/`bodyProminent`) and a `probe` role for
    the accessibility probe; **keep every value byte-identical to today's rendering.**
-2. Sweep all 102 raw system-font call sites to `DesignTypography.*`. Zero visual delta is
+2. Sweep all 101 raw system-font call sites to `DesignTypography.*`. Zero visual delta is
    the point — prove it, do not assert it (see exit criterion).
 3. **Freeze here and take the screenshot evidence.** Generate the fixture screenshots
    before and after 3a and compare hashes.
@@ -692,7 +697,8 @@ why TENSION B resolves to *sequencing*, not to "pilot first".
 ## Backlog ranking
 
 Ranked by **user-visible impact ÷ review cost**, measured against the Phase 0 audit
-([`audit.md`](audit.md): 102 rubric rows → **35 PASS, 9 PARTIAL, 14 REVIEW, 44 FAIL**).
+([`audit.md`](audit.md): 102 rubric rows → **42 PASS, 7 PARTIAL, 14 REVIEW, 39 FAIL**,
+re-measured against the merged tree).
 This ranking drives the Phase 5–7 sequencing.
 
 The ranking deliberately separates two kinds of work:
@@ -703,7 +709,7 @@ The ranking deliberately separates two kinds of work:
 
 | # | Work item | Rubric rows | Impact | Cost | Ratio | Where |
 |---|---|---|---|---|---|---|
-| R1 | ~~**Haptics matrix**~~ — **done, awaiting the privacy review** | `POL-HAPTIC-01…09` (9 FAIL → 9 PASS) | Very high — the app had **zero** haptic feedback; this was the largest sensory gap and it is invisible in a screenshot | Medium — one new token file + 7 call sites, no visual diff | **Highest** | Phase 4 — implemented 2026-10-25 |
+| R1 | ~~**Haptics matrix**~~ — **done, awaiting the privacy review** | `POL-HAPTIC-01…09` (9 FAIL → 9 PASS) | Very high — the app had **zero** haptic feedback; this was the largest sensory gap and it is invisible in a screenshot | Medium — one new token file + 11 firing sites, no visual diff | **Highest** | Phase 4 — implemented 2026-10-25 |
 | R2 | **Motion layer + the 4 missing transitions** | `POL-MOTION-01,02,03,04,07,09,10` (5 FAIL, 1 PARTIAL) | High — a user message, a permission card and a session switch currently have no entrance at all | Medium-high — `DesignMotion.swift` + 4 surfaces | High | Phase 4 |
 | R3 | **Type-scale conformance** | `POL-TYPE-01…08,10` (8 FAIL), `POL-TYPE-04` (PARTIAL) | **Highest visible** — the type scale is wrong on every screen (7 sizes, not 4) | High — device spike + 103 call sites + one app-wide diff | High, but must land as a single isolated diff | Phase 3 |
 | R4 | **Semantic colour namespace** | `POL-COLOR-10,11,14,15` (4 FAIL), `POL-COLOR-05,07,12` (PARTIAL) | High — "one accent per screen" *is* the product identity; a second blue, a red error block, green success and orange warning are all live | **Low** — one token edit + 6 sites | **High — cheapest high-impact work** | Phase 2 |
@@ -734,34 +740,35 @@ forward for the same reason it must stay in Phase 4: it is visual.
 | Sub-task | Issue | State | Evidence |
 |---|---|---|---|
 | P4-3 — Define the haptic matrix | PRY-26 | **implemented** | `Utils/DesignHaptics.swift`: `DesignHapticEvent` (8 events), `DesignHapticSignature` (9 signatures, 8 distinct in use), `DesignAnnouncementLedger`, and the policy as a pure function. `docs/design.md` §QT-HAPTIC added so the spec and the code do not drift again. |
-| P4-4 — Implement the haptic matrix | PRY-27 | **implemented; the review gate returned FAIL twice and the findings were addressed; re-verification pending** | 8 firing sites, one per event, reached through 10 call paths. 14 tests in `DesignHapticsTests`. |
+| P4-4 — Implement the haptic matrix | PRY-27 | **implemented; the review gate returned FAIL twice and the findings were addressed; re-verification pending** | 11 firing sites covering all 8 events, reached through 13 call paths. 13 tests in `DesignHapticsTests`. |
 | P4-1 — Motion presets + budget | PRY-24 | not started | — |
 | P4-2 — Implement the missing motion | PRY-25 | not started | — |
 
-### The review gate — two FAILs, both addressed
+### The review gate — three rounds
 
 The plan makes an independent code review and an independent privacy review a hard
-gate for this phase. Both ran and **both returned FAIL**. Every finding is recorded
-here rather than quietly fixed.
+gate for this phase. They ran three times. **Round 1 returned FAIL from both**, **round
+2 returned FAIL from the code review and PASS WITH NITS from the privacy review**, and
+every finding from every round is recorded here rather than quietly fixed.
 
-**From the privacy review**
+**Round 1 — privacy review**
 
 | Finding | Severity | Resolution |
 |---|---|---|
 | The microphone guard was bypassed at 6 of 10 call sites | MAJOR | `DesignHaptics.fire(_:microphoneOpen:)` now has **no default** for the flag, so the compiler forces every call site to state the capture state. All sites pass the single authoritative `AppState.isMicrophoneCaptureActive`. |
-| The Ambient/Car live-voice path holds the microphone open *by design* while it answers permissions by voice | MAJOR | `CarLiveController.isMicrophoneCaptureActiveForPolicy` is a conservative public predicate covering the early-capture window; `AppState.isMicrophoneCaptureActive` combines it with the chat composer's capture state. |
+| The Ambient/Car live-voice path holds the microphone open *by design* while it answers permissions by voice | MAJOR | `CarLiveController.isMicrophoneCaptureActiveForPolicy` is a conservative public predicate; `AppState.isMicrophoneCaptureActive` combines it with the chat composer's capture state. |
 | `.recordingStarted` fired *inside* an already-open capture | MINOR | It now fires **before** `startingMicrophone.start(...)`, so the click lands ahead of the capture window. |
 | `isSpeechCaptureActive` was a view-local proxy that under- and over-approximated | MINOR | Replaced by `AppState.chatSpeechCaptureActive`, published at the moment the capture opens and cleared only where the engine is confirmed closed. |
 | `.destructiveConfirmed` fired on the gesture, not on a confirmed delete | NIT | It now fires **after** the delete succeeds. |
 
-**From the code review**
+**Round 1 — code review**
 
 | Finding | Severity | Resolution |
 |---|---|---|
 | The file did not compile for visionOS — `UIFeedbackGenerator` is `API_UNAVAILABLE(visionos)` and the guard was `canImport(UIKit) && !os(watchOS)` | **BLOCKER** | The guard is now `#if os(iOS)`. **Verified: `xcodebuild … -destination 'generic/platform=visionOS Simulator'` → BUILD SUCCEEDED.** The iOS-only build had never exercised this destination. |
 | Answering a permission re-announced it, because "already seen" was derived from the live pending list that answering mutates | MAJOR | `DesignAnnouncementLedger` — a bounded, insertion-ordered ledger that is deliberately separate from the live lists. |
-| The silent-mode policy was claimed but never written or asserted | MAJOR | Written into §QT-HAPTIC and asserted by `silentModeDoesNotAffectAnyEvent`. |
-| `POL-HAPTIC-01…07` claimed enforcement `test` while no test asserted a call site exists | MAJOR | The Enforcement column now reads `review, lint (Phase 1)` — the lint that will enforce it is PRY-10 and does not exist yet. The rubric no longer over-claims. |
+| The silent-mode policy was claimed but never written or asserted | MAJOR | Written into §QT-HAPTIC and asserted. |
+| `POL-HAPTIC-01…07` claimed enforcement `test` while no test asserted a call site exists | MAJOR | The Enforcement column now reads `review, lint (Phase 1)` — the lint that will enforce it is PRY-10 and does not exist yet. |
 | The plan's PR-collision constraint on `ChatTabView+VoiceInput.swift` was broken without being recorded | MAJOR | **Recorded below.** |
 | `prepare()` immediately followed by `impactOccurred()` never warms the engine, but the comment claimed it did | MINOR | The comment now states what is actually true. |
 | `.destructiveConfirmed` mapped to a *success* notification | MINOR | Re-mapped to `.warningNotification`; `permissionArrived` moved to a new `.softImpact` signature, leaving `successNotification` free as headroom for a ninth event. |
@@ -769,9 +776,60 @@ here rather than quietly fixed.
 | The test suite was not `@MainActor` | MINOR | The suite is now `@MainActor`, matching 37 of the 53 test files. |
 | The rubric and audit cited `isAllowed(reduceMotion:micphoneOpen:)` — a typo | MINOR | Corrected in both. |
 | The plan said `sensoryFeedback`; the implementation used the UIKit generators | MINOR | **Recorded below.** |
-| "7 call sites" — there are 8 firing sites reached through 10 call paths | NIT | Corrected here, in `docs/WORKING.md`, and in the Linear comments. |
+| "7 call sites" — there are 11 firing sites covering all 8 events, reached through 13 call paths | NIT | Corrected here, in `docs/WORKING.md`, and in the Linear comments. |
+
+**Round 2 — code review** (the privacy review passed with nits; the code review found two
+new MAJORs, both of which the round-1 fixes had introduced)
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| The CarLive predicate could report "closed" while the engine was live: the window between the engine opening and the capture being registered was covered only by `phase == .connecting`, and three paths leave that phase — `cancelStartBeforeCapture()`, `failStart()`, and `performShutdown` — without stopping the engine | MAJOR | Added `captureStartPending`, set **before** the `audio.startCapture()` await and cleared only once the engine is confirmed closed. The phase is no longer load-bearing for the invariant. |
+| `chatSpeechCaptureActive` leaked on the realtime gate-rejection path: the microphone never opened, the flag stayed `true`, and every non-boundary haptic in the app was silently suppressed — "haptics stopped working" with no other signal | MAJOR | The flag and `isStartingRecording` are now cleared on that path before the `return`. |
+| `.recordingStarted` was never paired with `.recordingStopped` on the failure paths | MINOR | The closing haptic now fires on all three failure paths (realtime gate rejection, post-start gate rejection, catch). |
+| The silent-mode assertion verified nothing, and "the feedback generators emit no audio component" was an unsourced absolute | MINOR | The wording is now a **policy** statement — silent mode does not suppress haptics — with no platform guarantee claimed. The rubric row's enforcement is `test, review`: the Reduce Motion half is asserted, the silent-mode half is reviewed and canaried. |
+| The ledger regression test mutated a local list the ledger never saw | MINOR | It now drives `AppState.announcePermissionArrival` with an isolated `UserDefaults` suite, so it exercises the production path. |
+| `QT-HAPTIC` was missing from the clause index | MINOR | Added. |
+| Stale counts: "14 tests" (it is 13), "52 files" in `PROJECT-CONTEXT.md` (it is 53) | NIT | Corrected. |
+
+**Round 2 — privacy review (PASS WITH NITS)**
+
+All four round-1 findings were confirmed fixed: the guard is unbypassable, the ordering
+is right, the view-local proxy is gone, and the destructive haptic cannot fire on a
+failed delete. It also confirmed that the payload surface is empty (no error text, path,
+token or request id can reach a haptic), that nothing is logged or persisted, that
+credentials and transport are untouched, and that the watch target and visionOS are
+inert and compiling. Its remaining nits are recorded in `docs/WORKING.md`.
 
 ### Two deviations from this plan, recorded
+
+**0. The spec changed underneath the rubric — the merge re-baselined it.** After the
+rubric and audit were written, the working tree merged `origin/master` (`bab588b`,
+`f1dee7e`), which brought in a **new tool-card design** and a **new `QT-CHATSCREEN`
+clause**. The merge replaced the merged `N tool calls` group with **one row per tool
+call**: file cards keep the 2/3-column grid, and thinking and tool-call rows are full
+width. The code implements the new design (`MessageRowView.processTileRows(for:columnCount:)`,
+`ToolPartView` as a compact tag with no `DisclosureGroup`).
+
+Three rubric rows encoded the **removed** design and were rewritten against the new
+spec: `POL-CARD-08` (no merged group), `POL-CARD-09` (only file cards share the grid),
+`POL-MOTION-02` (re-scoped from "no `DisclosureGroup`" to the spring values). The audit
+was re-measured against the merged tree.
+
+**Two consequences that are not resolved here:**
+
+- **The merged spec is internally inconsistent for tool rows.** §QT-MOTION says tool-card
+  expansion uses a custom spring (response 0.32, damping 0.82), and the *next* bullet
+  says the full-width process row expansion has **no animation**. Under the new design
+  every tool row *is* a full-width process row, so both bullets now apply to the same
+  thing. The code animates it with `DesignAnimation.spring` (response 0.35, damping
+  0.80) — so it matches neither bullet exactly. `POL-MOTION-02` records the measured
+  FAIL; which bullet wins is a spec decision, not a code fix.
+- **`QT-CHATSCREEN` is not covered by the rubric.** The merged spec added a Chat Screen
+  clause (floating glass header and composer, transient turn state, one row per tool
+  call) and the rubric has no rows for it. Closing that gap needs a new rubric family
+  and a re-audit, so it is recorded as an open item rather than back-filled with rows
+  that were never measured. It also means the rubric is not yet a complete expression of
+  the spec — it is complete against the spec as of `48fd2b3`.
 
 **1. The UIKit feedback generators, not `sensoryFeedback`.** Step 3 of Phase 4 says
 "map each to `sensoryFeedback`". The implementation uses `UIImpactFeedbackGenerator`,
@@ -802,21 +860,29 @@ unchanged: this change only publishes a capture flag and fires a haptic.
 
 ### Verification
 
-- `xcodebuild build -destination 'generic/platform=visionOS Simulator'` →
-  **BUILD SUCCEEDED** (the destination the original guard broke).
+- `xcodebuild build -destination 'generic/platform=iOS Simulator'` → **BUILD SUCCEEDED**
+  on the merged tree.
+- `xcodebuild build -destination 'generic/platform=visionOS Simulator'` → **BUILD
+  SUCCEEDED** on `48fd2b3` (the tree the haptic work was written against), but
+  **FAILS on the current tree** — and not because of the haptic work. `7a8847d chore:
+  v2` added `Utils/GlassSurface.swift`, which uses SwiftUI's `Glass` behind an
+  `if #available(iOS 26.0, *)` check. That check is *true* on visionOS 26, but `Glass`
+  is `API_UNAVAILABLE(visionos)`, so the symbol does not compile there. Tracked as
+  **PRY-44**. The haptic guard itself (`#if os(iOS)`) is correct and was verified
+  independently of this.
 - `OPENCODE_TEST_ONLY=OpenCodeClientTests/DesignHapticsTests ./scripts/test_unit.sh` →
-  **14/14 passed**.
+  **13/13 passed**.
 - Full `./scripts/test_unit.sh` → **1083 tests / 110 suites passed**, exit 0, xcresult
-  parsed/Passed (from the 1070/109 baseline). Evidence
-  `.occlient/test-runs/unit-20261025T084135Z-ATUdIM`.
+  parsed/Passed, re-run on the **merged** tree after the round-3 fixes.
 - Two earlier runs are **not** counted as passes: one failed on an inverted assertion in
   the new test (the ledger itself was correct), and one was killed during result
   collection after its tests had passed, because two `xcodebuild` invocations overlapped
   on the shared simulator.
 
-**Not claimed.** The privacy and code reviews **returned FAIL on the first round**;
-the findings above were addressed afterwards, so **re-verification is still
-outstanding** and PRY-27 stays *In Review*. No on-device verification was performed:
+**Not claimed.** The review gate has run **three rounds**; the third returned FAIL on
+documentation-contract findings only (no BLOCKER and no MAJOR code defect), all of which
+are addressed. **A final confirmation round is still outstanding**, so the gate has not
+been passed and PRY-27 stays *In Review*. No on-device verification was performed:
 haptics cannot be validated in the simulator.
 
 ## Dependencies

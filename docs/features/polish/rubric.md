@@ -80,9 +80,9 @@ until the Android client is checked.
 | POL-CARD-04 | Status rows are not cards — a single line of `text.secondary` | `QT-CARD` | no container on turn-activity rows | review | chat |
 | POL-CARD-05 | Tool and patch cards use a 12 pt radius | `QT-CARD` | `DesignCorners.medium` at the site | test | chat |
 | POL-CARD-06 | File-operation tools (`apply_patch`, `edit_file`, `write_file`, `read_file`) render as file cards | `QT-FILECARD` | classifier routes exactly that set | test | chat |
-| POL-CARD-07 | File cards sit in a 2-column grid on iPhone, 3 on iPad | `QT-FILECARD` | grid column count matches the layout branch | test | chat |
-| POL-CARD-08 | All remaining tools collapse into one `N tool calls` tile | `QT-TOOLTILE` | one tile per cluster, label format `N tool calls` | test | chat |
-| POL-CARD-09 | Every process tile is half-width — collapsed *or* expanded | `QT-TILEGRID` | tile width == grid column width | test | chat |
+| POL-CARD-07 | File cards sit in a 2-column grid on iPhone, 3 on iPad | `QT-FILECARD` | `cardGridColumnCount` is 2 for the compact layout and 3 for the regular one | test | chat |
+| POL-CARD-08 | Every non-file tool renders its **own row** — there is no merged group | `QT-TOOLTILE` | each tool call is its own row (icon, name, subject line, status, chevron); no merged `N tool calls` group is rendered | test | chat |
+| POL-CARD-09 | Only file cards share the grid; thinking and tool-call rows are full width | `QT-TILEGRID` | file cards are packed into rows of the grid column count (2 on iPhone, 3 on iPad); thinking and tool-call rows are `isFullWidth: true` | test | chat |
 | POL-CARD-10 | Text and attachment blocks render full-width after the grid | `QT-TILEGRID` | reading order is grid → full-width text | screenshot | chat |
 | POL-CARD-11 | No category headings ("Files updated", "Actions") and no extra grouping | `QT-TOOLBOUND` | `grep -rn "Files updated"` → 0; visual review | lint, review | chat |
 | POL-CARD-12 | No pixel-art or texture treatment anywhere | `QT-TOOLBOUND` | no sprite/texture assets in the card layer | review | all |
@@ -91,8 +91,8 @@ until the Android client is checked.
 
 | ID | Rule | Source | Check | Enforcement | Scope |
 |---|---|---|---|---|---|
-| POL-MESSAGE-01 | A user message is a 3 pt accent leading stripe (not 4 pt) | `QT-MESSAGE` | `DesignSpacing.accentStripe` == 3 | test | chat |
-| POL-MESSAGE-02 | A user message uses the `accent.muted` fill | `QT-MESSAGE` | fill token == `Opacity.userMessageFill*` | test | chat |
+| POL-MESSAGE-01 | A user message is a **right-aligned bubble**, capped at 320 pt, with one tucked corner (20 / 20 / 6 / 20) | `QT-MESSAGE` | `DesignControls.userBubbleMaxWidth` == 320 and the bubble uses an `UnevenRoundedRectangle` with radii 20 / 20 / 6 / 20 | test | chat |
+| POL-MESSAGE-02 | A user message is filled with a **neutral surface tint** | `QT-MESSAGE` | the bubble's background is `DesignColors.Neutral.text.opacity(DesignColors.surfaceFill(for:))` | test | chat |
 | POL-MESSAGE-03 | An AI reply has no container — plain `text.primary` on `bg.primary` | `QT-MESSAGE` | no background or stroke on the reply body | review | chat |
 | POL-MESSAGE-04 | Message spacing is 20 pt on iPhone, 28 pt on iPad | `QT-MESSAGE` | spacing token resolves per layout branch | test | chat |
 | POL-MESSAGE-05 | Card padding is 14 pt on iPhone, 18 pt on iPad | `QT-MESSAGE` | padding token resolves per layout branch | test | chat |
@@ -119,11 +119,11 @@ until the Android client is checked.
 | ID | Rule | Source | Check | Enforcement | Scope |
 |---|---|---|---|---|---|
 | POL-MOTION-01 | A user message enters with y 16→0 and opacity 0→1 over a 0.28 s ease-out | `QT-MOTION` | `DesignMotion.messageEnter` applied | test | chat |
-| POL-MOTION-02 | Tool-card expansion uses a custom spring (response 0.32, damping 0.82), not the system `DisclosureGroup` | `QT-MOTION` | `grep -rn "DisclosureGroup" Views` → 0 | lint | chat |
+| POL-MOTION-02 | The tool row expands with a custom spring of response 0.32, damping 0.82 | `QT-MOTION` | the expansion uses a spring whose response is 0.32 and damping 0.82; the tool row no longer uses the system `DisclosureGroup` | test, lint | chat |
 | POL-MOTION-03 | Permission and question cards slide in from below (y 24→0) with a fade | `QT-MOTION` | `DesignMotion.cardEnter` applied | test | chat |
 | POL-MOTION-04 | Switching sessions cross-fades the message list over 0.2 s | `QT-MOTION` | `DesignMotion.listCrossfade` applied | test | chat |
 | POL-MOTION-05 | Streaming text has no entrance animation | `QT-MOTION` | no animation on the streaming text path | review | chat |
-| POL-MOTION-06 | Process-tile expansion does not animate — the grid reflows | `QT-MOTION` | no animation on the tile header toggle | review | chat |
+| POL-MOTION-06 | The thinking row toggles without an animation — it grows in place | `QT-MOTION` | the thinking card's tap handler toggles `expanded` with no `withAnimation`; the tool row's expansion is governed by POL-MOTION-02 | review | chat |
 | POL-MOTION-07 | No bouncing springs; response ≤ 0.35 and duration ≤ 300 ms everywhere | `QT-MOTION` | `DesignAnimation` presets assert the ceiling | test | all |
 | POL-MOTION-08 | No splash launch animation | `QT-NONGOAL` | no launch animation in the app entry | review | all |
 | POL-MOTION-09 | Every `withAnimation` uses a named `DesignMotion` preset — no raw durations | `INIT` | `grep -rEn "withAnimation\(\.[a-z]\|withAnimation\([0-9]" Views` → 0 | lint | all |
@@ -145,7 +145,7 @@ until the Android client is checked.
 | POL-HAPTIC-06 | A selection change produces a distinct haptic | `QT-HAPTIC` | site exists; its signature differs from every other event | review, lint (Phase 1) | all, ios-only |
 | POL-HAPTIC-07 | Recording start and stop produce a distinct haptic | `QT-HAPTIC` | site exists; its signature differs from every other event | review, lint (Phase 1) | composer, ios-only |
 | POL-HAPTIC-08 | No haptic fires while the microphone is open | `QT-HAPTIC` | `isAllowed(reduceMotion:microphoneOpen:)` suppresses **every** event when the microphone is open — no blanket exemption; **every** call site passes the shared `state.isMicrophoneCaptureActive` (the flag is mandatory — there is no default) | test | all, ios-only |
-| POL-HAPTIC-09 | Silent mode and Reduce Motion have an explicit, documented policy | `QT-HAPTIC` | the policy is written in §QT-HAPTIC and asserted in `DesignHapticsTests` (`silentModeDoesNotAffectAnyEvent`) | test | all, ios-only |
+| POL-HAPTIC-09 | Silent mode and Reduce Motion have an explicit, documented policy | `QT-HAPTIC` | the **Reduce Motion** half is asserted in `DesignHapticsTests` (`.reduceMotionKeepsAlertingEventsAndDropsConfirmingOnes`); the **silent-mode** half is a written policy, not a platform guarantee, so it is enforced by review and canaried by `DesignHapticsTests` | test, review | all, ios-only |
 
 ## States: empty, loading, error
 
