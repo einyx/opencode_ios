@@ -325,6 +325,9 @@ struct SessionDeletionRecoveryTests {
         #expect(state.messageStore.partType(for: "p-keep", inSession: "keep") == "tool")
         #expect(state.revertResetPendingSessionIDs == Set(["other"]))
 
+        // The stats write is debounced, so it has to be flushed before the
+        // state is read back from the defaults.
+        state.statsStore.flush()
         let reloadedStats = SessionStatsStore(defaults: defaults)
         let reloadedMessages = MessageStore(defaults: defaults)
         #expect(reloadedStats.stats(for: "gone").seenUserMessageIDs.isEmpty)

@@ -176,6 +176,9 @@ struct SessionStatsStoreTests {
         let store = SessionStatsStore(defaults: defaults)
         store.observeUserMessage(id: "u1", sessionID: "s1")
         store.observeToolPart(id: "tp1", sessionID: "s1")
+        // The write is debounced, so it has to be flushed before the state is
+        // read back from the defaults.
+        store.flush()
 
         let reloaded = SessionStatsStore(defaults: defaults)
         #expect(reloaded.stats(for: "s1").rounds == 1)

@@ -122,18 +122,45 @@ final class SessionStatsStore {
     func remove(sessionID: String) {
         guard statsBySession[sessionID] != nil else { return }
         statsBySession[sessionID] = nil
-        save()
+        scheduleSave()
     }
+
+    /// The pending debounced write.
+    private var saveTask: Task<Void, Never>?
 
     private func withStats(_ sessionID: String, _ mutate: (inout SessionStats) -> Void) {
         var stats = statsBySession[sessionID] ?? SessionStats()
         mutate(&stats)
         statsBySession[sessionID] = stats
-        save()
+        scheduleSave()
     }
 
-    private func save() {
+    /// The stats map holds every session's seen ids, so encoding it grows with
+    /// the whole history. A tool part emits repeated events while it streams,
+    /// so the write is debounced instead of running on every event.
+    private func scheduleSave() {
+        saveTask?.cancel()
+        saveTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            self?.saveNow()
+        }
+    }
+
+    private func saveNow() {
         guard let data = try? JSONEncoder().encode(statsBySession) else { return }
         defaults.set(data, forKey: Self.storageKey)
+    }
+
+    /// Write the pending state out now (the app is going away).
+    func flush() {
+        saveTask?.cancel()
+        saveTask = nil
+        saveNow()
+    }
+
+    deinit {
+        saveTask?.cancel()
+        saveNow()
     }
 }

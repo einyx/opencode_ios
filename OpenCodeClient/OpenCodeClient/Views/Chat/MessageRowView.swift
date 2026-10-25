@@ -336,6 +336,12 @@ struct MessageRowView: View {
                 .task(id: text) {
                     resolvedText = nil
                     let sourceText = text
+                    // A streamed message changes on every delta, and resolving an
+                    // image reference fetches the file over the network. Let the
+                    // text settle so the resolution happens once instead of
+                    // once per token.
+                    try? await Task.sleep(for: .milliseconds(250))
+                    guard !Task.isCancelled, sourceText == text else { return }
                     let resolved = await MarkdownImageResolver.resolveImages(
                         in: sourceText,
                         workspaceDirectory: workspaceDirectory,

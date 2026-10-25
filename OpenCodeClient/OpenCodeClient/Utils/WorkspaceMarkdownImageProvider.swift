@@ -150,9 +150,21 @@ private struct WorkspaceMarkdownImageView: View {
     @State private var imageData: Data?
     @State private var didAttemptLoad = false
     @State private var showImageSheet = false
+    /// The decoded bitmap.
+    ///
+    /// `UIImage(data:)` decodes the whole image, and a computed property would
+    /// do it again on every body pass — once per streamed delta while a
+    /// message is still arriving.
+    @State private var decodedUIImage: UIImage?
 
-    private var decodedUIImage: UIImage? {
-        imageData.flatMap(UIImage.init(data:))
+    private func decodeImage(_ data: Data?) {
+        guard let data else {
+            decodedUIImage = nil
+            return
+        }
+        if decodedUIImage == nil {
+            decodedUIImage = UIImage(data: data)
+        }
     }
 
     private var imageDisplayName: String {
@@ -226,6 +238,7 @@ private struct WorkspaceMarkdownImageView: View {
 
             if let data = WorkspaceMarkdownImageProvider.decodeDataURL(url) {
                 imageData = data
+                decodeImage(data)
                 return
             }
 
@@ -239,6 +252,7 @@ private struct WorkspaceMarkdownImageView: View {
                     }
                     if let data = WorkspaceMarkdownImageProvider.decodeBase64ImageData(content.content) {
                         imageData = data
+                        decodeImage(data)
                     }
                 } catch is CancellationError {
                     return

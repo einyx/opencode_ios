@@ -1569,9 +1569,11 @@ struct AppStateFlowTests {
 
         #expect(state.messages.count == 1)
         #expect(state.messages.first?.parts.first?.text == "Final")
-        #expect(state.sessionDiffs == [Self.makeDiff(file: "Sources/MessageStore.swift")])
+        // The reconciliation does not download a session diff: it is never
+        // rendered, and it pulls every changed file's before and after text.
+        #expect(state.sessionDiffs.isEmpty)
         #expect(await apiClient.messagesCallCount == 1)
-        #expect(await apiClient.sessionDiffCallCount == 1)
+        #expect(await apiClient.sessionDiffCallCount == 0)
     }
 
     @Test @MainActor func sessionUpdatedSkipsProjectMismatchForNonCurrentSession() async {
@@ -1739,7 +1741,7 @@ struct AppStateFlowTests {
         #expect(state.messages.count == 1)
         #expect(state.messages.first?.parts.first?.text == "Final")
         #expect(await apiClient.messagesCallCount == 1)
-        #expect(await apiClient.sessionDiffCallCount == 1)
+        #expect(await apiClient.sessionDiffCallCount == 0)
     }
 
     @Test @MainActor func messagePartUpdatedIgnoresNonCurrentSession() async {
@@ -1770,7 +1772,7 @@ struct AppStateFlowTests {
         // per-turn reconciliation (message window + diff).
         #expect(state.sessionStatuses["s1"]?.type == "idle")
         #expect(await apiClient.messagesCallCount == 1)
-        #expect(await apiClient.sessionDiffCallCount == 1)
+        #expect(await apiClient.sessionDiffCallCount == 0)
     }
 
     @Test @MainActor func sseStreamCapturesStepTimingForCurrentSession() async {
@@ -2084,13 +2086,13 @@ struct AppStateFlowTests {
         state.sseLastFrameAt = Date().addingTimeInterval(-30)
         await state.checkSSEWatchdog()
         #expect(await apiClient.messagesCallCount == 1)
-        #expect(await apiClient.sessionDiffCallCount == 1)
+        #expect(await apiClient.sessionDiffCallCount == 0)
 
         // The timestamp reset means one silence triggers one reconciliation,
         // not one per check interval.
         await state.checkSSEWatchdog()
         #expect(await apiClient.messagesCallCount == 1)
-        #expect(await apiClient.sessionDiffCallCount == 1)
+        #expect(await apiClient.sessionDiffCallCount == 0)
     }
 
     @Test @MainActor func sseWatchdogNoOpsWhenStreamIsFresh() async {

@@ -159,7 +159,8 @@ extension AppState {
         guard Date().timeIntervalSince(last) > Self.sseSilenceThreshold else { return }
         sseLastFrameAt = Date()
         await loadMessages()
-        await loadSessionDiff()
+        // The session diff is not rendered anywhere, so it is not reloaded
+        // here: it downloads every changed file's before and after text.
         await syncSessionStatusesFromPoll()
     }
 
@@ -240,7 +241,6 @@ extension AppState {
                     // global map that intentionally tracks every session.
                     if decoded.type == "idle", sessionID == currentSessionID {
                         await loadMessages()
-                        await loadSessionDiff()
                     }
                 }
             }
@@ -310,7 +310,6 @@ extension AppState {
                     // the message state locally, so fall back to the REST
                     // reconciliation path (pre-SSE-data-path behavior).
                     await loadMessages()
-                    await loadSessionDiff()
                 }
             }
         case "message.part.delta":
@@ -376,11 +375,9 @@ extension AppState {
                         // REST reconciliation path so multi-host behavior
                         // matches the pre-SSE-data-path client.
                         await loadMessages()
-                        await loadSessionDiff()
                     }
                 } else {
                     await loadMessages()
-                    await loadSessionDiff()
                 }
             }
         case "message.part.removed":

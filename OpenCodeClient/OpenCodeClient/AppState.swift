@@ -869,6 +869,11 @@ final class AppState {
         }
     }
 
+    /// Write the pending session statistics out now.
+    func flushSessionStats() {
+        statsStore.flush()
+    }
+
     var sessionDiffs: [FileDiff] { get { fileStore.sessionDiffs } set { fileStore.sessionDiffs = newValue } }
     var selectedDiffFile: String? { get { fileStore.selectedDiffFile } set { fileStore.selectedDiffFile = newValue } }
     var selectedTab: Int = RootTab.chat.rawValue

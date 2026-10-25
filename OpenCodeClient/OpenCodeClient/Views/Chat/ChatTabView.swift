@@ -1207,6 +1207,7 @@ struct ChatTabView: View {
             .onChange(of: scenePhase) { _, newPhase in
                 guard newPhase == .background else { return }
                 state.markCurrentSessionViewed()
+                state.flushSessionStats()
                 Task { await stopSpeechForBackground() }
             }
             .onChange(of: effectiveLayout) { _, _ in
