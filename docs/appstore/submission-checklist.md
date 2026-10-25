@@ -37,23 +37,23 @@ enrolled organisation team, and register the bundle ids there:
 The simulator builds keep `com.grapeot.OpenCodeClient`, which is why the two
 values differ per SDK.
 
-## 2. Blocker: the `voiceflow` dependency has no licence
+## 2. Done: the `voiceflow` dependency is licensed
 
 `grapeot/voiceflow` (the `VoiceFlowKit` package the voice input is built on)
-ships **no licence file**. There is no grant to redistribute that code, and the
-app links it.
+shipped **no licence file**, so there was no grant to redistribute it.
 
-Before submitting, one of these has to happen:
+The package is now forked to `einyx/voiceflow`, which carries the Apache
+License 2.0 and a NOTICE that credits the upstream authorship and records the
+fork's origin. The app pins that fork at the tagged `0.4.1`, which is the
+commit that adds the licence, so the pinned source carries it too.
 
-- the upstream repository gets a `LICENSE` file (Apache-2.0 fits the rest of the
-  app), or
-- the package is forked into an account you control, with an explicit licence,
-  and the dependency is repointed, or
-- the voice input is replaced with an implementation in this repository.
+`scripts/generate_third_party_notices.py` exits non-zero while a resolved
+package has no licence metadata, and lists it under "Packages without a
+licence" in `THIRD_PARTY_NOTICES.md`.
 
-`scripts/generate_third_party_notices.py` exits non-zero while the licence is
-missing, and lists the package under "Packages without a licence" in
-`THIRD_PARTY_NOTICES.md`.
+One thing to settle with the upstream author: relicensing a repository that
+had no licence is only covered by their permission. A short note to them (the
+repository is public) closes that.
 
 ## 3. Done in this repository
 
@@ -73,7 +73,7 @@ missing, and lists the package under "Packages without a licence" in
 ## 4. Still to do
 
 - [ ] Enroll the organisation team and point the targets at it (section 1).
-- [ ] Resolve the `voiceflow` licence (section 2).
+- [x] Resolve the `voiceflow` licence (section 2).
 - [ ] Publish the privacy policy as a web page and put the URL in App Store
       Connect (text: `docs/appstore/privacy-policy.md`).
 - [ ] Fill in the listing metadata (`docs/appstore/metadata.md`): the support

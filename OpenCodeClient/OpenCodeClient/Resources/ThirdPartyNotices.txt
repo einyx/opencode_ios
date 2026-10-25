@@ -1972,7 +1972,7 @@ Apache License
 
 ------------------------------------------------------------------------
 
-VoiceFlowKit 0.4.0
+VoiceFlowKit 0.4.1
 https://github.com/einyx/voiceflow
 Licence: Apache-2.0
 Copyright 2026 grapeot and the VoiceFlow contributors

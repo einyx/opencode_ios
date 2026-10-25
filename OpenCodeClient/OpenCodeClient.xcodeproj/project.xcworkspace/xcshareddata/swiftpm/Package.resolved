@@ -123,8 +123,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/einyx/voiceflow.git",
       "state" : {
-        "revision" : "31bd3438cf817d72ae7e1147130d959356ef7872",
-        "version" : "0.4.0"
+        "revision" : "c6a9fbf274b0201cf0adf5c281e14fa5e0b77dc7",
+        "version" : "0.4.1"
       }
     }
   ],
