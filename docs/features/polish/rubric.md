@@ -103,8 +103,8 @@ until the Android client is checked.
 
 | ID | Rule | Source | Check | Enforcement | Scope |
 |---|---|---|---|---|---|
-| POL-COMPOSER-01 | The input field is borderless — `bg.secondary` fill, 16 pt radius | `QT-COMPOSER` | no stroke on the field | review | composer |
-| POL-COMPOSER-02 | Send is a solid accent rounded-rect button (not a circular icon) hugging the field's bottom-right | `QT-COMPOSER` | shape + fill review | screenshot | composer |
+| POL-COMPOSER-01 | The composer is one card — borderless `bg.secondary` fill, 16 pt radius, chips/status/actions inside it, no second floating band | `QT-COMPOSER` | no stroke on the field; no band above the card | review | composer |
+| POL-COMPOSER-02 | Send is a solid accent circular button hugging the bottom row's trailing edge | `QT-COMPOSER` | shape + fill review | screenshot | composer |
 | POL-COMPOSER-03 | The mic sits *inside* the field on the left | `QT-COMPOSER` | mic is a child of the field, `text.secondary` | screenshot | composer |
 | POL-COMPOSER-04 | Send stays visible while the AI is running | `QT-COMPOSER` | send is never removed by the running state | test | composer |
 | POL-COMPOSER-05 | Stop appears *above* send and never displaces it | `QT-COMPOSER` | both in the right-hand VStack, send in the bottom slot | screenshot | composer |

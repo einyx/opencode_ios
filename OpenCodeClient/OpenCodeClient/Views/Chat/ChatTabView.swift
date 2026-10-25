@@ -738,9 +738,13 @@ struct ChatTabView: View {
         .padding(.bottom, 6)
     }
 
-    /// The floating composer: turn state, the chip row and the glass input
-    /// surface. It floats over the conversation (the message list scrolls
-    /// underneath it) and sits above the tab bar.
+    /// The floating composer, in the reference-card anatomy: ONE glass surface
+    /// with the input on top and a single bottom row inside the same card for
+    /// the model/todo chips, the live turn state and the photo/send actions.
+    /// The chips no longer form a second floating band above the field — that
+    /// band read as a detached control panel. The card floats over the
+    /// conversation (the message list scrolls underneath it) and sits above
+    /// the tab bar.
     private var composerDock: some View {
         VStack(spacing: DesignSpacing.sm) {
             if showsVoiceRail {
@@ -751,86 +755,90 @@ struct ChatTabView: View {
                 attachmentStrip
             }
 
-            composerContextRow
-
             HStack(alignment: .bottom, spacing: DesignSpacing.sm) {
-                ZStack(alignment: .leading) {
-                    ChatComposerTextView(
-                        text: composerInputBinding,
-                        hasMarkedText: $hasMarkedText,
-                        contentHeight: $composerContentHeight,
-                        isEditable: ComposerFocusPolicy.isTextEditable(
-                            voiceFirst: voiceFirstEnabled,
-                            isEditing: isComposerEditing
-                        ),
-                        requestsFirstResponder: ComposerFocusPolicy.requestsFirstResponder(
-                            voiceFirst: voiceFirstEnabled,
-                            isEditing: isComposerEditing
-                        ),
-                        suppressesSoftwareKeyboard: ComposerFocusPolicy.suppressesSoftwareKeyboard(
-                            voiceFirst: voiceFirstEnabled,
-                            isEditing: isComposerEditing
-                        ),
-                        focusResetEpoch: composerFocusResetEpoch,
-                        preferredCursorUTF16: preferredCursorUTF16,
-                        placeholder: L10n.t(.chatInputPlaceholder),
-                        autoScrollToBottomOnTextChange: Self.shouldAutoScrollSpeechTranscript(
-                            isTranscribing: isTranscribing,
-                            isRetryingSpeech: isRetryingSpeech
-                        ),
-                        onSubmit: sendCurrentInput,
-                        onEndEditing: { isComposerEditing = false },
-                        onCaretFocusChange: { composerHasCaretFocus = $0 },
-                        onSelectionUTF16: { range in
-                            if composerSelectionUTF16 != range {
-                                composerSelectionUTF16 = range
+                VStack(alignment: .leading, spacing: DesignSpacing.xs) {
+                    ZStack(alignment: .leading) {
+                        ChatComposerTextView(
+                            text: composerInputBinding,
+                            hasMarkedText: $hasMarkedText,
+                            contentHeight: $composerContentHeight,
+                            isEditable: ComposerFocusPolicy.isTextEditable(
+                                voiceFirst: voiceFirstEnabled,
+                                isEditing: isComposerEditing
+                            ),
+                            requestsFirstResponder: ComposerFocusPolicy.requestsFirstResponder(
+                                voiceFirst: voiceFirstEnabled,
+                                isEditing: isComposerEditing
+                            ),
+                            suppressesSoftwareKeyboard: ComposerFocusPolicy.suppressesSoftwareKeyboard(
+                                voiceFirst: voiceFirstEnabled,
+                                isEditing: isComposerEditing
+                            ),
+                            focusResetEpoch: composerFocusResetEpoch,
+                            preferredCursorUTF16: preferredCursorUTF16,
+                            placeholder: L10n.t(.chatInputPlaceholder),
+                            autoScrollToBottomOnTextChange: Self.shouldAutoScrollSpeechTranscript(
+                                isTranscribing: isTranscribing,
+                                isRetryingSpeech: isRetryingSpeech
+                            ),
+                            onSubmit: sendCurrentInput,
+                            onEndEditing: { isComposerEditing = false },
+                            onCaretFocusChange: { composerHasCaretFocus = $0 },
+                            onSelectionUTF16: { range in
+                                if composerSelectionUTF16 != range {
+                                    composerSelectionUTF16 = range
+                                }
+                            },
+                            onCaretProbe: { value in
+                                #if DEBUG
+                                if UITestFixtures.hasUITestSessionTreeFixture, caretProbeValue != value {
+                                    caretProbeValue = value
+                                }
+                                #endif
                             }
-                        },
-                        onCaretProbe: { value in
-                            #if DEBUG
-                            if UITestFixtures.hasUITestSessionTreeFixture, caretProbeValue != value {
-                                caretProbeValue = value
-                            }
-                            #endif
-                        }
-                    )
-                    .frame(height: composerContentHeight)
-                    .accessibilityIdentifier("chat-input")
+                        )
+                        .frame(height: composerContentHeight)
+                        .accessibilityIdentifier("chat-input")
 
-                    if inputText.isEmpty {
-                        Text(composerPlaceholderText)
-                            .foregroundStyle(DesignColors.Neutral.textTertiary)
-                            .allowsHitTesting(false)
-                            .accessibilityHidden(true)
+                        if inputText.isEmpty {
+                            Text(composerPlaceholderText)
+                                .foregroundStyle(DesignColors.Neutral.textTertiary)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+                        }
+                        #if DEBUG
+                        if UITestFixtures.hasUITestSessionTreeFixture {
+                            Color.clear
+                                .frame(width: 1, height: 1)
+                                .accessibilityElement()
+                                .accessibilityIdentifier("chat-input-caret-probe")
+                                .accessibilityValue(caretProbeValue)
+                        }
+                        #endif
                     }
-                    #if DEBUG
-                    if UITestFixtures.hasUITestSessionTreeFixture {
-                        Color.clear
-                            .frame(width: 1, height: 1)
-                            .accessibilityElement()
-                            .accessibilityIdentifier("chat-input-caret-probe")
-                            .accessibilityValue(caretProbeValue)
-                    }
-                    #endif
+                    .environment(\.layoutDirection, textLayoutDirection)
+
+                    composerContextRow
+                        .environment(\.layoutDirection, textLayoutDirection)
                 }
-                .environment(\.layoutDirection, textLayoutDirection)
 
                 composerActions
                     .environment(\.layoutDirection, textLayoutDirection)
             }
-            .padding(.horizontal, DesignSpacing.sm)
-            .padding(.vertical, 6)
+            .padding(.horizontal, DesignSpacing.md)
+            .padding(.vertical, DesignSpacing.sm)
             .glassSurface(cornerRadius: 26, interactive: true)
             .environment(\.layoutDirection, composerControlDirection)
         }
-        .padding(.horizontal, 12)
-        .padding(.bottom, 8)
+        .padding(.horizontal, DesignSpacing.md)
+        .padding(.bottom, DesignSpacing.sm)
     }
 
-    /// Everything that is not the input itself, on one row: the model picker,
-    /// the todo list and the live turn state. The session counters live in
-    /// the session sheet — a third band above the composer read as a control
-    /// panel, and counters are session detail, not input context.
+    /// The caption row inside the composer card: the model picker, the todo
+    /// list and the live turn state share the row with — not float above —
+    /// the input surface. The session counters live in the session sheet —
+    /// a third band above the composer read as a control panel, and counters
+    /// are session detail, not input context.
     private var composerContextRow: some View {
         HStack(spacing: DesignSpacing.sm) {
             ChatModelChip(state: state)
@@ -841,6 +849,7 @@ struct ChatTabView: View {
             if shouldShowComposerStatus {
                 quietComposerStatus
                     .layoutPriority(1)
+                    .lineLimit(1)
             }
         }
     }
@@ -884,7 +893,8 @@ struct ChatTabView: View {
                 }
                 .frame(width: DesignControls.composerPrimaryActionButtonSize, height: DesignControls.composerPrimaryActionButtonSize)
                 .background {
-                    RoundedRectangle(cornerRadius: DesignCorners.medium)
+                    // Circular send, matching the reference composer card.
+                    Circle()
                         .fill(canSendNow ? DesignColors.Brand.primary : DesignColors.Brand.primary.opacity(0.35))
                 }
                 .frame(width: composerActionSlotWidth, height: max(ComposerHitTarget.minimum, DesignControls.composerPrimaryActionButtonSize))
