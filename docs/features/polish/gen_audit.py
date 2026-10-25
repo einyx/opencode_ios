@@ -76,6 +76,28 @@ def token_quote(needle):
     return None
 
 
+
+def token_decl(name):
+    """(line_no, hex_or_None) for a `static let <name> = Color(red:...)` declaration.
+
+    Matching on the declaration name rather than on the formatted number means the
+    lookup survives the token file being reformatted — which is exactly what
+    happened when the token file was rewritten to labelled components.
+    """
+    try:
+        lines = open(os.path.join(ROOT, TOKENS)).read().split("\n")
+    except OSError:
+        return None, None
+    for i, line in enumerate(lines, 1):
+        if "static let %s" % name in line and "Color(" in line:
+            nums = re.findall(r"([0-9]*\.?[0-9]+)\s*(?:/|,|\))", line.split("Color(")[1])
+            vals = [float(n) for n in nums[:3]]
+            if len(vals) == 3:
+                return i, "#%02X%02X%02X" % tuple(int(round(v * 255)) for v in vals)
+            return i, None
+    return None, None
+
+
 # --------------------------------------------------------------------------
 # Live measurements
 # --------------------------------------------------------------------------
@@ -113,7 +135,8 @@ M["tool_calls_group"] = grep(r"toolCallsCount", APP)
 M["process_tile_rows"] = grep(r"processTileRows", VIEWS)
 M["tool_spring"] = grep(r"withAnimation\(DesignAnimation\.spring\)", VIEWS)
 M["grid_cols"] = grep(r"cardGridColumnCount", VIEWS)
-M["thinking_toggle"] = grep(r"onTapGesture \{ expanded\.toggle\(\) \}", VIEWS)
+M["thinking_toggle"] = grep(r"expanded\.toggle\(\)", VIEWS)
+M["thinking_animated"] = grep(r"withAnimation\([^)]*\)[^\n]*expanded\.toggle\(\)", VIEWS)
 M["is_full_width"] = grep(r"isFullWidth: true", VIEWS)
 
 TYPE_SCALE = {"display": 22, "body": 16, "meta": 13, "micro": 12}
@@ -126,22 +149,23 @@ def ev(state, text):
 
 
 # ---------------------------------------------------------------- COLOUR ----
+_bg_line, _bg_hex = token_decl("background")
 E["POL-COLOR-01"] = ev(
-    "FAIL" if not token_has("0.043, 0.047, 0.055") else "PASS",
-    "No `bg.primary` token: `DesignTokens.swift` defines no `#0B0C0E` value "
-    "(0.043, 0.047, 0.055). `DesignColors.Neutral` carries only the surface and "
-    "composer colours, so the app inherits the implicit system background instead of "
-    "the spec's near-black.")
+    "PASS" if _bg_hex == "#0B0C0E" else "FAIL",
+    "No `bg.primary` token: `DesignColors.Neutral` declares only `text`, "
+    "`textSecondary`, `textTertiary`, `surfaceLight`, `surfaceDark`, `composerLight` "
+    "and `composerDark` — there is no `#0B0C0E` value anywhere in the token file, so "
+    "the app inherits the implicit system background instead of the spec's near-black.")
 
+_l2, _h2 = token_decl("composerDark")
 E["POL-COLOR-02"] = ev(
-    "PASS" if token_has("0.078, 0.086, 0.098") else "FAIL",
-    "`DesignTokens.swift:%s` defines the secondary background as "
-    "(0.078, 0.086, 0.098) = `#141619`." % token_line("0.078, 0.086, 0.098"))
+    "PASS" if _h2 == "#141619" else "FAIL",
+    "`DesignTokens.swift:%s` `composerDark` = `%s`, the secondary background." % (_l2, _h2))
 
+_l3, _h3 = token_decl("surfaceDark")
 E["POL-COLOR-03"] = ev(
-    "PASS" if token_has("0.102, 0.114, 0.129") else "FAIL",
-    "`DesignTokens.swift:%s` defines the surface as (0.102, 0.114, 0.129) = `#1A1D21`."
-    % token_line("0.102, 0.114, 0.129"))
+    "PASS" if _h3 == "#1A1D21" else "FAIL",
+    "`DesignTokens.swift:%s` `surfaceDark` = `%s`." % (_l3, _h3))
 
 E["POL-COLOR-04"] = ev(
     "FAIL" if (token_has("text = Color.primary") or token_has("textSecondary = Color.secondary")) else "PASS",
@@ -151,11 +175,12 @@ E["POL-COLOR-04"] = ev(
     "`#ECEDEE` / `#9BA1A6` / `#5A6066`."
     % (token_line("text = Color.primary"), token_line("textSecondary = Color.secondary")))
 
+_l5, _h5 = token_decl("primary")
 E["POL-COLOR-05"] = ev(
-    "PARTIAL" if token_has("0.231, 0.510, 0.965") else "FAIL",
-    "The dark accent is correct: `DesignTokens.swift:%s` `Brand.primary = "
-    "(0.231, 0.510, 0.965)` = `#3B82F6`. The light `#2563EB` variant has no token — "
-    "`Brand` defines a single value." % token_line("0.231, 0.510, 0.965"))
+    "PARTIAL" if _h5 == "#3B82F6" else "FAIL",
+    "The dark accent is correct: `DesignTokens.swift:%s` `Brand.primary` = `%s`. The "
+    "light `#2563EB` variant has no token — `Brand` declares one value only."
+    % (_l5, _h5))
 
 E["POL-COLOR-06"] = ev(
     "FAIL" if not token_has("accentMuted") else "PASS",
@@ -216,11 +241,12 @@ E["POL-COLOR-15"] = ev(
     "requires gold text with an explanation and no orange block."
     % token_line("static let warning"))
 
+_l16, _h16 = token_decl("gold")
 E["POL-COLOR-16"] = ev(
-    "PASS",
-    "`DesignTokens.swift:%s` `Brand.gold = (0.851, 0.651, 0.129)` = `#D9A621`, used "
-    "at %s — all in the session-indicator / permission-pending path."
-    % (token_line("0.851, 0.651, 0.129"), cites(M["brand_gold"], 4)))
+    "PASS" if _h16 == "#D9A621" else "FAIL",
+    "`DesignTokens.swift:%s` `Brand.gold` = `%s`, used at %s — all in the "
+    "session-indicator / permission-pending path."
+    % (_l16, _h16, cites(M["brand_gold"], 4)))
 
 E["POL-COLOR-17"] = ev(
     "PASS" if not M["gradients"] else "FAIL",
@@ -501,10 +527,15 @@ E["POL-MOTION-05"] = ev(
     "directly.")
 
 E["POL-MOTION-06"] = ev(
-    "PASS",
-    "The thinking card toggles `expanded` with no `withAnimation` (%s), so the row "
-    "grows in place as §QT-MOTION requires. The tool row's expansion is a separate "
-    "rule — see POL-MOTION-02." % cites(M["thinking_toggle"], 2))
+    "FAIL" if M["thinking_animated"] else "PASS",
+    ("The thinking card's toggle is wrapped in `withAnimation` (%s), so the row does "
+     "not grow in place as §QT-MOTION requires — the merged code animates it with the "
+     "same spring as the tool row. The tool row's expansion is a separate rule — see "
+     "POL-MOTION-02." % cites(M["thinking_animated"], 2))
+    if M["thinking_animated"] else
+    ("The thinking card toggles `expanded` with no `withAnimation` (%s), so the row "
+     "grows in place as §QT-MOTION requires. The tool row's expansion is a separate "
+     "rule — see POL-MOTION-02." % cites(M["thinking_toggle"], 2)))
 
 E["POL-MOTION-07"] = ev(
     "FAIL",
