@@ -16,6 +16,39 @@ struct SessionListView: View {
     @State private var showRenameAlert = false
     @State private var renameText = ""
 
+    /// Session counters: rounds, tool calls, tokens and cache hit. These moved
+    /// out of the chat composer — a third band above the input read as a
+    /// control panel, and counters are session detail.
+    private var sessionStatsLine: some View {
+        let sessionID = state.currentSessionID
+        let stats = sessionID.map { state.statsStore.stats(for: $0) }
+        let tokens = sessionID.flatMap { state.sessionTotalTokens(sessionID: $0) }
+        let cacheHit = sessionID.flatMap { state.sessionCacheHitRate(sessionID: $0) }
+        return HStack(spacing: DesignSpacing.xs) {
+            sessionStatsIconLabel("arrow.triangle.2.circlepath", value: "\(stats?.rounds ?? 0)")
+            Text("·").foregroundStyle(DesignColors.Neutral.textTertiary)
+            sessionStatsIconLabel("wrench.and.screwdriver", value: "\(stats?.toolCalls ?? 0)")
+            if let tokens {
+                Text("·").foregroundStyle(DesignColors.Neutral.textTertiary)
+                Text("\(MessageRowView.compactTokenCount(tokens)) \(L10n.t(.statusTokensLabel))")
+            }
+            if let cacheHit {
+                Text("·").foregroundStyle(DesignColors.Neutral.textTertiary)
+                Text("\(L10n.t(.statusCacheHitsLabel)) \(Int((cacheHit * 100).rounded()))%")
+            }
+        }
+        .font(DesignTypography.meta)
+        .foregroundStyle(DesignColors.Neutral.textTertiary)
+        .lineLimit(1)
+    }
+
+    private func sessionStatsIconLabel(_ systemImage: String, value: String) -> some View {
+        HStack(spacing: 2) {
+            Image(systemName: systemImage)
+            Text(value).monospacedDigit()
+        }
+    }
+
     private var activeNodes: [SessionNode] {
         state.sessionTree(archived: false)
     }
@@ -34,7 +67,7 @@ struct SessionListView: View {
                 Spacer()
 
                 Text(L10n.t(.sessionsTitle))
-                    .font(.system(size: 24, weight: .bold))
+                    .font(DesignTypography.display)
                     .foregroundStyle(DesignColors.Neutral.text)
 
                 Spacer()
@@ -76,7 +109,11 @@ struct SessionListView: View {
             }
             .padding(.horizontal, DesignSpacing.lg)
             .padding(.top, DesignSpacing.lg)
-            .padding(.bottom, DesignSpacing.md)
+            .padding(.bottom, DesignSpacing.sm)
+
+            sessionStatsLine
+                .padding(.horizontal, DesignSpacing.lg)
+                .padding(.bottom, DesignSpacing.md)
 
             Group {
                 if activeNodes.isEmpty && archivedNodes.isEmpty {

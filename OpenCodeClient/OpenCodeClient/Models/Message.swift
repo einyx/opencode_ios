@@ -168,7 +168,7 @@ extension WireJSON: Codable {
         }
     }
 
-    init(encoding value: some Encodable) throws {
+    nonisolated init(encoding value: some Encodable) throws {
         let data = try JSONEncoder().encode(value)
         self = try JSONDecoder().decode(WireJSON.self, from: data)
     }
@@ -946,3 +946,4 @@ nonisolated struct Part: Codable, Identifiable {
     var isStepStart: Bool { type == "step-start" }
     var isStepFinish: Bool { type == "step-finish" }
 }
+

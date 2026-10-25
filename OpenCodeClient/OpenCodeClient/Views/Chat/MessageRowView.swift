@@ -858,6 +858,7 @@ struct MessageRowView: View {
 // content width instead of a grid column. The self-drawn header is the only
 // tappable element and toggles expansion in place.
 private struct ThinkingCard<Content: View>: View {
+    @Environment(\.colorScheme) private var colorScheme
     @State private var expanded = false
     private let content: Content
 
@@ -866,21 +867,31 @@ private struct ThinkingCard<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DesignSpacing.sm) {
-            // Vertical padding inside the header (before contentShape) so the
-            // 4pt band is part of the button hit area.
-            HStack(spacing: DesignSpacing.xs) {
+        VStack(alignment: .leading, spacing: 6) {
+            // Compact tag, like the tool rows: the thinking card is prose, but
+            // its header is a one-line disclosure, not a band across the
+            // transcript.
+            HStack(spacing: 6) {
                 Image(systemName: "brain.head.profile")
+                    .font(.caption)
                 Text(L10n.t(.chatThinkingCard))
-                Spacer()
+                    .fontWeight(.medium)
                 Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(DesignColors.Neutral.textTertiary)
             }
             .font(DesignTypography.micro)
-            .fontWeight(.medium)
             .foregroundStyle(DesignColors.Brand.primary)
-            .padding(.vertical, DesignSpacing.xs)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(DesignColors.Neutral.text.opacity(DesignColors.surfaceFill(for: colorScheme)))
+            )
             .contentShape(Rectangle())
-            .onTapGesture { expanded.toggle() }
+            .onTapGesture {
+                withAnimation(DesignAnimation.spring) { expanded.toggle() }
+            }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(L10n.t(.chatThinkingCard))
             .accessibilityIdentifier("message-thinking-card")
@@ -890,6 +901,8 @@ private struct ThinkingCard<Content: View>: View {
             if expanded {
                 content
                     .foregroundStyle(DesignColors.Neutral.textSecondary)
+                    .padding(.leading, DesignSpacing.md)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }

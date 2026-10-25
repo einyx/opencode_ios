@@ -14,12 +14,10 @@ struct GlassSurface: ViewModifier {
     var cornerRadius: CGFloat
     /// Interactive glass reacts to presses (buttons, the composer).
     var interactive: Bool = false
-    var tint: Color?
 
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
-            let glass: Glass = tint.map { Glass.regular.tint($0) }
-                ?? (interactive ? Glass.regular.interactive() : Glass.regular)
+            let glass: Glass = interactive ? Glass.regular.interactive() : Glass.regular
             content.glassEffect(glass, in: .rect(cornerRadius: cornerRadius))
         } else {
             content
@@ -37,14 +35,12 @@ extension View {
     /// material with a hairline edge.
     func glassSurface(
         cornerRadius: CGFloat,
-        interactive: Bool = false,
-        tint: Color? = nil
+        interactive: Bool = false
     ) -> some View {
         modifier(
             GlassSurface(
                 cornerRadius: cornerRadius,
-                interactive: interactive,
-                tint: tint
+                interactive: interactive
             )
         )
     }

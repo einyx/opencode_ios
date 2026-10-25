@@ -194,7 +194,6 @@ struct ChatTabView: View {
     @State private var isComposerEditing = false
     @State private var composerHasCaretFocus = false
     @State private var composerContentHeight: CGFloat = DesignControls.composerTextMinHeight
-    @State private var composerDockHeight: CGFloat = 0
     @State private var composerFocusResetEpoch = 0
     @State private var composerSelectionUTF16 = NSRange(location: NSNotFound, length: 0)
     #if DEBUG
@@ -254,12 +253,6 @@ struct ChatTabView: View {
 
     private var showsVoiceRail: Bool {
         state.isChatSpeechConfigured || isSpeechCaptureActive || isShowingTranscribingUI || hasPreservedSpeechAudioForUI
-    }
-
-    /// The docked file preview takes over the whole screen, so the chat's own
-    /// navigation bar has to stay visible for its close button.
-    private var inlinePreviewActive: Bool {
-        effectiveLayout == .compact && state.inlinePreviewPath != nil
     }
 
     private var composerActionSlotWidth: CGFloat {
@@ -531,136 +524,6 @@ struct ChatTabView: View {
     /// the always-visible status bar rather than per-message footers. Icons
     /// keep the line compact: refresh = rounds, tools = tool calls, TOK text
     /// for tokens.
-    private var sessionStats: (rounds: Int, toolCalls: Int, tokens: Int?, cacheHitRate: Double?)? {
-        guard let sessionID = state.currentSessionID else { return nil }
-        let stats = state.statsStore.stats(for: sessionID)
-        return (
-            stats.rounds,
-            stats.toolCalls,
-            state.sessionTotalTokens(sessionID: sessionID),
-            state.sessionCacheHitRate(sessionID: sessionID)
-        )
-    }
-
-    private func cacheHitRateText(_ rate: Double) -> String {
-        "\(Int((rate * 100).rounded()))%"
-    }
-
-    /// Anchor for the persistent turn stopwatch: the `time.created` of the
-    /// last user message in the current session. Derived from the already-
-    /// loaded message window, so it needs no extra network request and
-    /// survives restart / session switch for free.
-    private var lastUserMessageDate: Date? {
-        guard let sid = state.currentSessionID else { return nil }
-        guard let msg = state.messages.last(where: { $0.info.sessionID == sid && $0.info.isUser }) else {
-            return nil
-        }
-        // A missing/zero timestamp would otherwise anchor the stopwatch at the
-        // Unix epoch and render an absurd duration; hide the segment instead.
-        guard msg.info.time.created > 0 else { return nil }
-        return Date(timeIntervalSince1970: Double(msg.info.time.created) / 1000.0)
-    }
-
-    /// Frozen end time of the current turn's stopwatch, or nil while the turn
-    /// is still running (or has only just been sent). The stopwatch therefore
-    /// counts up while the agent works and holds at the completion instant
-    /// once it stops; a new user message moves the anchor and resets it to
-    /// zero. Matching by the latest user message id means a freshly sent
-    /// prompt (no assistant output yet, status not yet busy) reads as running
-    /// from zero rather than briefly showing the previous turn's value.
-    private var currentTurnEndedAt: Date? {
-        guard let lastUserID = lastUserMessageIDInCurrentSession else { return nil }
-        guard runningTurnActivity == nil else { return nil }
-        let completed = turnActivitiesForCurrentSession(.completedOnly).last
-        return completed?.id == lastUserID ? completed?.endedAt : nil
-    }
-
-    @ViewBuilder
-    private var sessionStatsLine: some View {
-        if let stats = sessionStats {
-            // The whole line ticks, not just the stopwatch segment: the
-            // VoiceOver label must stay live, and a single accessibility
-            // element can only be refreshed if it is rebuilt inside the
-            // TimelineView. The per-second cost is a handful of small Texts
-            // (cheaper than the transient row this replaced).
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                sessionStatsLineContent(stats: stats, now: context.date)
-            }
-        }
-    }
-
-    private func sessionStatsLineContent(
-        stats: (rounds: Int, toolCalls: Int, tokens: Int?, cacheHitRate: Double?),
-        now: Date
-    ) -> some View {
-        // Full width + leading so the single-line block is not centered
-        // by the parent VStack (which would differ from the two-line
-        // layout, where the transient row spans the width).
-        HStack(spacing: DesignSpacing.xs) {
-            sessionStatsIconLabel("arrow.triangle.2.circlepath", value: "\(stats.rounds)")
-            Text("·").foregroundStyle(DesignColors.Neutral.textTertiary)
-            sessionStatsIconLabel("wrench.and.screwdriver", value: "\(stats.toolCalls)")
-            if let tokens = stats.tokens {
-                Text("·").foregroundStyle(DesignColors.Neutral.textTertiary)
-                Text("\(MessageRowView.compactTokenCount(tokens)) \(L10n.t(.statusTokensLabel))")
-            }
-            if let hitRate = stats.cacheHitRate {
-                Text("·").foregroundStyle(DesignColors.Neutral.textTertiary)
-                Text("\(L10n.t(.statusCacheHitsLabel)) \(cacheHitRateText(hitRate))")
-            }
-            if let anchor = lastUserMessageDate {
-                Text("·").foregroundStyle(DesignColors.Neutral.textTertiary)
-                Text(ChatTabView.elapsedStatusText(seconds: turnElapsedSeconds(anchor: anchor, now: now)))
-                    .monospacedDigit()
-            }
-        }
-        .font(DesignTypography.meta)
-        .foregroundStyle(DesignColors.Neutral.textTertiary)
-        .lineLimit(1)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityLabel(accessibilityLabel(stats: stats, now: now))
-    }
-
-    /// Choose the stopwatch end: the frozen completion instant when the turn
-    /// has stopped, otherwise `now` so it keeps counting while the agent works.
-    static func turnStopwatchEnd(frozenEnd: Date?, now: Date) -> Date {
-        frozenEnd ?? now
-    }
-
-    /// Elapsed for the current turn: counts to `now` while the turn runs, and
-    /// to the frozen completion instant once it stops.
-    private func turnElapsedSeconds(anchor: Date, now: Date) -> Int {
-        let end = ChatTabView.turnStopwatchEnd(frozenEnd: currentTurnEndedAt, now: now)
-        return max(0, Int(end.timeIntervalSince(anchor)))
-    }
-
-    private func accessibilityLabel(
-        stats: (rounds: Int, toolCalls: Int, tokens: Int?, cacheHitRate: Double?),
-        now: Date
-    ) -> String {
-        var parts = [
-            "\(stats.rounds) \(L10n.t(.statusRoundsLabel))",
-            "\(stats.toolCalls) \(L10n.t(.statusToolsLabel))",
-        ]
-        if let tokens = stats.tokens {
-            parts.append("\(MessageRowView.compactTokenCount(tokens)) \(L10n.t(.statusTokensLabel))")
-        }
-        if let hitRate = stats.cacheHitRate {
-            parts.append("\(L10n.t(.statusCacheHitsLabel)) \(cacheHitRateText(hitRate))")
-        }
-        if let anchor = lastUserMessageDate {
-            parts.append("\(L10n.t(.statusSinceLastPromptLabel)) \(ChatTabView.elapsedSpokenText(seconds: turnElapsedSeconds(anchor: anchor, now: now)))")
-        }
-        return parts.joined(separator: ", ")
-    }
-
-    private func sessionStatsIconLabel(_ systemImage: String, value: String) -> some View {
-        HStack(spacing: 2) {
-            Image(systemName: systemImage)
-            Text(value).monospacedDigit()
-        }
-    }
-
     private var currentIndicatorPresentation: SessionIndicatorPresentation? {
         guard let id = state.currentSessionID else { return nil }
         return state.sessionIndicatorPresentations[id]
@@ -696,7 +559,6 @@ struct ChatTabView: View {
             ? (runningTurnActivity?.text ?? (currentActivity?.state == .running ? currentActivity?.text : nil))
             : nil
         let text = ComposerActivityText.text(presentation: presentation, activity: activity, voice: voiceStatusText)
-        // 6pt gap: xs (4) read as cramped between the two lines.
         return VStack(alignment: .leading, spacing: 6) {
             if let first = runningBackgroundSubagents.first {
                 backgroundTaskNavigationRow(first)
@@ -705,9 +567,6 @@ struct ChatTabView: View {
                 quietComposerStatusRow(presentation: presentation, text: text)
             }
         }
-        .padding(.horizontal, DesignSpacing.xs)
-        .padding(.top, DesignSpacing.xs)
-        .padding(.bottom, DesignSpacing.xs)
         .modifier(SessionStatusRefresh(state: state))
     }
 
@@ -747,11 +606,10 @@ struct ChatTabView: View {
                 Text(text)
                     .font(DesignTypography.meta)
                     .foregroundStyle(DesignColors.Neutral.textSecondary)
-                    .lineLimit(2)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
                     .accessibilityIdentifier("composer-activity-text")
             }
-
-            Spacer(minLength: 0)
 
             if state.isBusy {
                 Menu {
@@ -778,7 +636,7 @@ struct ChatTabView: View {
     /// persistent session counters (top line) or transient turn state
     /// (bottom line). Without this the counters would vanish while idle.
     private var shouldShowComposerStatus: Bool {
-        state.currentSessionID != nil || voiceStatusText != nil || sessionStats != nil
+        state.currentSessionID != nil || voiceStatusText != nil
     }
 
     private var voiceRailTrailingAction: some View {
@@ -880,30 +738,11 @@ struct ChatTabView: View {
         .padding(.bottom, 6)
     }
 
-    /// The floating header: a glass pill that hovers over the conversation
-    /// instead of a navigation bar above a second row of buttons.
-    private var chatHeader: some View {
-        ChatHeaderPill(
-            state: state,
-            showSessionList: $showSessionList,
-            showSettingsInToolbar: showSettingsInToolbar,
-            showSessionListInToolbar: showSessionListInToolbar,
-            onSettingsTap: onSettingsTap
-        )
-    }
-
-    /// Room for the floating header above the first message.
-    private var chatHeaderInset: CGFloat { 56 }
-
     /// The floating composer: turn state, the chip row and the glass input
     /// surface. It floats over the conversation (the message list scrolls
     /// underneath it) and sits above the tab bar.
     private var composerDock: some View {
         VStack(spacing: DesignSpacing.sm) {
-            if shouldShowComposerStatus {
-                quietComposerStatus
-            }
-
             if showsVoiceRail {
                 voiceRail
             }
@@ -912,7 +751,7 @@ struct ChatTabView: View {
                 attachmentStrip
             }
 
-            composerChipRow
+            composerContextRow
 
             HStack(alignment: .bottom, spacing: DesignSpacing.sm) {
                 ZStack(alignment: .leading) {
@@ -986,36 +825,23 @@ struct ChatTabView: View {
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 8)
-        .background {
-            // Measure the dock so the conversation can scroll under it.
-            GeometryReader { geo in
-                Color.clear
-                    .onChange(of: geo.size.height, initial: true) { _, newValue in
-                        composerDockHeight = newValue
-                    }
-            }
-        }
     }
 
-    /// Session context above the composer: the model picker and the live
-    /// session counters. The counters stay plain text — a second glass chip
-    /// next to the first one just made the row heavier.
-    private var composerChipRow: some View {
+    /// Everything that is not the input itself, on one row: the model picker,
+    /// the todo list and the live turn state. The session counters live in
+    /// the session sheet — a third band above the composer read as a control
+    /// panel, and counters are session detail, not input context.
+    private var composerContextRow: some View {
         HStack(spacing: DesignSpacing.sm) {
             ChatModelChip(state: state)
                 .glassSurface(cornerRadius: 15)
             ChatTodoChip(state: state)
                 .glassSurface(cornerRadius: 15)
-            sessionStatsText
             Spacer(minLength: 0)
-        }
-    }
-
-    @ViewBuilder
-    private var sessionStatsText: some View {
-        if sessionStats != nil {
-            sessionStatsLine
-                .fixedSize(horizontal: true, vertical: false)
+            if shouldShowComposerStatus {
+                quietComposerStatus
+                    .layoutPriority(1)
+            }
         }
     }
 
@@ -1236,8 +1062,6 @@ struct ChatTabView: View {
                                     )
                             }
                             .padding()
-                            .padding(.top, chatHeaderInset)
-                            .padding(.bottom, composerDockHeight + DesignSpacing.md)
                         }
                         .coordinateSpace(name: "chatScrollView")
                         .refreshable {
@@ -1281,20 +1105,19 @@ struct ChatTabView: View {
                         .id(state.currentSessionID)
                     }
                     }
-                    .overlay(alignment: .top) {
-                        chatHeader
-                            .padding(.horizontal, 12)
-                            .padding(.top, 6)
-                    }
                 }
 
-            }
-            .overlay(alignment: .bottom) {
                 composerDock
             }
-            .toolbar(inlinePreviewActive ? .visible : .hidden, for: .navigationBar)
-            .navigationTitle("")
+            .navigationTitle(state.currentSession?.title ?? L10n.t(.appChat))
             .navigationBarTitleDisplayMode(.inline)
+            .chatToolbar(
+                state: state,
+                showSessionList: $showSessionList,
+                showSettingsInToolbar: showSettingsInToolbar,
+                showSessionListInToolbar: showSessionListInToolbar,
+                onSettingsTap: onSettingsTap
+            )
             .sheet(isPresented: $showSessionList) {
                 SessionListView(state: state)
             }
@@ -1818,7 +1641,7 @@ struct ChatTabView: View {
             if state.currentSessionID == nil {
                 VStack(spacing: DesignSpacing.md) {
                     Image(systemName: "bubble.left.and.bubble.right.fill")
-                        .font(.system(size: 48))
+                        .font(.system(size: 34))
                         .foregroundStyle(DesignColors.Brand.primary.opacity(0.2))
                     Text(L10n.t(.chatSelectSessionFirst))
                         .font(DesignTypography.headline)
@@ -1839,13 +1662,16 @@ struct ChatTabView: View {
                     .padding(.vertical, 18)
                 }
             } else {
+                // Claude-style greeting: the asterisk mark over a prompt. The
+                // text presentation (U+FE0E) keeps it monochrome so it matches
+                // the app icon instead of rendering as a green emoji badge.
                 VStack(spacing: DesignSpacing.md) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 48))
-                        .foregroundStyle(DesignColors.Brand.gold.opacity(0.3))
-                    Text(L10n.t(.chatNoMessages))
-                        .font(DesignTypography.headline)
-                        .foregroundStyle(.secondary)
+                    Text("✳︎")
+                        .font(.system(size: 34))
+                        .foregroundStyle(DesignColors.Brand.primary)
+                    Text(L10n.t(.chatGreeting))
+                        .font(DesignTypography.display)
+                        .foregroundStyle(DesignColors.Neutral.text)
                         .multilineTextAlignment(.center)
                 }
                 .padding(.top, 60)

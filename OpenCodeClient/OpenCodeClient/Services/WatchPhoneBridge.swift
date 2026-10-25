@@ -47,7 +47,7 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
     private var debugEvents: [[String: Any]] = []
     #endif
 
-    init(makeClient: @escaping (APIClient) async -> APIClient = { await $0.makeWatchClient() }) {
+    init(makeClient: @escaping (APIClient) async -> APIClient = { $0.makeWatchClient() }) {
         self.makeClient = makeClient
         super.init()
     }

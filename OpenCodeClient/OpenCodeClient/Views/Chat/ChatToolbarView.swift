@@ -5,64 +5,46 @@
 
 import SwiftUI
 
-/// Floating glass header for the chat screen: the session entry button and
-/// the session title on the left, the quota badge and the context ring on the
-/// right. It floats over the scrolling conversation instead of sitting in a
-/// navigation bar above a second row of buttons.
-struct ChatHeaderPill: View {
+/// Installs the chat header controls into the enclosing navigation bar: the
+/// session entry on the leading side, the quota badge and the context ring on
+/// the trailing side. The session title is the bar's principal item, so the
+/// whole header is one band.
+struct ChatToolbarModifier: ViewModifier {
     @Bindable var state: AppState
     @Binding var showSessionList: Bool
     var showSettingsInToolbar: Bool
     var showSessionListInToolbar: Bool = true
     var onSettingsTap: (() -> Void)?
 
-    var body: some View {
-        // Two small capsules rather than one full-width slab: a bar the width
-        // of the screen with rounded corners reads as a floating card, not as
-        // chrome.
-        HStack(spacing: DesignSpacing.sm) {
-            HStack(spacing: DesignSpacing.xs) {
-                if showSessionListInToolbar {
-                    Button {
-                        showSessionList = true
-                    } label: {
-                        Image(systemName: "list.bullet")
-                            .font(.body)
-                            .foregroundStyle(DesignColors.Neutral.textSecondary)
+    func body(content: Content) -> some View {
+        content
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if showSessionListInToolbar {
+                        Button {
+                            showSessionList = true
+                        } label: {
+                            Image(systemName: "list.bullet")
+                                .font(.body)
+                        }
+                        .accessibilityIdentifier("chat-toolbar-session-list")
                     }
-                    .accessibilityIdentifier("chat-toolbar-session-list")
                 }
-                Text(state.currentSession?.title ?? L10n.t(.appChat))
-                    .font(DesignTypography.headline)
-                    .foregroundStyle(DesignColors.Neutral.text)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .accessibilityIdentifier("chat-toolbar-session-title")
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .glassSurface(cornerRadius: 20)
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    AIUsageQuotaButton(state: state)
+                    ContextUsageButton(state: state)
 
-            Spacer(minLength: 0)
-
-            HStack(spacing: DesignSpacing.xs) {
-                AIUsageQuotaButton(state: state)
-                ContextUsageButton(state: state)
-
-                if showSettingsInToolbar, let onSettingsTap {
-                    Button {
-                        onSettingsTap()
-                    } label: {
-                        Image(systemName: "gear")
-                            .font(.title3)
-                            .symbolRenderingMode(.hierarchical)
+                    if showSettingsInToolbar, let onSettingsTap {
+                        Button {
+                            onSettingsTap()
+                        } label: {
+                            Image(systemName: "gear")
+                                .font(.title3)
+                                .symbolRenderingMode(.hierarchical)
+                        }
                     }
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .glassSurface(cornerRadius: 20)
-        }
     }
 }
 
@@ -81,12 +63,17 @@ struct ChatModelChip: View {
             HStack(spacing: 4) {
                 Text(state.selectedModel?.shortName ?? L10n.t(.configureModel))
                     .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
                 Image(systemName: "chevron.down")
                     .font(.caption2)
             }
             .foregroundStyle(DesignColors.Brand.primary)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
+            // The chip keeps its natural width; the counters next to it are the
+            // ones that give way.
+            .fixedSize(horizontal: true, vertical: false)
         }
         .accessibilityIdentifier("chat-toolbar-model")
         .sheet(isPresented: $showConfigSheet) {
@@ -350,5 +337,27 @@ struct LayoutPreferenceMenu: View {
             }
             Button(L10n.t(.commonCancel), role: .cancel) {}
         }
+    }
+}
+
+extension View {
+    /// Installs the chat header controls into the enclosing navigation bar.
+    /// Apply it inside the navigation stack, on the stack's root content.
+    func chatToolbar(
+        state: AppState,
+        showSessionList: Binding<Bool>,
+        showSettingsInToolbar: Bool,
+        showSessionListInToolbar: Bool = true,
+        onSettingsTap: (() -> Void)? = nil
+    ) -> some View {
+        modifier(
+            ChatToolbarModifier(
+                state: state,
+                showSessionList: showSessionList,
+                showSettingsInToolbar: showSettingsInToolbar,
+                showSessionListInToolbar: showSessionListInToolbar,
+                onSettingsTap: onSettingsTap
+            )
+        )
     }
 }

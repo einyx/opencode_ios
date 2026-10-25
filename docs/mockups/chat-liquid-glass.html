@@ -92,15 +92,19 @@
   .glass-pill{border-radius:22px}
   .glass-round{border-radius:50%}
 
-  /* ---------- header ---------- */
-  .floating-header{
-    position:absolute;top:56px;left:12px;right:12px;height:40px;z-index:12;
-    display:flex;align-items:center;justify-content:space-between;gap:8px;
+  /* ---------- header (native navigation bar) ---------- */
+  .navbar{
+    position:absolute;top:44px;left:0;right:0;height:44px;z-index:12;
+    display:flex;align-items:center;justify-content:space-between;padding:0 16px;
+    background:rgba(16,16,18,.72);
+    -webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%);
+    border-bottom:.5px solid var(--stroke-soft);
   }
-  .hdr-left{display:flex;align-items:center;gap:8px;min-width:0;padding:0 10px;height:40px;border-radius:20px}
-  .hdr-title{font-size:15.5px;font-weight:640;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
-  .hdr-btn{width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--text2)}
-  .hdr-right{display:flex;align-items:center;gap:6px;padding:0 8px;height:34px;border-radius:17px}
+  html[data-theme="light"] .navbar{background:rgba(250,250,251,.76)}
+  .hdr-left{display:flex;align-items:center;gap:8px;min-width:0}
+  .hdr-title{font-size:17px;font-weight:640;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
+  .hdr-btn{width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--accent)}
+  .hdr-right{display:flex;align-items:center;gap:8px}
   .model-chip{
     display:flex;align-items:center;gap:4px;font-size:13px;font-weight:620;color:var(--accent);
     padding:5px 10px;border-radius:14px;border:.5px solid rgba(59,130,246,.42);background:var(--accent-soft);
@@ -209,7 +213,7 @@
       <div class="phone">
         <div class="statusbar"><span>08:49</span><span class="icons">▮▮▮ 5G ▮</span></div>
         <div class="screen">
-          <div style="height:44px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:640;margin-top:8px">ios</div>
+          <div style="height:44px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:640;margin-top:8px;border-bottom:.5px solid var(--stroke-soft)">ios</div>
           <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 16px 10px">
             <div style="display:flex;gap:18px;color:var(--text2)"><span>☰</span><span>✎</span><span style="color:var(--accent)">＋</span></div>
             <div style="display:flex;align-items:center;gap:12px">
@@ -254,17 +258,17 @@
         <div class="statusbar"><span>08:49</span><span class="icons">▮▮▮ 5G ▮</span></div>
         <div class="screen">
 
-          <div class="floating-header">
-            <div class="hdr-left glass glass-pill">
+          <div class="navbar">
+            <div class="hdr-left">
               <span class="hdr-btn">☰</span>
-              <span class="hdr-title">Refactor the API client</span>
             </div>
-            <div class="hdr-right glass glass-pill">
+            <span class="hdr-title">Tool Cards Session</span>
+            <div class="hdr-right">
               <span class="ring"></span>
             </div>
           </div>
 
-          <div class="scroll" style="gap:12px">
+          <div class="scroll" style="gap:12px;padding-top:100px">
             <div class="bubble">Refactor the API client and run the tests.</div>
 
             <div class="toolrow">
@@ -288,7 +292,11 @@
               <span class="chev">›</span>
             </div>
 
-            <div class="thinking"><span class="dot"></span>Thinking…</div>
+            <div class="toolrow">
+              <span class="ti">🧠</span>
+              <span class="tn">Thinking</span>
+              <span class="chev">›</span>
+            </div>
 
             <div class="assistant">Here are the changes I made.<br><br>
               The composer now floats — see <span class="link">docs/design.md</span>.</div>
@@ -297,7 +305,8 @@
           <div class="composer-dock">
             <div class="chips">
               <span class="chip glass-chip">opus-4.5 <span class="chev">⌄</span></span>
-              <span class="chip plain">↺0 · 478.6M tok · 98%</span>
+              <span class="chip plain">● Thinking</span>
+              <span class="chip plain" style="margin-left:auto">↺0 · 478.6M tok · 98%</span>
             </div>
             <div class="composer glass-strong">
               <span class="cbtn glass ghost">＋</span>
@@ -409,6 +418,7 @@
   <ul class="fixes">
     <li><span class="tag">glass</span><span><b>One glass helper, one fallback.</b> A <code class="k">GlassSurface</code> view modifier: <code class="k">.glassEffect(.regular.interactive(), in: .rect(cornerRadius:))</code> on iOS 26+, <code class="k">.ultraThinMaterial</code> + hairline stroke on iOS 17–25. Every floating surface goes through it, so the fallback never drifts.</span></li>
     <li><span class="tag">glass</span><span><b>The composer floats <em>above</em> the tab bar, never under it.</b> The iOS 26 tab bar is a floating pill that overlaps the content, so a bottom-anchored composer would sit underneath it. On iOS 26 the composer is the tab view's bottom accessory (<code class="k">tabViewBottomAccessory</code>) — the system then stacks the two into one glass island. On iOS 17–25 the composer stays in the layout above the classic tab bar.</span></li>
+    <li><span class="tag">icon</span><span><b>App icon + greeting.</b> The pixel-art robot is gone: the icon is the same eight-spoke asterisk in the brand blue on the ink background, and the empty chat greets you with that mark over “How can I help you?” — the Claude screen in the reference.</span></li>
     <li><span class="tag">glass</span><span><b>Group adjacent glass.</b> Wrap the header pill, the chip row and the composer in one <code class="k">GlassEffectContainer</code> so they blend into a single island instead of three separate blurs.</span></li>
     <li><span class="tag">layout</span><span><b>Composer floats.</b> Move the composer out of the column into an overlay above the tab bar, and let the scroll view run underneath it. The message list needs bottom padding equal to the composer height.</span></li>
     <li><span class="tag">layout</span><span><b>Model / branch chips replace the header chips.</b> The model chip moves from the header into the chip row above the composer; the header keeps the session title and the context ring only.</span></li>

@@ -271,6 +271,7 @@ enum L10n {
         case chatSelectSessionFirst
         case chatSessionBusyMessage
         case chatNoMessages
+        case chatGreeting
         case chatTurnCompleted
         case chatSpeechTokenMissing
         case chatSpeechTesting
@@ -796,6 +797,7 @@ enum L10n {
         Key.chatSelectSessionFirst.rawValue: "Please pick a session first",
         Key.chatSessionBusyMessage.rawValue: "Session is running, messages are not visible yet, refreshing...",
         Key.chatNoMessages.rawValue: "No messages yet",
+        Key.chatGreeting.rawValue: "How can I help you?",
         Key.chatTurnCompleted.rawValue: "Completed",
         Key.chatSpeechTokenMissing.rawValue: "Speech recognition is not configured. Set AI Builder Token in Settings → Speech Recognition and tap Test Connection.",
         Key.chatSpeechTesting.rawValue: "AI Builder connection is being tested, please wait.",
@@ -1325,6 +1327,7 @@ enum L10n {
         Key.chatSelectSessionFirst.rawValue: "请选择一个会话",
         Key.chatSessionBusyMessage.rawValue: "会话正在运行中，消息尚未可见，正在刷新中…",
         Key.chatNoMessages.rawValue: "暂无消息",
+        Key.chatGreeting.rawValue: "有什么可以帮你的？",
         Key.chatTurnCompleted.rawValue: "已完成",
         Key.chatSpeechTokenMissing.rawValue: "语音识别未配置：请先到“设置 > 语音识别”填写 AI Builder 访问令牌，并点击“测试连接”。",
         Key.chatSpeechTesting.rawValue: "AI Builder 正在测试连接，请稍候。",

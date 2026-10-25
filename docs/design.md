@@ -113,13 +113,24 @@ Normal self-execution no longer repeats "Execution active" / "Running". The bran
 
 Use the system SF font throughout and explicitly specify the design variant. No third-party fonts, to guarantee better CJK fallback rendering, a smaller install size, and seamless integration with the system UI.
 
-- **Display** — Session titles and empty-state hero copy: SF Pro Display Semibold 22pt, `text.primary`. Appears only in a very small number of scenarios.
-- **Body** — AI reply body (carries 90% of the user's reading time): SF Pro Text Regular 16pt, line height 1.45, `text.primary`.
+Every size below is one of Apple's own semantic text styles (SF Pro), so Dynamic Type scales all of them. Nothing is a bespoke point size.
+
+| Role | Apple style | Size |
+|---|---|---|
+| Display — session titles, empty-state hero | Title 3, semibold | 20pt |
+| Headline — section headers, card titles | Headline | 17pt |
+| Body — AI reply body (90% of reading time) | Callout | 16pt |
+| Body prominent — user messages | Callout, medium | 16pt |
+| Meta — timestamps, status labels, tool names | Footnote | 13pt |
+| Micro — code, paths, tool input/output | Caption 1 | 12pt |
+| Micro mono — code, file paths | Caption 1, monospaced | 12pt |
+
+- **Body** — 16pt, not Apple's 17pt Body: a transcript is dense text, and 16pt is the size Apple's own chat-style content uses. Line height 1.45, `text.primary`.
 - **Body Prominent** — User messages: SF Pro Text Medium 16pt. Distinguished from AI replies by weight difference rather than by color.
 - **Meta** — Timestamps, status information, tool names, and agent/model labels: SF Pro Text Regular 13pt, `text.secondary`.
 - **Micro Mono** — Code snippets, file paths, and tool input/output: SF Mono Regular 12pt, `text.tertiary`. Shown only in expanded detail areas.
 
-The type scale is the primary carrier of visual hierarchy: strictly converged to four clearly separated steps of 22 / 16 / 13 / 12, with no intermediate transitional sizes introduced.
+The type scale is the primary carrier of visual hierarchy: converged to five clearly separated steps of 20 / 17 / 16 / 13 / 12, each one an Apple semantic text style, with no bespoke point sizes introduced.
 
 ## QT-CARD · Card Design Language
 
@@ -142,12 +153,13 @@ Corner radius specs are globally unified: 12pt for information/action cards, 16p
 
 The chat screen follows the Claude iOS app's interaction model: minimal chrome, content scrolling under floating surfaces, and nothing on screen that is not either conversation or a control for it.
 
-- **One floating glass header.** Two small capsules, not a full-width bar: the session entry button and the session title on the left, the quota badge and the context ring on the right. A bar the width of the screen with rounded corners reads as a floating card, not as chrome. The navigation bar is hidden; the docked file preview keeps it visible, because that preview brings its own close button.
-- **One floating glass composer.** A 26pt-radius glass surface above the tab bar. On iOS 26 it is the tab view's **bottom accessory**, so the system stacks it above the floating tab bar and the two read as one glass island — the composer can never end up underneath the bar. On iOS 17–25 it stays in the layout above the classic tab bar.
-- **Chips above the composer.** The model picker and the todo list are chips on a row above the field; the live session counters stay plain text on the same row. Session context belongs next to the input, not in the title bar. The counters keep ticking (they carry the turn stopwatch).
+- **One header band.** The session title is the navigation bar's principal item; the session entry sits in the leading group and the quota badge and the context ring in the trailing group. The toolbar used to be a *second* row under the navigation bar, which made the top of the screen read as two unrelated headers. The bar stays visible: hiding it cost the deep-link, push-navigation and fixture flows their navigation bars, and the docked file preview needs its own close button there anyway.
+- **One glass composer.** A 26pt-radius glass surface docked above the tab bar. It is *not* a floating overlay: an overlay has to pad the transcript by the composer's height, and that height changes with the input, so the transcript jumped every time you typed. The safe area already reserves the floating tab bar, so the docked composer clears it.
+- **Chips above the composer.** One row, not three: the model picker and the todo list are chips, the live turn state (indicator, activity text, abort menu) and the session counters fill the rest of the row and truncate. The counters stay plain text — a second glass chip next to the first one just made the row heavier. The counters keep ticking (they carry the turn stopwatch).
 - **Turn state is transient.** The indicator, the activity text and the abort menu appear only while there is something to say; they are not a permanent block above the input.
 - **One row per tool call.** There is no merged "N tool calls" group: every call renders the same compact row (icon, name, subject line, chevron) and expands in place. A group disclosure stacked on top of each card's own disclosure was a double disclosure.
 - **User message = bubble.** Right-aligned, capped at 320pt, one tucked corner — Claude's treatment. The full-width accent stripe read as a system event rather than as something the person said.
+- **The asterisk is the mark.** The app icon is an eight-spoke asterisk in the brand blue on the ink background (it was a pixel-art robot), and the empty chat greets you with the same mark over “How can I help you?”.
 - **Glass everywhere it is a surface.** Every floating surface goes through one `glassSurface` modifier: `glassEffect(.regular.interactive())` on iOS 26, a translucent material with a hairline edge on iOS 17–25, so the fallback never drifts from the design.
 
 ## QT-COMPOSER · Composer

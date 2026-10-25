@@ -179,11 +179,11 @@ enum FileSearchFixture {
             await MainActor.run {
                 FileSearchFixture.probe.contentDirectories.append(recorded)
             }
-            if FileSearchFixture.mode == .live || FileSearchFixture.mode == .split {
-                let text = directory == FileSearchFixture.workspaceB ? FileSearchFixture.contentB : FileSearchFixture.contentA
+            if await FileSearchFixture.mode == .live || FileSearchFixture.mode == .split {
+                let text = await directory == FileSearchFixture.workspaceB ? FileSearchFixture.contentB : FileSearchFixture.contentA
                 return FileContent(type: "text", content: text)
             }
-            return FileContent(type: "text", content: FileSearchFixture.sentinel)
+            return await FileContent(type: "text", content: FileSearchFixture.sentinel)
         }
         func findFile(query: String, limit: Int) async throws -> [String] {
             try await findFile(query: query, limit: limit, directory: nil)
@@ -193,8 +193,8 @@ enum FileSearchFixture {
             await MainActor.run {
                 FileSearchFixture.probe.findDirectories.append(recorded)
             }
-            if FileSearchFixture.mode == .live || FileSearchFixture.mode == .split {
-                return query.isEmpty ? [] : [FileSearchFixture.resultPath]
+            if await await FileSearchFixture.mode == .live || FileSearchFixture.mode == .split {
+                return await await query.isEmpty ? [] : [FileSearchFixture.resultPath]
             }
             return [FileSearchFixture.resultPath]
         }

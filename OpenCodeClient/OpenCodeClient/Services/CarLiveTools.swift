@@ -1306,7 +1306,7 @@ actor CarLiveAPIBox: CarLiveToolClient {
     }
 
     func history(sessionID: String, directory: String, skip: Int, count: Int) async -> String {
-        let limit = min(max(skip, 0) + max(count, 1), CarLiveHistory.bound)
+        let limit = await min(max(skip, 0) + max(count, 1), CarLiveHistory.bound)
         do {
             let page = try await guarded { try await self.api.messagePageForLive(sessionID: sessionID, limit: limit, transportToken: self.transportToken) }
             let session = try? await guarded { try await self.api.sessionForLive(sessionID: sessionID, directory: directory, transportToken: self.transportToken) }

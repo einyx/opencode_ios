@@ -29,7 +29,14 @@ final class ComposerControlsUITests: XCTestCase {
         let input = app.textViews["chat-input"]
         XCTAssertTrue(mic.waitForExistence(timeout: 4), app.debugDescription)
         XCTAssertTrue(send.exists)
-        XCTAssertEqual(mic.frame.midX, send.frame.midX, accuracy: 1)
+        // The mic lives in the voice rail above the composer; the composer
+        // actions sit in one row at the trailing edge of the chosen side, so
+        // the two share a side, not a column.
+        if left {
+            XCTAssertLessThan(mic.frame.maxX, send.frame.maxX)
+        } else {
+            XCTAssertGreaterThan(mic.frame.minX, send.frame.minX)
+        }
         XCTAssertLessThan(mic.frame.maxY, send.frame.minY)
         if imageVisible {
             XCTAssertTrue(photo.exists)

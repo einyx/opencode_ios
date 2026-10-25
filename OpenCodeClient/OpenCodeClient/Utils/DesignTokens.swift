@@ -110,25 +110,28 @@ enum DesignColors {
 enum DesignTypography {
 
     /// Display — session titles, empty state headlines
-    static let display: Font = .title3.weight(.bold)
+    static let display: Font = .title3.weight(.semibold)
 
     /// Headline — section headers, card titles
     static let headline: Font = .headline
 
-    /// Body — chat message text (AI replies)
-    static let body: Font = .body
+    /// Body — chat message text (AI replies). Apple's Callout (16pt), not the
+    /// 17pt Body: a transcript is dense text, and 16pt is the size Apple's
+    /// own chat-style content uses.
+    static let body: Font = .callout
 
-    /// Body prominent — user messages (slightly larger to differentiate)
-    static let bodyProminent: Font = .callout
+    /// Body prominent — user messages. Same size as the body, distinguished by
+    /// weight, the way the type scale specifies it.
+    static let bodyProminent: Font = .callout.weight(.medium)
 
     /// Meta — timestamps, status labels, tool names
-    static let meta: Font = .caption
+    static let meta: Font = .footnote
 
     /// Micro — tool input/output, code paths, detailed info
-    static let micro: Font = .caption2
+    static let micro: Font = .caption
 
     /// Micro monospaced — code, file paths
-    static let microMono: Font = .system(.caption2, design: .monospaced)
+    static let microMono: Font = .system(.caption, design: .monospaced)
 }
 
 // MARK: - Spacing Scale
