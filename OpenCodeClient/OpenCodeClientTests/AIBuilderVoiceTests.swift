@@ -79,16 +79,16 @@ struct SpeechRecognitionDefaultsTests {
         #expect(UserDefaults.standard.string(forKey: AppState.aiBuilderTerminologyKey) == terminologyBefore)
     }
 
-    @Test @MainActor func recordingStrategyPersistsAndDefaultsToGPTLive() async {
+    @Test @MainActor func speechEnginePersistsAndDefaultsToAppleOnDevice() async {
         let key = AppState.aiBuilderRecordingStrategyKey
         let standardBefore = UserDefaults.standard.string(forKey: key)
         let defaults = makeIsolatedUserDefaults()
         let defaultState = makeIsolatedAppState(userDefaults: defaults)
-        #expect(defaultState.aiBuilderRecordingStrategy == .gptLiveTranscribe)
+        #expect(defaultState.speechRecognitionEngine == .appleOnDevice)
 
-        for strategy in VoiceFlowRecordingStrategy.allCases {
-            defaultState.aiBuilderRecordingStrategy = strategy
-            #expect(makeIsolatedAppState(userDefaults: defaults).aiBuilderRecordingStrategy == strategy)
+        for engine in SpeechRecognitionEngine.allCases {
+            defaultState.speechRecognitionEngine = engine
+            #expect(makeIsolatedAppState(userDefaults: defaults).speechRecognitionEngine == engine)
         }
         #expect(UserDefaults.standard.string(forKey: key) == standardBefore)
     }

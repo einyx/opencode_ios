@@ -19,7 +19,10 @@ struct ComposerControlsTests {
         let state = makeState(defaults)
         #expect(state.composerActionSide == .right)
         #expect(state.showImageAttachmentButton)
-        #expect(!state.isChatSpeechConfigured)
+        // Fresh installs default to Apple on-device speech, which needs no
+        // token — so voice is configured out of the box.
+        #expect(state.speechRecognitionEngine == .appleOnDevice)
+        #expect(state.isChatSpeechConfigured)
     }
 
     @Test func choicesPersistWithoutBecomingSessionOrHostScoped() {
@@ -48,6 +51,9 @@ struct ComposerControlsTests {
     @Test func speechConfigurationUsesTokenWithoutRequiringConnectionTest() {
         let defaults = UserDefaults(suiteName: "composer-controls.\(UUID())")!
         let state = makeState(defaults)
+        // Cloud engines require the AI Builder token; the connection test is
+        // not involved in the configured check.
+        state.speechRecognitionEngine = .gptLiveTranscribe
         state._aiBuilderToken = " \n "
         #expect(!state.isChatSpeechConfigured)
         state._aiBuilderToken = "fixture-token"

@@ -212,7 +212,7 @@ struct ChatTabView: View {
     @State var speechStartID: UUID?
     @State var speechOriginSessionID: String?
     @State var speechOriginHost: HostRequestSnapshot?
-    @State var activeSpeechStrategy: VoiceFlowRecordingStrategy = .gptLiveTranscribe
+    @State var activeSpeechStrategy: SpeechRecognitionEngine = .appleOnDevice
     @State var speechFinalizationID: UUID?
     @State var speechRetryID: UUID?
     @State var speechRetrySessionID: String?

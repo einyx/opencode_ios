@@ -63,7 +63,7 @@ enum ChatSpeechOwner: Hashable {
 }
 
 enum PendingChatSpeechAudio {
-    case file(URL, strategy: VoiceFlowRecordingStrategy, prefix: String)
+    case file(URL, engine: SpeechRecognitionEngine, prefix: String)
     case preserved(VoiceFlowPreservedAudio, prefix: String)
 
     var prefix: String {
@@ -85,11 +85,11 @@ extension ChatTabView {
     }
 
     static func liveSpeechInput(
-        strategy: VoiceFlowRecordingStrategy,
+        strategy: SpeechRecognitionEngine,
         prefix: String,
         transcript: String
     ) -> String? {
-        guard strategy == .gptLiveTranscribe else { return nil }
+        guard strategy.showsLivePartials else { return nil }
         return mergedSpeechInput(prefix: prefix, transcript: transcript)
     }
 
@@ -320,7 +320,7 @@ extension ChatTabView {
         let originSessionID = speechOriginSessionID
         let owner = ChatSpeechOwner(sessionID: originSessionID)
         let prefix = recordingInputPrefix
-        let strategy = activeSpeechStrategy
+        let engine = activeSpeechStrategy
         let cleanupPlan = ChatSpeechRouting.cleanupPlan(
             isRecording: isRecording,
             isStartingRecording: isStartingRecording,
@@ -350,13 +350,13 @@ extension ChatTabView {
             if let audioURL { try? FileManager.default.removeItem(at: audioURL) }
             return
         }
-        if strategy.usesRealtimeTransport {
+        if engine.usesRealtimeSession {
             if let audioURL { try? FileManager.default.removeItem(at: audioURL) }
             if let session, let preserved = await preserveSpeechSession(session) {
                 storePendingSpeechAudio(.preserved(preserved, prefix: prefix), owner: owner)
             }
         } else if let audioURL {
-            storePendingSpeechAudio(.file(audioURL, strategy: strategy, prefix: prefix), owner: owner)
+            storePendingSpeechAudio(.file(audioURL, engine: engine, prefix: prefix), owner: owner)
         }
     }
 
@@ -373,7 +373,8 @@ extension ChatTabView {
             let originSessionID = speechOriginSessionID
             let owner = ChatSpeechOwner(sessionID: originSessionID)
             let prefix = recordingInputPrefix
-            let strategy = activeSpeechStrategy
+            let engine = activeSpeechStrategy
+            let strategy = engine.captureStrategy
             stopSpeechHeartbeat()
             stopSpeechEventConsumer()
             stopSpeechAudioLevelConsumer()
@@ -385,8 +386,8 @@ extension ChatTabView {
             await finishSpeechAudioSender()
             guard SpeechAttemptGate.owns(finalizationID, activeAttemptID: speechFinalizationID),
                   speechOriginSessionID == originSessionID else {
-                if let audioURL, !strategy.usesRealtimeTransport {
-                    storePendingSpeechAudio(.file(audioURL, strategy: strategy, prefix: prefix), owner: owner)
+                if let audioURL, !engine.usesRealtimeSession {
+                    storePendingSpeechAudio(.file(audioURL, engine: engine, prefix: prefix), owner: owner)
                 } else if let audioURL {
                     try? FileManager.default.removeItem(at: audioURL)
                 }
@@ -401,7 +402,7 @@ extension ChatTabView {
 
             isTranscribing = originSessionID == state.currentSessionID
 
-            if !strategy.usesRealtimeTransport {
+            if !engine.usesRealtimeSession {
                 guard let audioURL else {
                     isTranscribing = false
                     speechFinalizationID = nil
@@ -411,11 +412,11 @@ extension ChatTabView {
                     }
                     return
                 }
-                storePendingSpeechAudio(.file(audioURL, strategy: strategy, prefix: prefix), owner: owner)
+                storePendingSpeechAudio(.file(audioURL, engine: engine, prefix: prefix), owner: owner)
                 do {
                     let transcript = try await state.transcribeAudio(
                         audioFileURL: audioURL,
-                        strategy: strategy,
+                        engine: engine,
                         surface: .chat
                     )
                     guard SpeechAttemptGate.owns(finalizationID, activeAttemptID: speechFinalizationID),
@@ -535,12 +536,15 @@ extension ChatTabView {
             // start/stop cycles keep publishing real levels for the waveform.
             let startingMicrophone = VoiceFlowMicrophone()
             microphone = startingMicrophone
-            let token = state.aiBuilderToken.trimmingCharacters(in: .whitespacesAndNewlines)
-            if token.isEmpty {
-                speechError = L10n.t(.chatSpeechTokenMissing)
-                return
+            let engine = state.speechRecognitionEngine
+            if engine.usesVoiceFlowService {
+                let token = state.aiBuilderToken.trimmingCharacters(in: .whitespacesAndNewlines)
+                if token.isEmpty {
+                    speechError = L10n.t(.chatSpeechTokenMissing)
+                    return
+                }
             }
-            let strategy = state.aiBuilderRecordingStrategy
+            let strategy = engine.captureStrategy
             let originSessionID = state.currentSessionID
             let originHost = state.captureHostRequestSnapshot()
             let startID = UUID()
@@ -576,7 +580,7 @@ extension ChatTabView {
                 speechRetryID = nil
                 recordingInputPrefix = inputText
                 speechDraft.begin(prefix: inputText, sessionID: originSessionID)
-                activeSpeechStrategy = strategy
+                activeSpeechStrategy = engine
                 startSpeechAudioLevelConsumer()
 
                 // Acknowledge the tap and publish the capture state *before* the
@@ -586,7 +590,7 @@ extension ChatTabView {
                 DesignHaptics.fire(.recordingStarted, microphoneOpen: state.isMicrophoneCaptureActive)
                 state.chatSpeechCaptureActive = true
 
-                if strategy.usesRealtimeTransport {
+                if engine.usesRealtimeSession {
                     let session = try await state.startRealtimeSpeechSession(strategy: strategy, surface: .chat)
                     startedSession = session
                     guard SpeechAttemptGate.accepts(
@@ -635,7 +639,7 @@ extension ChatTabView {
                     startingMicrophone.discard()
                     await finishSpeechAudioSender()
                     let owner = ChatSpeechOwner(sessionID: originSessionID)
-                    if strategy.usesRealtimeTransport {
+                    if engine.usesRealtimeSession {
                         if let audioURL { try? FileManager.default.removeItem(at: audioURL) }
                         if let startedSession, speechSession === startedSession {
                             speechSession = nil
@@ -644,7 +648,7 @@ extension ChatTabView {
                             }
                         }
                     } else if let audioURL {
-                        storePendingSpeechAudio(.file(audioURL, strategy: strategy, prefix: recordingInputPrefix), owner: owner)
+                        storePendingSpeechAudio(.file(audioURL, engine: engine, prefix: recordingInputPrefix), owner: owner)
                     }
                     return
                 }
@@ -666,7 +670,7 @@ extension ChatTabView {
                 startingMicrophone.discard()
                 await finishSpeechAudioSender()
                 let owner = ChatSpeechOwner(sessionID: originSessionID)
-                if strategy.usesRealtimeTransport {
+                if engine.usesRealtimeSession {
                     if let audioURL { try? FileManager.default.removeItem(at: audioURL) }
                     if let startedSession, speechSession === startedSession {
                         speechSession = nil
@@ -675,7 +679,7 @@ extension ChatTabView {
                         }
                     }
                 } else if let audioURL {
-                    storePendingSpeechAudio(.file(audioURL, strategy: strategy, prefix: recordingInputPrefix), owner: owner)
+                    storePendingSpeechAudio(.file(audioURL, engine: engine, prefix: recordingInputPrefix), owner: owner)
                 }
                 let shouldReportError = SpeechAttemptGate.accepts(
                     startID,
@@ -711,7 +715,7 @@ extension ChatTabView {
         // finalization may finish during that await and clear speechSession.
         let session = speechSession
         let prefix = recordingInputPrefix
-        let strategy = activeSpeechStrategy
+        let engine = activeSpeechStrategy
         let stoppingMicrophone = microphone
         let sender = speechAudioSender
         speechAudioSender = nil
@@ -741,9 +745,9 @@ extension ChatTabView {
             isStartingRecording = false
             isRetryingSpeech = false
 
-            if !strategy.usesRealtimeTransport {
+            if !engine.usesRealtimeSession {
                 if let audioURL {
-                    storePendingSpeechAudio(.file(audioURL, strategy: strategy, prefix: prefix), owner: owner)
+                    storePendingSpeechAudio(.file(audioURL, engine: engine, prefix: prefix), owner: owner)
                 }
                 return
             }
@@ -788,10 +792,10 @@ extension ChatTabView {
         do {
             let transcript: String
             switch pending {
-            case .file(let audioURL, let strategy, _):
+            case .file(let audioURL, let engine, _):
                 transcript = try await state.transcribeAudio(
                     audioFileURL: audioURL,
-                    strategy: strategy,
+                    engine: engine,
                     surface: .chat
                 )
             case .preserved(let preserved, _):

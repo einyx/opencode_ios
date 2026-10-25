@@ -291,9 +291,9 @@ final class AppState {
         _aiBuilderToken = (try? hostCredentialAccess.load(Self.aiBuilderTokenKeychainKey)) ?? ""
         _aiBuilderCustomPrompt = defaults.string(forKey: Self.aiBuilderCustomPromptKey) ?? Self.defaultAIBuilderCustomPrompt
         _aiBuilderTerminology = defaults.string(forKey: Self.aiBuilderTerminologyKey) ?? Self.defaultAIBuilderTerminology
-        _aiBuilderRecordingStrategy = VoiceFlowRecordingStrategy(
-            rawValue: defaults.string(forKey: Self.aiBuilderRecordingStrategyKey) ?? ""
-        ) ?? .gptLiveTranscribe
+        _speechRecognitionEngine = SpeechRecognitionEngine.resolved(
+            fromRaw: defaults.string(forKey: Self.aiBuilderRecordingStrategyKey)
+        )
         _selectedProjectWorktree = defaults.string(forKey: Self.selectedProjectWorktreeKey)
         _customProjectPath = defaults.string(forKey: Self.customProjectPathKey) ?? ""
         _languagePreference = L10n.languagePreference
@@ -439,13 +439,32 @@ final class AppState {
         }
     }
 
-    var _aiBuilderRecordingStrategy: VoiceFlowRecordingStrategy = .gptLiveTranscribe
-    var aiBuilderRecordingStrategy: VoiceFlowRecordingStrategy {
-        get { _aiBuilderRecordingStrategy }
+    var _speechRecognitionEngine: SpeechRecognitionEngine = .appleOnDevice
+    /// The on-device recognizer used by the `.appleOnDevice` engine.
+    /// Injectable so tests can stub authorization and recognition.
+    var appleSpeechTranscriber = AppleSpeechTranscriber()
+    var speechRecognitionEngine: SpeechRecognitionEngine {
+        get { _speechRecognitionEngine }
         set {
-            _aiBuilderRecordingStrategy = newValue
+            _speechRecognitionEngine = newValue
             defaults.set(newValue.rawValue, forKey: Self.aiBuilderRecordingStrategyKey)
         }
+    }
+    /// Legacy binding surface for the pre-engine strategy picker. Maps the
+    /// kit's capture strategies onto the engine; reading it for the Apple
+    /// engine yields its capture strategy. Remove together with the old
+    /// settings UI that still binds it.
+    var aiBuilderRecordingStrategy: VoiceFlowRecordingStrategy {
+        get { speechRecognitionEngine.captureStrategy }
+        set {
+            speechRecognitionEngine = SpeechRecognitionEngine.resolved(fromRaw: newValue.rawValue)
+        }
+    }
+    /// Voice input is configured when the selected engine can actually run:
+    /// Apple on-device needs nothing, the VoiceFlow strategies need a token.
+    var isChatSpeechConfigured: Bool {
+        if !_speechRecognitionEngine.usesVoiceFlowService { return true }
+        return !aiBuilderToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var aiBuilderConnectionError: String? = nil
@@ -485,9 +504,6 @@ final class AppState {
     }
     var showImageAttachmentButton = true {
         didSet { defaults.set(showImageAttachmentButton, forKey: Self.showImageAttachmentButtonKey) }
-    }
-    var isChatSpeechConfigured: Bool {
-        !aiBuilderToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
     var isConnected: Bool = false {
         didSet {

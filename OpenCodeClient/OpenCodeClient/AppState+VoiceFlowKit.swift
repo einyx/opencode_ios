@@ -41,6 +41,38 @@ extension AppState {
         return VoiceFlowClient(config: config)
     }
 
+    /// Transcribes a completed recording with the selected engine. Apple
+    /// on-device never touches the network or the token; the VoiceFlow
+    /// strategies stream through the AI Builder Space service.
+    func transcribeAudio(
+        audioFileURL: URL,
+        engine: SpeechRecognitionEngine,
+        surface: SpeechSurface,
+        onPartialTranscript: (@Sendable (String) -> Void)? = nil
+    ) async throws -> String {
+        guard engine != .appleOnDevice else {
+            let start = ProcessInfo.processInfo.systemUptime
+            Self.logger.notice("[SpeechProfile] surface=\(surface.rawValue, privacy: .public) strategy=appleOnDevice phase=transcribe outcome=started")
+            do {
+                let transcriber = appleSpeechTranscriber
+                let text = try await transcriber.transcribeFile(at: audioFileURL, onPartial: onPartialTranscript)
+                let elapsedMs = max(0, Int((ProcessInfo.processInfo.systemUptime - start) * 1000))
+                Self.logger.notice("[SpeechProfile] surface=\(surface.rawValue, privacy: .public) strategy=appleOnDevice phase=transcribe outcome=succeeded ms=\(elapsedMs, privacy: .public)")
+                return text
+            } catch {
+                let elapsedMs = max(0, Int((ProcessInfo.processInfo.systemUptime - start) * 1000))
+                Self.logger.error("[SpeechProfile] surface=\(surface.rawValue, privacy: .public) strategy=appleOnDevice phase=transcribe outcome=failed ms=\(elapsedMs, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+                throw error
+            }
+        }
+        return try await transcribeAudio(
+            audioFileURL: audioFileURL,
+            strategy: engine.captureStrategy,
+            surface: surface,
+            onPartialTranscript: onPartialTranscript
+        )
+    }
+
     func transcribeAudio(
         audioFileURL: URL,
         strategy: VoiceFlowRecordingStrategy,

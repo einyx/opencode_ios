@@ -117,6 +117,8 @@ enum L10n {
         case settingsOpenSourceLicencesMissing
         case settingsExperimentalFeatures
         case settingsCarMode
+        case settingsAppleOnDevice
+        case settingsAppleOnDeviceFooter
         case settingsModelShortlist
         case settingsModelShortlistFooter
         case settingsModelShortlistEmpty
@@ -287,6 +289,10 @@ enum L10n {
         case chatGreeting
         case chatTurnCompleted
         case chatSpeechTokenMissing
+        case speechApplePermissionDenied
+        case speechAppleUnavailable
+        case speechAppleOnDeviceUnavailable
+        case speechAppleNoSpeech
         case chatSpeechTesting
         case chatSpeechNotPassed
         case chatSpeechStreamDisconnected
@@ -660,6 +666,8 @@ enum L10n {
         Key.settingsOpenSourceLicencesMissing.rawValue: "The licence notices are missing from this build.",
         Key.settingsExperimentalFeatures.rawValue: "Experimental Features",
         Key.settingsCarMode.rawValue: "Ambient Mode",
+        Key.settingsAppleOnDevice.rawValue: "Apple On-Device (private, no setup)",
+        Key.settingsAppleOnDeviceFooter.rawValue: "Transcription runs entirely on this device with Apple's speech recognizer. Nothing is uploaded and no account is needed.",
         Key.settingsModelShortlist.rawValue: "Models",
         Key.settingsModelShortlistFooter.rawValue: "The chat picker only shows this shortlist. Add models from the connected server.",
         Key.settingsModelShortlistEmpty.rawValue: "No models yet. Tap + to search and add.",
@@ -828,6 +836,10 @@ enum L10n {
         Key.chatGreeting.rawValue: "How can I help you?",
         Key.chatTurnCompleted.rawValue: "Completed",
         Key.chatSpeechTokenMissing.rawValue: "Speech recognition is not configured. Set AI Builder Token in Settings → Speech Recognition and tap Test Connection.",
+        Key.speechApplePermissionDenied.rawValue: "Speech recognition permission denied. Enable it in Settings → Privacy & Security → Speech Recognition.",
+        Key.speechAppleUnavailable.rawValue: "On-device speech recognition is not available on this device.",
+        Key.speechAppleOnDeviceUnavailable.rawValue: "On-device speech recognition is not available for your language yet. Pick a cloud strategy in Settings → Speech Recognition.",
+        Key.speechAppleNoSpeech.rawValue: "No speech detected in the recording.",
         Key.chatSpeechTesting.rawValue: "AI Builder connection is being tested, please wait.",
         Key.chatSpeechNotPassed.rawValue: "AI Builder connection test failed. Go to Settings → Speech Recognition, tap Test Connection, and confirm it's OK before recording.",
         Key.chatSpeechStreamDisconnected.rawValue: "The speech connection was lost and couldn't recover. Tap stop and try again.",
@@ -1202,6 +1214,8 @@ enum L10n {
         Key.settingsOpenSourceLicencesMissing.rawValue: "此构建缺少许可证声明。",
         Key.settingsExperimentalFeatures.rawValue: "实验性功能",
         Key.settingsCarMode.rawValue: "Ambient Mode",
+        Key.settingsAppleOnDevice.rawValue: "Apple 设备端识别（私密，无需配置）",
+        Key.settingsAppleOnDeviceFooter.rawValue: "转写完全在这台设备上用 Apple 语音识别完成，不上传任何数据，也无需账号。",
         Key.settingsModelShortlist.rawValue: "模型",
         Key.settingsModelShortlistFooter.rawValue: "聊天栏只显示这份短名单。从已连接的 server 目录里搜索添加。",
         Key.settingsModelShortlistEmpty.rawValue: "还没有模型。点右上角 + 搜索添加。",
@@ -1373,6 +1387,10 @@ enum L10n {
         Key.chatGreeting.rawValue: "有什么可以帮你的？",
         Key.chatTurnCompleted.rawValue: "已完成",
         Key.chatSpeechTokenMissing.rawValue: "语音识别未配置：请先到“设置 > 语音识别”填写 AI Builder 访问令牌，并点击“测试连接”。",
+        Key.speechApplePermissionDenied.rawValue: "语音识别权限被拒绝：请在“设置 > 隐私与安全性 > 语音识别”中开启。",
+        Key.speechAppleUnavailable.rawValue: "此设备不支持设备端语音识别。",
+        Key.speechAppleOnDeviceUnavailable.rawValue: "你的语言暂不支持设备端语音识别。请到“设置 > 语音识别”选择云端方案。",
+        Key.speechAppleNoSpeech.rawValue: "录音中没有识别到语音。",
         Key.chatSpeechTesting.rawValue: "AI Builder 正在测试连接，请稍候。",
         Key.chatSpeechNotPassed.rawValue: "AI Builder 连接未通过测试：请先到 Settings -> Speech Recognition 点击 Test Connection，确认 OK 后再录音。",
         Key.chatSpeechStreamDisconnected.rawValue: "语音连接断开且无法恢复，请按停止后重试。",

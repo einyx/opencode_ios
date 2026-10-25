@@ -560,6 +560,7 @@
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "OpenCode connects to the OpenCode server you add, including one running on your own local network.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "OpenCode records your voice when you dictate a message in the chat, or when you talk to the assistant in Ambient mode.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Save images from OpenCode file previews and tool results to your photo library";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "OpenCode transcribes your voice recordings on-device so they never leave this device.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -606,6 +607,7 @@
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "OpenCode connects to the OpenCode server you add, including one running on your own local network.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "OpenCode records your voice when you dictate a message in the chat, or when you talk to the assistant in Ambient mode.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Save images from OpenCode file previews and tool results to your photo library";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "OpenCode transcribes your voice recordings on-device so they never leave this device.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
