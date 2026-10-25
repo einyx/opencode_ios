@@ -1224,6 +1224,52 @@ final class AppState {
     var carLiveReplies = CarLiveReplyBridge()
     var carLiveConnectTask: Task<Void, Never>?
     var carLiveConnectRun: CarLiveConnectRun?
+
+    /// True while the chat composer holds the device microphone open.
+    ///
+    /// Published by the composer at the moment it starts and stops the capture,
+    /// so it is true for the whole window the engine is live — not only while
+    /// `isRecording` is set, which is set later and cleared earlier.
+    var chatSpeechCaptureActive = false
+
+    /// True while any device microphone may be open.
+    ///
+    /// This is the single authoritative answer for "may I announce something
+    /// audibly or haptically right now". It covers the Ambient/Car live-voice
+    /// capture and the chat composer capture.
+    ///
+    /// The Ambient path matters: it answers permissions *by voice*, so a
+    /// `permission.asked` event is a designed step of that flow and is expected
+    /// to arrive while the microphone is open.
+    var isMicrophoneCaptureActive: Bool {
+        chatSpeechCaptureActive || carLive?.isMicrophoneCaptureActiveForPolicy == true
+    }
+
+    /// Permission and question requests that have already been announced
+    /// haptically. See `DesignAnnouncementLedger` for why this is not derived
+    /// from the live pending lists.
+    var announcedPermissions = DesignAnnouncementLedger()
+    var announcedQuestions = DesignAnnouncementLedger()
+
+    /// Announce a permission request, unless this exact request was already
+    /// announced. Returns whether the announcement happened.
+    @discardableResult
+    func announcePermissionArrival(_ id: String) -> Bool {
+        guard announcedPermissions.needsAnnouncement(id) else { return false }
+        announcedPermissions.markAnnounced(id)
+        DesignHaptics.fire(.permissionArrived, microphoneOpen: isMicrophoneCaptureActive)
+        return true
+    }
+
+    /// Announce a question request, unless this exact request was already
+    /// announced. Returns whether the announcement happened.
+    @discardableResult
+    func announceQuestionArrival(_ id: String) -> Bool {
+        guard announcedQuestions.needsAnnouncement(id) else { return false }
+        announcedQuestions.markAnnounced(id)
+        DesignHaptics.fire(.questionArrived, microphoneOpen: isMicrophoneCaptureActive)
+        return true
+    }
     var backgroundVoiceScene: BackgroundVoiceSceneKind = .active
     var backgroundVoiceEpoch: UInt64 = 0
     var holdingBackgroundVoice = false

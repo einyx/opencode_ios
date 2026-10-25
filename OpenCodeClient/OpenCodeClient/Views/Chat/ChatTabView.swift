@@ -1709,6 +1709,7 @@ struct ChatTabView: View {
             let success = await state.sendMessage(text, attachments: attachments)
             isSending = false
             if success {
+                DesignHaptics.fire(.messageSent, microphoneOpen: state.isMicrophoneCaptureActive)
                 isComposerEditing = false
                 preferredCursorUTF16 = nil
                 return
@@ -1729,6 +1730,9 @@ struct ChatTabView: View {
             )
             assignComposerText(restored.text)
             imageAttachments = restored.attachments
+            // The draft came back, so the send did not land. The failure haptic is
+            // alerting: it survives Reduce Motion because the user has to know.
+            DesignHaptics.fire(.sendFailed, microphoneOpen: state.isMicrophoneCaptureActive)
         }
     }
 

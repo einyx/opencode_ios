@@ -1,5 +1,5 @@
 {
-  "originHash" : "e1d66b1f91ff4c7e81eaa9aec200199d551e859d3464edb85d389fbb59c72872",
+  "originHash" : "6f9b808f3f8a87b369dca17e1e3a2306915a56965afe3ae63665ee174b163b34",
   "pins" : [
     {
       "identity" : "bigint",
@@ -121,7 +121,7 @@
     {
       "identity" : "voiceflow",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/grapeot/voiceflow.git",
+      "location" : "https://github.com/einyx/voiceflow.git",
       "state" : {
         "revision" : "31bd3438cf817d72ae7e1147130d959356ef7872",
         "version" : "0.4.0"

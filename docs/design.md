@@ -6,7 +6,45 @@ Design direction definition: look to modern developer tools such as Raycast, Ver
 
 This spec follows the same design methodology as the sister project VoiceFlow's `docs/design.md` (warm amber / deep ink): a single recognition color, colors do not carry hierarchy, borderless first, and ultra-light motion. The two apps share a family-style design language, while OpenCode leans colder in tone and puts more emphasis on its tooling nature.
 
-## Design Principles
+## QT-INDEX · Clause Index
+
+Every section of this spec carries a stable clause ID so that rubric items, lint rules,
+and audit rows can reference one authority. The IDs are on the section headings; the
+short form is what the rest of the initiative cites.
+
+| Clause | Section | Governs |
+|---|---|---|
+| `QT-PRINCIPLE` | Design Principles | Dark-first, single accent, shape-over-colour, borderless-first, whitespace hierarchy, motion restraint, button stability |
+| `QT-PALETTE` | Dual-Mode Palette | Dark/light token values, accent blue, status semantics, the one-coloured-element rule |
+| `QT-TYPE` | Typography | The four-step type scale, SF fonts, the type hierarchy |
+| `QT-CARD` | Card Design Language | Information / action / status card shapes, corner radii |
+| `QT-MESSAGE` | Message Area | User-message bubble, container-free AI replies, spacing |
+| `QT-CHATSCREEN` | Chat Screen | Floating glass header and composer, transient turn state, one row per tool call |
+| `QT-COMPOSER` | Composer | Input field, send, mic, stop, voice states, scroll behaviour |
+| `QT-MOTION` | Motion | Entrance transitions, springs, crossfades, and what must not animate |
+| `QT-HAPTIC` | Haptic Feedback | Named haptic events, Reduce Motion and microphone suppression, haptics never replace a visual signal |
+| `QT-LAYOUT` | Two Layout Strategies | iPhone single-column vs iPad/visionOS three-column, margins, content width cap |
+| `QT-EMPTY` | Empty States and Guidance | Empty list and empty chat copy, logo breathing |
+| `QT-NONGOAL` | Non-Goals | No gradients, no third-party fonts, no splash animation, no IA rework |
+| `QT-BOUNDARY` | Feature Boundaries | What exists today, the baseline, what is explicitly excluded |
+| `QT-LANDING` | Implementation Landing Points | `DesignTokens.swift` as the single token entry point; the ban on ad-hoc colours |
+| `QT-MOCKUP` | Mockups | Session list, Settings, Host Profiles layout, swipe actions, error copy |
+| `QT-RETRO` | Diagnostic Retrospective | The four original defects this spec exists to fix |
+| `QT-SPEAKER` | Distinguishing Who Is Speaking | The OpenCode reply title, no avatar, retained model caption |
+| `QT-FILECARD` | File Cards (2-Column Grid) | File-operation tools render as file cards |
+| `QT-TOOLTILE` | One Row Per Tool Call | Every non-file tool renders its own row, expanded in place |
+| `QT-TILEGRID` | File Cards Keep the Grid, Everything Else Is Full Width | The shared 2/3-column file-card grid, full-width rows and text after it |
+| `QT-TOOLBOUND` | Non-Goals / Boundaries (tool cards) | No pixel style, no extra grouping, no category headings |
+
+**Rubric pointer.** The machine-checkable form of this spec is
+[`docs/features/polish/rubric.md`](features/polish/rubric.md) — one `POL-*` row per
+checkable condition, each citing the clause it enforces. The measured baseline of the
+current implementation against those rows is
+[`docs/features/polish/audit.md`](features/polish/audit.md). The phase plan and
+decision log is [`docs/features/polish/plan.md`](features/polish/plan.md).
+
+
+## QT-PRINCIPLE · Design Principles
 
 1. **Dark is the main stage, light is the understudy.** OpenCode's target users are developers, so dark mode is the default aesthetic baseline. The design prioritizes polishing dark mode; light mode is mapped from the same token set rather than the other way around.
 2. **Single brand color: electric blue `#3B82F6`.** Sending, selection, and links use the brand blue; everything else renders on a neutral gray scale. The Session single-indicator light is an explicit semantic exception: the list and the composer share yellow (pending), red (unacknowledged failure), green (execution not finished), and blue (unread updates after stop). Green uses a dedicated running token and does not reuse success; see the triage rules below.
@@ -17,7 +55,7 @@ This spec follows the same design methodology as the sister project VoiceFlow's 
 7. **Small screens keep functionality, large screens get whitespace.** See "Two Layout Strategies" below. Under the same token set and brand language, iPhone uses a compact single-column layout to preserve operational efficiency, while iPad and visionOS use a relaxed three-column layout that expresses spatial quality at different sizes.
 8. **Stable buttons never change position.** Users have strong muscle memory for the send and mic buttons in the composer. The send and mic buttons must always stay fixed in their respective bottom slots of the vertical stack; transient action buttons such as stop or retry may only appear above them, and must never squeeze out or displace the permanent primary buttons.
 
-## Dual-Mode Palette
+## QT-PALETTE · Dual-Mode Palette
 
 Both modes share the same set of semantic token definitions and only switch the mapping between base and text colors. In code, `DesignTokens` wraps dual values with `Color(light:dark:)`, and the View layer consistently references semantic names, avoiding ad-hoc `.opacity()` calls or direct use of system grays.
 
@@ -71,7 +109,7 @@ The light column sits outside the complete VStack formed by the title and the su
 
 Normal self-execution no longer repeats "Execution active" / "Running". The branch icon with a number appears only in the session list and is kept even when yellow/red overrides green; the number is the count of known active descendants, 0 is not shown, and screen readers use a fully localized description. The composer adds no descendant count; it keeps the unified light, the retry/pending-sync/necessary voice text, and the existing background task navigation. In light mode the green is unified to `#167C45` according to the user's physical-device preference.
 
-## Typography
+## QT-TYPE · Typography
 
 Use the system SF font throughout and explicitly specify the design variant. No third-party fonts, to guarantee better CJK fallback rendering, a smaller install size, and seamless integration with the system UI.
 
@@ -83,7 +121,7 @@ Use the system SF font throughout and explicitly specify the design variant. No 
 
 The type scale is the primary carrier of visual hierarchy: strictly converged to four clearly separated steps of 22 / 16 / 13 / 12, with no intermediate transitional sizes introduced.
 
-## Card Design Language
+## QT-CARD · Card Design Language
 
 Divided into three shape families by function — this is the core of fixing the previous color chaos:
 
@@ -94,13 +132,13 @@ Divided into three shape families by function — this is the core of fixing the
 
 Corner radius specs are globally unified: 12pt for information/action cards, 16pt for sheets, 6pt for inline tags — strictly specified, mixing is forbidden.
 
-## Message Area
+## QT-MESSAGE · Message Area
 
 - User messages: **a right-aligned bubble**, capped at 320pt, one tucked corner (20 / 20 / 6 / 20), filled with a neutral surface tint. This is Claude's treatment: a bubble reads as "the person said this", while a full-width accent stripe read as a system event. The Body Prominent weight stays.
 - AI replies: **no container wrapper at all**; plain `text.primary` body text is laid out directly on the `bg.primary` background, separated from user messages only by 20pt of vertical spacing. Streaming text renders smoothly word by word, with no extra entrance animation.
 - Message spacing is set to 20pt (the original 12pt was too cramped). Treat every message as an independent unit of thought, with generous whitespace providing breathing room.
 
-## Chat Screen (Claude interaction model + Liquid Glass)
+## QT-CHATSCREEN · Chat Screen (Claude interaction model + Liquid Glass)
 
 The chat screen follows the Claude iOS app's interaction model: minimal chrome, content scrolling under floating surfaces, and nothing on screen that is not either conversation or a control for it.
 
@@ -112,7 +150,7 @@ The chat screen follows the Claude iOS app's interaction model: minimal chrome, 
 - **User message = bubble.** Right-aligned, capped at 320pt, one tucked corner — Claude's treatment. The full-width accent stripe read as a system event rather than as something the person said.
 - **Glass everywhere it is a surface.** Every floating surface goes through one `glassSurface` modifier: `glassEffect(.regular.interactive())` on iOS 26, a translucent material with a hairline edge on iOS 17–25, so the fallback never drifts from the design.
 
-## Composer
+## QT-COMPOSER · Composer
 
 - Input field: drop the stroke, use only a `bg.secondary` fill with a 16pt corner radius. Strokes often imply form fields; a free-text input area should feel borderless.
 - The field **hugs its content**: one line by default, growing up to about four lines as the text grows. A scrollable text view reports no intrinsic height, so the composer publishes the measured content height — otherwise the empty composer reserves four lines and the input area looks half-empty.
@@ -123,7 +161,7 @@ The chat screen follows the Claude iOS app's interaction model: minimal chrome, 
 - While the AI is running: the send button is **always kept** (consistent with established product logic — new messages can still be appended directly while a task runs, with no need to manually terminate the preceding task), and it stays fixed in the **bottom slot** of the right-side vertical stack. stop is shown as an **additional** action button **above** send (same-size solid rounded square, arranged vertically in a VStack with stop on top and send below), and it hides automatically when the AI task ends. Note that stop does not replace send; the two coexist in a stacked relationship. In color terms, send uses `accent` blue while stop uses red (carrying interrupt/destructive-operation semantics).
 - Voice input: the mic is always fixed in the **bottom slot** of the left-side vertical stack. While recording, only a red mic is shown, and tapping it ends recording normally and proceeds to transcription; during transcription the mic shows a loading state and the right side simultaneously shows `Stop transcription wait` for forcing an interrupt; after an explicit interrupt, the bottom slot on the left switches to a retry icon button while the right shows `Discard audio`. retry is the single primary recovery action and discard is the lightweight action for leaving the recovery state; the two responsibilities are distinct and must not be defined as two separate retry entry points. No transient voice state may change the fixed position of the send button.
 
-## Motion (Highest Return on Investment)
+## QT-MOTION · Motion (Highest Return on Investment)
 
 - User message entrance: an offset y transition from 16→0 with opacity from 0→1, over an ease-out of 0.28s. AI streaming text gets no entrance animation at all.
 - Tool card expansion: a custom spring (response 0.32, damping 0.82), giving a more compact and lively expansion than the system default DisclosureGroup.
@@ -132,7 +170,35 @@ The chat screen follows the Claude iOS app's interaction model: minimal chrome, 
 - Session switching: the message list uses a 0.2s opacity crossfade transition, removing the abrupt pause caused by a hard cut.
 - Explicitly out of scope: splash launch animations, bouncing spring motion, and gradient backgrounds (avoiding the visual cheapness that over-decoration brings).
 
-## Two Layout Strategies (Small Screen vs Large Screen)
+## QT-HAPTIC · Haptic Feedback
+
+Haptics are the second sensory channel. They are optional feedback — never the only
+signal for something the user must act on.
+
+- **Every haptic is a named event, and the set is closed.** The events live in
+  `Utils/DesignHaptics.swift` (`DesignHapticEvent`), and each one maps to a distinct
+  signature, so two different events are never felt as the same thing.
+- **Alerting events survive Reduce Motion.** A failed send, an arriving permission, an
+  arriving question, and a committed destructive action carry information the user
+  cannot otherwise see, so they are kept. Confirming events — a sent message, a
+  selection change, recording starting and recording stopping — are dropped when motion
+  is reduced.
+- **Nothing fires while the microphone is open.** A haptic is a mechanical event that an
+  open capture can pick up. There is no blanket exception: the recording start and stop
+  events pass the capture state as it is *before* their own capture opens and *after* it
+  closes, so they are unaffected by their own capture and still suppressed by any other
+  one.
+- **Silent mode does not affect haptics.** The feedback generators emit no audio
+  component, so the ringer switch is irrelevant. Only Reduce Motion and the microphone
+  guard suppress an event.
+- **A request is announced once.** "Already announced" is tracked in a ledger that is
+  separate from the live pending-request lists, because answering a request removes it
+  from that list and the server can briefly keep listing it.
+- **Haptics never replace a visual signal.** The session indicator, the composer status
+  text, and the permission and question cards remain the primary channels; a haptic
+  only reinforces them.
+
+## QT-LAYOUT · Two Layout Strategies (Small Screen vs Large Screen)
 
 While keeping brand, tokens, colors, typography, and the card design language **completely identical**, differentiated layout and whitespace strategies are defined per device form factor. This is the core completion of this design specification: avoiding the loss of operational space on iPhone caused by excessive whitespace, while making sure that on large-screen devices such as iPad and visionOS the generous whitespace releases the advantage of the bigger screen.
 
@@ -194,12 +260,12 @@ The original design uses a `NavigationSplitView` three-column architecture (file
    Session tree (no summary preview)
 ```
 
-## Empty States and Guidance
+## QT-EMPTY · Empty States and Guidance
 
 - Empty session list: show the dark-version logo (asset still to be added; currently only `logo_light.png` exists) with brand-character copy such as "Start a conversation with your code", avoiding the stiff "No sessions". The logo gets an extremely subtle breathing motion (scale 1.0→1.02→1.0, 3s cycle).
 - Empty chat interface: a concise guidance text centered, with no icon.
 
-## Non-Goals
+## QT-NONGOAL · Non-Goals
 
 - No gradient backgrounds: use solid base colors with deliberate whitespace and micro-motion for a more premium visual quality.
 - No third-party fonts: the system-level SF Pro and SF Mono fully meet the need and deliver the best system consistency and lightness.
@@ -207,7 +273,7 @@ The original design uses a `NavigationSplitView` three-column architecture (file
 - No information architecture rework: keep the validated bottom tab and three-column layout system.
 - Regular content stays on the gray scale and the brand blue; the single-indicator triage in the Session list/composer follows the explicit exception described above.
 
-## Feature Boundaries (This Is the Implementation Draft — Three Categories Strictly Separated)
+## QT-BOUNDARY · Feature Boundaries (This Is the Implementation Draft — Three Categories Strictly Separated)
 
 As an implementation spec meant to directly guide delivery, every visual element in this spec must strictly correspond to a real capability and is clearly divided into three boundary categories:
 
@@ -219,11 +285,11 @@ As an implementation spec meant to directly guide delivery, every visual element
 - **Code syntax highlighting**: the current implementation is a monochrome plain-text rendering with line numbers (`Text(line)`) and **does not include** syntax highlighting. The mockup images are uniformly drawn as plain text. Syntax highlighting is planned as a future enhancement — given that it involves tokenizer / highlighting-parser library selection and must account for large-file performance and rendering overhead, this iteration does not implement it, and the design is not pre-packaged with it either.
 - Session list item summary previews, diff sidebar comparison, message search and editing, and file upload were classified as "not shipped" in the historical audit, so none of them are in scope for this design.
 
-## Implementation Landing Points
+## QT-LANDING · Implementation Landing Points
 
 `OpenCodeClient/OpenCodeClient/Utils/DesignTokens.swift` already has a basic framework for Brand/Semantic/Neutral/Opacity/Typography/Spacing/Controls/Corners. The focus of this rework is **specification purification**: fully landing the hex color values and semantic mappings from the palette above, cleaning up ad-hoc system grays and redundant Semantic color definitions, strictly converging the Typography size scale to the four steps 22/16/13/12, and aligning the spacing separately against the small-screen and large-screen specifications. View layer code is strictly forbidden from continuing to use arbitrary colors such as `Color.blue/.red/.gray.opacity(…)`.
 
-## Mockups
+## QT-MOCKUP · Mockups
 
 The mockups under `docs/design_images/` were generated by the GPT image generation tool (gpt-image-2) to anchor the visual baseline of the "quiet tech" feel; they are not pixel-level deliverables.
 
@@ -263,13 +329,13 @@ Sharing the same token set and brand spec, the large-screen layout is more relax
 
 ![iPad — three columns](design_images/ipad_threecol.png)
 
-## Diagnostic Retrospective (From the Previous Version — the Conclusions Still Hold)
+## QT-RETRO · Diagnostic Retrospective (From the Previous Version — the Conclusions Still Hold)
 
 The early UI exhibited typical engineer thinking: flat information hierarchy (font size and spacing lacked a differentiated gradient), insufficient whitespace (12pt message spacing and 8pt card padding were too cramped), weak brand recognition (over-reliance on the system-native SF Symbols and the system default colors, giving a visual quality closer to a basic demo project), and missing micro-interactions (lacking the necessary transition animations). Every principle established in this specification precisely addresses and solves the pain points above.
 
 ---
 
-# Tool Card Rendering Rework (Implemented; Latest Evolution: Process Tiles Are Always Half-Width and Share a Two-Column Grid)
+# Tool Card Rendering Rework (Implemented; Latest Evolution: One Row Per Tool Call, File Cards Keep the Grid)
 
 **Pixel style is explicitly out of scope.** This chapter's design is entirely grounded in the Quiet Tech design language described above and introduces no extra visual texture — it strictly maintains the existing minimal modern icons, hairline dividers, and neutral card fills. This refactor focuses on optimizing the **information organization structure** rather than swapping the visual skin: the main goals are to separate the speaking roles and to present tool call results efficiently.
 
@@ -277,7 +343,7 @@ The current pain points concentrate on two aspects: (a) AI replies and user mess
 
 This design contains three concrete adjustments: (1) clearly distinguish the speaking roles of the user and of OpenCode; (2) uniformly render file-type operations as file cards (using a 2-column grid layout); (3) converge all remaining generic tool calls into an expandable "N tool calls".
 
-## One, Distinguishing Who Is Speaking (No Avatar, but a Title)
+## QT-SPEAKER · One, Distinguishing Who Is Speaking (No Avatar, but a Title)
 
 The visual distinction between AI replies and user messages is currently too weak to locate the speaker quickly. The optimized design spec is as follows:
 
@@ -286,11 +352,11 @@ The visual distinction between AI replies and user messages is currently too wea
 
 The core idea of the design is to clearly delineate the two roles through a **differentiated visual style** (top text title + bottom model caption versus the blue leading indicator bar), rather than relying on a conventional user avatar.
 
-## Two, File Cards (2-Column Grid)
+## QT-FILECARD · Two, File Cards (2-Column Grid)
 
 **File-operation tools (covering the four types patch / edit / write / read)** are uniformly rendered as **file cards**: a clean, modern **file icon** on the left of the card, the filename or path in monospace in the middle, and a chevron icon on the right that triggers navigation or expansion. Each tool call corresponds to one card, **arranged in a 2-column grid** (two cards side by side per row, aligned with the iPhone's existing 2-column grid spec; it can extend to 3 columns on iPad). The logical decision rule is `part.tool ∈ {apply_patch, edit_file, write_file, read_file}` (including historical compatibility aliases).
 
-## Three, One Row Per Tool Call
+## QT-TOOLTILE · Three, One Row Per Tool Call
 
 **All remaining tools besides file operations (including bash / test / grep / glob / list / webfetch / task, etc.) each render as their own row**: icon, tool name, the call's subject line (the command or the reason), the status, and a chevron. The row is collapsed by default and expands in place to show the input and the output.
 
@@ -300,7 +366,7 @@ Each row's header is a single line: the tool name keeps its natural width and th
 
 The row is a **compact tag that hugs its content**, not a full-width slab: six tool calls stacked as full-width cards turned the transcript into a wall of grey rectangles. The expanded detail drops below the tag, indented, with no container of its own — the mono type carries the hierarchy.
 
-## Arrangement: File Cards Keep the Grid, Everything Else Is Full Width
+## QT-TILEGRID · Arrangement: File Cards Keep the Grid, Everything Else Is Full Width
 
 file cards **enter a two-column (iPhone) / three-column (iPad) grid**, with the tiles laid out in the original part order: file operations each produce a half-width file card tile, and every other tool call produces a full-width row of its own. The thinking card **takes a full-width row** — its content is prose, not thumbnails. A file card row that has fewer tiles than columns keeps its grid positions (the empty cell stays empty), so a lone file card still occupies half the width.
 
@@ -312,7 +378,7 @@ File cards follow the Quiet Tech neutral card spec (neutral `surface` fill, no b
 
 > This mockup clarifies the final evolution direction: user messages use a blue leading indicator bar; OpenCode replies carry an "OpenCode" text title and a bottom model caption (`claude-opus-4 · 12:04`), with no avatar; file operations aggregate into a 2-column file card grid (`client.ts` / `types.ts` / `README.md` / `utils.ts`, etc.); the remaining tool calls converge into `▸ 3 tool calls`. A purely crisp sans-serif font is used throughout, with no pixel-art texture.
 
-## Non-Goals / Boundaries
+## QT-TOOLBOUND · Non-Goals / Boundaries
 
 - **Never introduce a pixel style**: the core value lies in the **information organization structure** built by "role differentiation / file cards / N tool calls", not in a pixel visual texture. The overall design strictly maintains the minimal, restrained Quiet Tech spec.
 - **No extra grouping and no added category headings.**

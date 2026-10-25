@@ -22,8 +22,4 @@ run `python3 scripts/generate_third_party_notices.py` after changing a dependenc
 | swift-nio | 2.94.1 | Apache-2.0 |
 | swift-nio-ssh | 0.3.5 | Apache-2.0 |
 | swift-system | 1.6.4 | Apache-2.0 |
-| VoiceFlowKit | 0.4.0 | NOASSERTION |
-
-## Packages without a licence
-
-- **VoiceFlowKit 0.4.0** (https://github.com/grapeot/voiceflow): The upstream repository ships no licence file, so there is no grant to redistribute this code. A licence has to be added to the upstream repository (or the package replaced) before the app can be distributed.
+| VoiceFlowKit | 0.4.0 | Apache-2.0 |

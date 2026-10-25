@@ -416,6 +416,7 @@ extension AppState {
             if let perm = PermissionController.parseAskedEvent(properties: props),
                !pendingPermissions.contains(where: { $0.id == perm.id }) {
                 pendingPermissions.append(perm)
+                announcePermissionArrival(perm.id)
             }
         case "permission.replied":
             permissionRevision &+= 1
@@ -425,6 +426,7 @@ extension AppState {
             if let question = QuestionController.parseAskedEvent(properties: props),
                !pendingQuestions.contains(where: { $0.id == question.id }) {
                 pendingQuestions.append(question)
+                announceQuestionArrival(question.id)
             }
         case "question.replied", "question.rejected":
             questionRevision &+= 1

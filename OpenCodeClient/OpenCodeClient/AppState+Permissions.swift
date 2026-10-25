@@ -39,7 +39,15 @@ extension AppState {
         do {
             let requests = try await apiClient.pendingPermissions()
             guard isCurrentHostRequest(host), permissionPollID == id, permissionRevision == revision else { return }
+            // Only a request that has never been announced is an arrival. The
+            // ledger is separate from the live list on purpose: answering a
+            // request removes it from `pendingPermissions`, and the server can
+            // briefly keep listing it, so deriving "already seen" from the live
+            // list re-announced a permission the moment the user answered it.
             pendingPermissions = PermissionController.fromPendingRequests(requests)
+            for request in pendingPermissions {
+                announcePermissionArrival(request.id)
+            }
         } catch {
             // Keep the current list on errors.
         }
@@ -84,6 +92,9 @@ extension AppState {
             let requests = try await apiClient.pendingQuestions()
             guard isCurrentHostRequest(host), questionPollID == id, questionRevision == revision else { return }
             pendingQuestions = requests
+            for request in pendingQuestions {
+                announceQuestionArrival(request.id)
+            }
         } catch {
             guard isCurrentHostRequest(host) else { return }
             connectionError = error.localizedDescription

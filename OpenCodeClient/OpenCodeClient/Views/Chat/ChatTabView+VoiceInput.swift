@@ -334,6 +334,8 @@ extension ChatTabView {
         stopSpeechEventConsumer()
         stopSpeechAudioLevelConsumer()
         let audioURL = await ChatSpeechCaptureCleanup.releaseOwnedMicrophone(microphone, plan: cleanupPlan)
+        // The engine is closed from here on, so the capture state can clear.
+        state.chatSpeechCaptureActive = false
         await finishSpeechAudioSender()
 
         let session = speechSession
@@ -377,6 +379,8 @@ extension ChatTabView {
             stopSpeechAudioLevelConsumer()
             let stopStart = ProcessInfo.processInfo.systemUptime
             let audioURL = try? await stoppingMicrophone.stop()
+            // The engine is closed from here on, so the capture state can clear.
+            state.chatSpeechCaptureActive = false
             stoppingMicrophone.discard()
             await finishSpeechAudioSender()
             guard SpeechAttemptGate.owns(finalizationID, activeAttemptID: speechFinalizationID),
@@ -390,6 +394,9 @@ extension ChatTabView {
                 return
             }
             isRecording = false
+            // Boundary event: the microphone is closing right now, so the
+            // microphone guard does not apply.
+            DesignHaptics.fire(.recordingStopped, microphoneOpen: state.isMicrophoneCaptureActive)
             Self.logger.notice("[SpeechProfile] realtime capture stopped ms=\(max(0, Int((ProcessInfo.processInfo.systemUptime - stopStart) * 1000)), privacy: .public)")
 
             isTranscribing = originSessionID == state.currentSessionID
@@ -572,6 +579,13 @@ extension ChatTabView {
                 activeSpeechStrategy = strategy
                 startSpeechAudioLevelConsumer()
 
+                // Acknowledge the tap and publish the capture state *before* the
+                // microphone opens. The haptic lands ahead of the capture window
+                // rather than inside it, and `isMicrophoneCaptureActive` is true
+                // for the whole time the engine is live.
+                DesignHaptics.fire(.recordingStarted, microphoneOpen: state.isMicrophoneCaptureActive)
+                state.chatSpeechCaptureActive = true
+
                 if strategy.usesRealtimeTransport {
                     let session = try await state.startRealtimeSpeechSession(strategy: strategy, surface: .chat)
                     startedSession = session
@@ -604,6 +618,8 @@ extension ChatTabView {
                     currentSessionID: state.currentSessionID
                 ) else {
                     let audioURL = try? await startingMicrophone.stop()
+                    // The engine is closed from here on, so the capture state can clear.
+                    state.chatSpeechCaptureActive = false
                     startingMicrophone.discard()
                     await finishSpeechAudioSender()
                     let owner = ChatSpeechOwner(sessionID: originSessionID)
@@ -629,6 +645,8 @@ extension ChatTabView {
                 Self.logger.notice("[SpeechProfile] capture started strategy=\(strategy.rawValue, privacy: .public) ms=\(max(0, Int((ProcessInfo.processInfo.systemUptime - startRecordingStart) * 1000)), privacy: .public)")
             } catch {
                 let audioURL = try? await startingMicrophone.stop()
+                // The engine is closed from here on, so the capture state can clear.
+                state.chatSpeechCaptureActive = false
                 startingMicrophone.discard()
                 await finishSpeechAudioSender()
                 let owner = ChatSpeechOwner(sessionID: originSessionID)
@@ -697,6 +715,8 @@ extension ChatTabView {
 
         return {
             let audioURL = await ChatSpeechCaptureCleanup.releaseOwnedMicrophone(stoppingMicrophone, plan: cleanupPlan)
+            // The engine is closed from here on, so the capture state can clear.
+            state.chatSpeechCaptureActive = false
             await sender?.finishAndDrain()
 
             speechOriginSessionID = nil

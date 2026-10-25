@@ -155,6 +155,7 @@ struct SessionListView: View {
     }
 
     private func selectSession(_ session: Session) {
+        DesignHaptics.fire(.selectionChanged, microphoneOpen: state.isMicrophoneCaptureActive)
         state.selectSession(session)
         dismiss()
     }
@@ -201,8 +202,14 @@ struct SessionListView: View {
                 }
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     Button {
+                        // The haptic fires on the confirmed delete, not on the
+                        // gesture: a delete that fails must not feel like a
+                        // success. `docs/design.md` §QT-MOCKUP puts no secondary
+                        // confirmation dialog in front of a swipe delete.
                         mutateSession(session) {
                             try await state.deleteSession(sessionID: session.id)
+                            DesignHaptics.fire(.destructiveConfirmed,
+                                               microphoneOpen: state.isMicrophoneCaptureActive)
                         }
                     } label: {
                         Label(L10n.t(.sessionsDelete), systemImage: "trash")
