@@ -34,8 +34,15 @@ xcodebuild archive \
 
 echo "==> Archived to $ARCHIVE_PATH"
 echo "    bundle id:  com.prysm.opencode"
-echo "    version:    $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$ARCHIVE_PATH/Info.plist" 2>/dev/null || echo unknown)"
-echo "    build:      $(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$ARCHIVE_PATH/Info.plist" 2>/dev/null || echo unknown)"
+# The archive's own Info.plist keeps these under ApplicationProperties; the
+# app bundle's Info.plist keeps them at the top level.
+archive_plist() {
+  /usr/libexec/PlistBuddy -c "Print :ApplicationProperties:$1" "$ARCHIVE_PATH/Info.plist" 2>/dev/null \
+    || /usr/libexec/PlistBuddy -c "Print :$1" "$ARCHIVE_PATH/Products/Applications/OpenCodeClient.app/Info.plist" 2>/dev/null \
+    || echo unknown
+}
+echo "    version:    $(archive_plist CFBundleShortVersionString)"
+echo "    build:      $(archive_plist CFBundleVersion)"
 
 if [ "$UPLOAD" = "1" ]; then
   if [ -z "${ASC_KEY_ID:-}" ] || [ -z "${ASC_ISSUER_ID:-}" ]; then

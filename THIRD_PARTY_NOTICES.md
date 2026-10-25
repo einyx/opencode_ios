@@ -22,4 +22,4 @@ run `python3 scripts/generate_third_party_notices.py` after changing a dependenc
 | swift-nio | 2.94.1 | Apache-2.0 |
 | swift-nio-ssh | 0.3.5 | Apache-2.0 |
 | swift-system | 1.6.4 | Apache-2.0 |
-| VoiceFlowKit | 0.4.1 | Apache-2.0 |
+| VoiceFlowKit | 0.4.4 | Apache-2.0 |

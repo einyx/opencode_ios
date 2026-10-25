@@ -88,9 +88,9 @@ their tool calls, and review the changes they make.
 
 | Field | Value |
 |---|---|
-| Support URL | `TODO` (a GitHub issue tracker works: `https://github.com/einyx/opencode_ios/issues`) |
-| Marketing URL | `TODO` (`https://github.com/einyx/opencode_ios`) |
-| Privacy policy URL | `TODO` — must be a publicly reachable web page, not a file in the repo. See `privacy-policy.md` for the text. |
+| Support URL | `https://github.com/einyx/opencode_ios/issues` |
+| Marketing URL | `https://github.com/einyx/opencode_ios` |
+| Privacy policy URL | `https://einyx.github.io/opencode_ios/appstore/privacy-policy` — published with GitHub Pages from `main` / `/docs` |
 
 ## Screenshots
 

@@ -505,8 +505,8 @@ final class CarLiveController {
                             let finished = await CarLiveDeadlineHandle.run(until: deadline) {
                                 do {
                                     try await opened.send(.audio(payload))
-                                    outcome.mark(true)
-                                } catch { outcome.mark(false) }
+                                    await outcome.mark(true)
+                                } catch { await outcome.mark(false) }
                             }
                             guard finished, outcome.succeeded else {
                                 if !finished {
@@ -653,15 +653,7 @@ final class CarLiveController {
     private func waitStarted(token: UInt64) async -> Bool {
         if startedReady { return phase != .failed }
         return await withTaskGroup(of: Bool.self) { group in
-            group.addTask { @MainActor in
-                await withCheckedContinuation { continuation in
-                    if self.startedReady {
-                        continuation.resume(returning: true)
-                    } else {
-                        self.startWaiter = continuation
-                    }
-                }
-            }
+            group.addTask { await self.awaitStarted() }
             group.addTask {
                 try? await Task.sleep(for: .seconds(CarLiveProtocol.startedDeadline))
                 return false
@@ -672,6 +664,20 @@ final class CarLiveController {
                 resumeWaiter(false)
             }
             return first && runToken == token && phase != .failed
+        }
+    }
+
+    /// The start waiter resumes on the main actor. A named method keeps the
+    /// region-based isolation checker away from an `@MainActor` closure
+    /// literal, which it cannot check.
+    @MainActor
+    private func awaitStarted() async -> Bool {
+        await withCheckedContinuation { continuation in
+            if startedReady {
+                continuation.resume(returning: true)
+            } else {
+                startWaiter = continuation
+            }
         }
     }
 
@@ -889,9 +895,9 @@ final class CarLiveController {
             let finished = await CarLiveDeadlineHandle.run(until: deadline) {
                 do {
                     try await ownedLink.send(.close)
-                    outcome.mark(true)
+                    await outcome.mark(true)
                 } catch {
-                    outcome.mark(false)
+                    await outcome.mark(false)
                 }
             }
             if token == runToken, (!finished || outcome.succeeded == false), !closeSeen {

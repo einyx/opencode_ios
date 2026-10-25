@@ -9,7 +9,7 @@ private enum WatchBridgeError: Error { case unreachable, timeout, protocolError,
 private final class WatchRequestWaiter {
     var continuation: CheckedContinuation<[String: Any], Error>?
     var timeout: Task<Void, Never>?
-    func finish(_ result: Result<[String: Any], Error>) {
+    func finish(_ result: sending Result<[String: Any], Error>) {
         guard let continuation else { return }
         self.continuation = nil
         timeout?.cancel()

@@ -1,32 +1,32 @@
 import Foundation
 
-enum BackgroundVoiceSceneKind: Equatable, Sendable {
+nonisolated enum BackgroundVoiceSceneKind: Equatable, Sendable {
     case active
     case inactive
     case background
     case other
 }
 
-enum BackgroundVoiceLiveKind: Equatable, Sendable {
+nonisolated enum BackgroundVoiceLiveKind: Equatable, Sendable {
     case none
     case connecting
     case captureRunning
     case closing
 }
 
-enum BackgroundVoiceAction: Equatable, Sendable {
+nonisolated enum BackgroundVoiceAction: Equatable, Sendable {
     case ignore
     case holdOpenConnections
     case cancelPendingThenCleanup
     case legacyCleanup
 }
 
-enum BackgroundVoiceHoldKind: Equatable, Sendable {
+nonisolated enum BackgroundVoiceHoldKind: Equatable, Sendable {
     case systemInterruption
     case headphoneRemoved
 }
 
-enum CarLiveCaptureSessionPlan {
+nonisolated enum CarLiveCaptureSessionPlan {
     static let optionNames = ["defaultToSpeaker", "allowBluetoothHFP"]
 
     static func preservesOtherApps(_ names: [String] = optionNames) -> Bool {
@@ -34,7 +34,7 @@ enum CarLiveCaptureSessionPlan {
     }
 }
 
-enum BackgroundVoicePolicy {
+nonisolated enum BackgroundVoicePolicy {
     static let appDeactivationSource = 1
 
     static func liveKind(

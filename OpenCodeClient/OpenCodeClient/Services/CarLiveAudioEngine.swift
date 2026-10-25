@@ -29,7 +29,7 @@ nonisolated protocol CarLiveAudioEngine: Sendable {
     func setHoldHandler(_ handler: (@Sendable (BackgroundVoiceHoldKind, UInt64) -> Void)?)
 }
 
-extension CarLiveAudioEngine {
+nonisolated extension CarLiveAudioEngine {
     var startsBeforeConnection: Bool { false }
     func setPlaybackHeld(_ held: Bool) {}
     func setFailureHandler(_ handler: (@Sendable (String) -> Void)?) {}

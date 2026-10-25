@@ -37,6 +37,36 @@ enrolled organisation team, and register the bundle ids there:
 The simulator builds keep `com.grapeot.OpenCodeClient`, which is why the two
 values differ per SDK.
 
+**Getting the organisation team onto this machine.** Xcode only knows the
+Personal Team until the organisation team is added to the account:
+
+```
+~/Library/Preferences/com.apple.dt.Xcode.plist
+  IDEProvisioningTeamByIdentifier → 6811CF31-3DC6-484D-9707-0A8B02BBE355
+    isFreeProvisioningTeam = true
+    teamName = Alessio Garofalo (Personal Team)
+```
+
+`6811CF31-…` is the Personal Team's modern identifier; the legacy 10-character
+id `9DBH2A7KB8` in the same keychain certificates and provisioning profiles
+belongs to the same team. The organisation team appears in the same place with
+`isFreeProvisioningTeam = false` once the Apple ID that holds the organisation
+membership is signed in (Xcode → Settings → Accounts → + → Apple ID, or sign in
+with that Apple ID instead). When it does, copy its legacy 10-character team id
+into `DEVELOPMENT_TEAM` and create the two App Store identifiers and their
+distribution profiles from the Xcode account window.
+
+The project currently has two teams in it:
+
+| Where | Team |
+|---|---|
+| `OpenCodeClient` app target, `OpenCodeWatch` target | `9DBH2A7KB8` (personal) |
+| project-level and test targets | `Y2T99LVU9E` (not in the local Xcode account) |
+
+The `build(signing): use one signing team everywhere` commit unified every
+configuration onto `9DBH2A7KB8` so a fresh clone can sign at all, which is why
+the table above no longer matches the project.
+
 ## 2. Done: the `voiceflow` dependency is licensed
 
 `grapeot/voiceflow` (the `VoiceFlowKit` package the voice input is built on)
@@ -74,10 +104,14 @@ repository is public) closes that.
 
 - [ ] Enroll the organisation team and point the targets at it (section 1).
 - [x] Resolve the `voiceflow` licence (section 2).
-- [ ] Publish the privacy policy as a web page and put the URL in App Store
-      Connect (text: `docs/appstore/privacy-policy.md`).
-- [ ] Fill in the listing metadata (`docs/appstore/metadata.md`): the support
-      URL, the marketing URL, the privacy policy URL, and the screenshots.
+- [x] Publish the privacy policy as a web page and put the URL in App Store
+      Connect (text: `docs/appstore/privacy-policy.md`). GitHub Pages is enabled
+      on this repository, publishing `main` / `/docs`, so the policy is live at
+      `https://einyx.github.io/opencode_ios/appstore/privacy-policy`, and the
+      URL is filled in in `metadata.md` along with the support and marketing
+      URLs.
+- [ ] Fill in the listing metadata (`docs/appstore/metadata.md`): the screenshots
+      are still missing.
 - [ ] Capture the screenshots from the simulator.
 - [ ] Create the App Store Connect record: name, bundle id, SKU, category,
       age rating, export compliance.
