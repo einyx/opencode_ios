@@ -548,13 +548,13 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 29;
 				DEVELOPMENT_TEAM = 9DBH2A7KB8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "OpenCode Remote";
 				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "OpenCode Remote";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "OpenCode scans the QR code printed by `opencode pair` so this device can connect to your OpenCode server.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "OpenCode connects to the OpenCode server you add, including one running on your own local network.";
@@ -575,7 +575,6 @@
 				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = com.prysm.opencode;
 				"PRODUCT_BUNDLE_IDENTIFIER[sdk=xros*]" = com.prysm.opencode;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator xros xrsimulator";
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -595,13 +594,15 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Distribution";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 29;
 				DEVELOPMENT_TEAM = 9DBH2A7KB8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "OpenCode Remote";
+				PROVISIONING_PROFILE_SPECIFIER = "OpenCode Remote App Store opencode";
 				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "OpenCode Remote";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "OpenCode scans the QR code printed by `opencode pair` so this device can connect to your OpenCode server.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "OpenCode connects to the OpenCode server you add, including one running on your own local network.";
@@ -622,7 +623,6 @@
 				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = com.prysm.opencode;
 				"PRODUCT_BUNDLE_IDENTIFIER[sdk=xros*]" = com.prysm.opencode;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator xros xrsimulator";
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -640,7 +640,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 29;
 				DEVELOPMENT_TEAM = 9DBH2A7KB8;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -662,7 +662,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 29;
 				DEVELOPMENT_TEAM = 9DBH2A7KB8;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -683,7 +683,7 @@
 		3B4F442A2F3E642600A4CD74 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 29;
 				DEVELOPMENT_TEAM = 9DBH2A7KB8;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -703,7 +703,7 @@
 		3B4F442B2F3E642600A4CD74 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 29;
 				DEVELOPMENT_TEAM = 9DBH2A7KB8;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -724,7 +724,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 29;
 				DEVELOPMENT_TEAM = 9DBH2A7KB8;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -754,10 +754,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "Apple Distribution";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 29;
 				DEVELOPMENT_TEAM = 9DBH2A7KB8;
 				GENERATE_INFOPLIST_FILE = YES;
+				PROVISIONING_PROFILE_SPECIFIER = "OpenCode Remote App Store watchkitapp";
 				INFOPLIST_FILE = WatchInfo.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "OpenCode Remote";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "用于手表实时语音对话。你主动开始后，语音会持续到结束。";
