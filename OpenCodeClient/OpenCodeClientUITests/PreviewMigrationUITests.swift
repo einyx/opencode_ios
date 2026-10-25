@@ -37,6 +37,7 @@ final class PreviewMigrationUITests: XCTestCase {
 
     @MainActor
     func testFilesPushSurvivesFocusAndAutomatic() throws {
+        try skipOnPhone()
         let app = XCUIApplication()
         app.launchArguments = ["UITEST_FILE_SEARCH_FIXTURE"]
         app.launchEnvironment = [
@@ -91,6 +92,15 @@ final class PreviewMigrationUITests: XCTestCase {
         XCTAssertTrue(toggle.waitForExistence(timeout: 4))
         XCTAssertTrue(toggle.isHittable)
         toggle.tap()
+    }
+
+    /// The three-column workspace needs a regular width class. On a phone,
+    /// `automatic` correctly resolves to compact (EffectiveLayoutResolver), so
+    /// the toggle-to-regular assertions cannot pass there — skip instead of
+    /// failing by design (PRY-43).
+    private func skipOnPhone() throws {
+        guard UIDevice.current.userInterfaceIdiom == .phone else { return }
+        throw XCTSkip("三栏工作区需要 iPad 的 regular 宽度级别：iPhone 上 automatic 正确解析为 compact，本用例仅在 iPad 运行。")
     }
 
     @MainActor
