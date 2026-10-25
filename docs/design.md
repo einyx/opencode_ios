@@ -22,7 +22,7 @@ short form is what the rest of the initiative cites.
 | `QT-CHATSCREEN` | Chat Screen | Floating glass header and composer, transient turn state, one row per tool call |
 | `QT-COMPOSER` | Composer | Input field, send, mic, stop, voice states, scroll behaviour |
 | `QT-MOTION` | Motion | Entrance transitions, springs, crossfades, and what must not animate |
-| `QT-HAPTIC` | Haptic Feedback | Named haptic events, Reduce Motion and microphone suppression, haptics never replace a visual signal |
+| `QT-HAPTIC` | Haptic Feedback | Named haptic events, the microphone guard, Reduce Motion and silent-mode policy, announce-once, haptics never replace a visual signal |
 | `QT-LAYOUT` | Two Layout Strategies | iPhone single-column vs iPad/visionOS three-column, margins, content width cap |
 | `QT-EMPTY` | Empty States and Guidance | Empty list and empty chat copy, logo breathing |
 | `QT-NONGOAL` | Non-Goals | No gradients, no third-party fonts, no splash animation, no IA rework |
@@ -177,7 +177,7 @@ The chat screen follows the Claude iOS app's interaction model: minimal chrome, 
 
 - User message entrance: an offset y transition from 16→0 with opacity from 0→1, over an ease-out of 0.28s. AI streaming text gets no entrance animation at all.
 - Tool card expansion: a custom spring (response 0.32, damping 0.82), giving a more compact and lively expansion than the system default DisclosureGroup.
-- Thinking / "N tool calls" full-width process row expansion: **no animation**; the custom-drawn header toggles directly on tap, and the row grows in place.
+- The thinking row's expansion: **no animation**; the custom-drawn header toggles directly on tap, and the row grows in place.
 - Permission/Question card entrance: slides in from below (offset y from 24→0) together with a fade-in, which guides the user's visual focus more effectively than a pure fade.
 - Session switching: the message list uses a 0.2s opacity crossfade transition, removing the abrupt pause caused by a hard cut.
 - Explicitly out of scope: splash launch animations, bouncing spring motion, and gradient backgrounds (avoiding the visual cheapness that over-decoration brings).
@@ -200,9 +200,10 @@ signal for something the user must act on.
   events pass the capture state as it is *before* their own capture opens and *after* it
   closes, so they are unaffected by their own capture and still suppressed by any other
   one.
-- **Silent mode does not affect haptics.** The feedback generators emit no audio
-  component, so the ringer switch is irrelevant. Only Reduce Motion and the microphone
-  guard suppress an event.
+- **Silent mode does not suppress haptics.** The ringer switch is not consulted: a
+  haptic is a physical sensation rather than sound. This is a policy, not a platform
+  guarantee — the feedback generators are documented as haptics, but no stronger claim
+  is made here. Only Reduce Motion and the microphone guard suppress an event.
 - **A request is announced once.** "Already announced" is tracked in a ledger that is
   separate from the live pending-request lists, because answering a request removes it
   from that list and the server can briefly keep listing it.
@@ -226,7 +227,7 @@ While keeping brand, tokens, colors, typography, and the card design language **
  ┌──────────────────────────────┐
  │ ≡  my-session           ◌  ⚙    │  ← one header band, ◌=context ring
  ├──────────────────────────────┤
- │ ▎Refactor the auth module     │  ← user message: left accent stripe + muted fill
+ │        Refactor the auth module   │  ← user message: right-aligned bubble
  │                               │
  │ I'll start by reading the     │  ← AI reply: no container, plain body
  │ current implementation.       │
@@ -359,10 +360,10 @@ This design contains three concrete adjustments: (1) clearly distinguish the spe
 
 The visual distinction between AI replies and user messages is currently too weak to locate the speaker quickly. The optimized design spec is as follows:
 
-- **User messages**: continue to use the existing **blue leading indicator bar** (a 3pt accent leading stripe with a muted fill).
+- **User messages**: continue to use the **right-aligned bubble** — capped at 320pt, one tucked corner (20 / 20 / 6 / 20), filled with a neutral surface tint. (This supersedes the earlier 3pt accent leading stripe; see §QT-MESSAGE.)
 - **OpenCode replies**: **use no avatar and no round icon**, and instead add a **"OpenCode" text title** at the top of the reply (using a micro-differentiated style that clearly marks the AI speaking identity); at the same time, **fully retain the existing "model info caption"** — that is, the secondary gray text that notes the model information at the bottom of each reply (such as `claude-opus-4 · 12:04`), with its position and existing logic unchanged. The reply body area has no background container and no leading stripe.
 
-The core idea of the design is to clearly delineate the two roles through a **differentiated visual style** (top text title + bottom model caption versus the blue leading indicator bar), rather than relying on a conventional user avatar.
+The core idea of the design is to clearly delineate the two roles through a **differentiated visual style** (top text title + bottom model caption versus the right-aligned bubble), rather than relying on a conventional user avatar.
 
 ## QT-FILECARD · Two, File Cards (2-Column Grid)
 
@@ -388,7 +389,7 @@ File cards follow the Quiet Tech neutral card spec (neutral `surface` fill, no b
 
 ![Tool cards: speaker differentiation + 2-column file cards + N tool calls](design_images/tool_cards_chronological.png)
 
-> This mockup clarifies the final evolution direction: user messages use a blue leading indicator bar; OpenCode replies carry an "OpenCode" text title and a bottom model caption (`claude-opus-4 · 12:04`), with no avatar; file operations aggregate into a 2-column file card grid (`client.ts` / `types.ts` / `README.md` / `utils.ts`, etc.); the remaining tool calls converge into `▸ 3 tool calls`. A purely crisp sans-serif font is used throughout, with no pixel-art texture.
+> This mockup clarifies the final evolution direction: user messages use a right-aligned bubble; OpenCode replies carry an "OpenCode" text title and a bottom model caption (`claude-opus-4 · 12:04`), with no avatar; file operations aggregate into a 2-column file card grid (`client.ts` / `types.ts` / `README.md` / `utils.ts`, etc.); the remaining tool calls converge into `▸ 3 tool calls`. A purely crisp sans-serif font is used throughout, with no pixel-art texture.
 
 ## QT-TOOLBOUND · Non-Goals / Boundaries
 

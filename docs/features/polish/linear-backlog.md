@@ -32,7 +32,7 @@
 | P2-4 | PRY-17 | Migrate hardcoded spacings to DesignSpacing | Backlog | Medium |
 | P2-5 | PRY-18 | Extract the accessibility-probe hack | Backlog | Medium |
 | P3-1 | PRY-19 | Extend DesignTypography with the missing roles | Backlog | Medium |
-| P3-2 | PRY-20 | Migrate the 102 raw system-font call sites | Backlog | Medium |
+| P3-2 | PRY-20 | Migrate the 101 raw system-font call sites | Backlog | Medium |
 | P3-3 | PRY-21 | Prove the migration is pixel-neutral | Backlog | Medium |
 | P3-4 | PRY-22 | Dynamic Type device spike at accessibility3 (entry condition) | Backlog | High |
 | P3-5 | PRY-23 | Implement the 22/16/13/12 scale in a single commit | Backlog | High |
@@ -53,8 +53,13 @@
 | P7-5 | PRY-38 | Rollout: Composer and voice rail (last) | Backlog | Low |
 | P7-6 | PRY-39 | Rollout: Car and Ambient surfaces | Backlog | Low |
 | P8-1 | PRY-40 | Close out the initiative and update the docs | Backlog | Low |
+| — | PRY-41 | Rebase #215/#216 for the haptics capture-state hunk | Backlog | High |
+| — | PRY-42 | UI: the question-recovery fixture's questions are wiped by the pending-questions poll | Backlog | High |
+| — | PRY-43 | UI: the preview-migration layout toggle does not reach the three-column workspace layout | Backlog | High |
 
-All 36 carry the `Improvement` label. Phase 0 sits in **Todo** (it is the only
+The planned 36 carry the `Improvement` label. PRY-41 also carries it (a rebase
+consequence of the same change); PRY-42 and PRY-43 carry `Bug` — they are defects the UI
+suite caught, not polish work. Phase 0 sits in **Todo** (it is the only
 immediately actionable work — everything else is blocked on it); Phases 1–8 sit in
 **Backlog**.
 
@@ -63,11 +68,13 @@ immediately actionable work — everything else is blocked on it); Phases 1–8 
 | Issue | State | Outcome |
 |---|---|---|
 | PRY-5 … PRY-9 (Phase 0) | **Done** | The rubric (102 rows), the measured audit (1:1), the ranked backlog, the per-surface acceptance list, and the `QT-*` clause IDs in `docs/design.md`. Zero `.swift` changed. |
-| PRY-26, PRY-27 (haptics) | **In Review** | Implemented 2026-10-25. `Utils/DesignHaptics.swift` + 8 firing sites + 14 tests. `docs/design.md` §QT-HAPTIC added. **The review gate returned FAIL twice** — an independent code review and an independent privacy review — and every finding was addressed, including a **BLOCKER** (the file did not compile for visionOS) and a **MAJOR** (the microphone guard was bypassed at 6 of 10 call sites, and the Ambient live-voice path holds the mic open by design). Re-verification is outstanding; no on-device check is possible for haptics. |
+| PRY-26, PRY-27 (haptics) | **In Review** | Implemented 2026-10-25. `Utils/DesignHaptics.swift` + 11 firing sites covering all 8 events + 13 tests. `docs/design.md` §QT-HAPTIC added. **The review gate has run four rounds** — round 1 FAIL from both reviewers, round 2 FAIL from the code review and PASS WITH NITS from the privacy review, round 3 FAIL on documentation-contract findings only, round 4 FAIL because the merge had invalidated the audit's evidence (the haptic code itself was confirmed clean). Every finding from every round was addressed, including a **BLOCKER** (the file did not compile for visionOS), two **MAJORs** (the microphone guard was bypassed at 6 of 10 call sites, and a capture-flag leak that silently disabled every haptic), and a second **MAJOR** the round-1 fix had introduced (an unscoped capture-pending flag). A final confirmation round is outstanding; no on-device check is possible for haptics. |
 | PRY-41 (rebase follow-up) | **Backlog** | Opened because the haptic change edits `ChatTabView+VoiceInput.swift`, which PRs #215/#216 own. They need a rebase with hand-merged hunks. |
-| PRY-10 … PRY-40 | Backlog | Not started. |
+| PRY-42, PRY-43 (UI-suite defects) | **Backlog** | Opened while verifying the haptic work: two **pre-existing** UI-test failures that the change did **not** cause — confirmed by a clean-tree run. PRY-42 — the question-recovery fixture's injected questions are wiped by the pending-questions poll, because `refreshPendingQuestions()` replaces the list wholesale and the fixture's mock returns `[]`. PRY-43 — the preview-migration layout toggle does not reach the three-column workspace layout (`ContentView.swift:164`). |
+| PRY-44 (visionOS build) | **Backlog** | Opened while verifying the haptic work: the merged tree's visionOS target does not compile, because `Utils/GlassSurface.swift` (from `7a8847d chore: v2`) uses SwiftUI's `Glass` behind `if #available(iOS 26.0, *)` — true on visionOS 26, but `Glass` is `API_UNAVAILABLE(visionos)`. Not caused by the haptic work; the **iOS** build succeeds. |
+| — | **Baseline evidence** | The pre-haptic tree at `08402c6` fails **both** tests at the **same lines** (`PreviewMigrationUITests.swift:56`, `QuestionWebPreviewRecoveryUITests.swift:20`) on the same iOS 18.4 runtime, so neither failure is attributable to the haptic work. `CarModeUITests.testExperimentalCarModeToggleControlsTab` failed in the full suite but passed in isolation — flaky, not a regression. |
 
-The full review-round table is in [`plan.md`](plan.md) → "The review gate — two FAILs, both addressed".
+The full review-round table is in [`plan.md`](plan.md) → "The review gate — three rounds".
 
 ## Conventions
 
@@ -278,7 +285,7 @@ grep -n "22\|16\|13\|12" OpenCodeClient/OpenCodeClientTests/DesignTokenTests.swi
 In `Utils/DesignTokens.swift`: scope `Semantic` so `error` is destructive-only, and
 retire `success` / `warning` / `info` per `docs/design.md:210` ("cleaning up ...
 redundant Semantic color definitions"). Add the missing `Opacity` entries needed to
-absorb the 38 ad-hoc `.opacity(` call sites.
+absorb the 39 ad-hoc `.opacity(` call sites.
 **Every rendering value must stay identical** — this phase is a pure refactor, and the
 diff must be provably pixel-neutral.
 **Acceptance:**
@@ -314,7 +321,7 @@ grep -rn "Semantic.info" OpenCodeClient/OpenCodeClient --include="*.swift" | wc 
 **Plan phase:** 2, Step 3
 **Depends on:** P2-1
 **Description:**
-Migrate the 38 ad-hoc `.opacity(` call sites in Views to `DesignColors.Opacity`.
+Migrate the 39 ad-hoc `.opacity(` call sites in Views to `DesignColors.Opacity`.
 The spec forbids ad-hoc opacity in favor of the token set.
 **Acceptance:**
 ```bash
@@ -327,7 +334,7 @@ grep -rEn "\.opacity\(" OpenCodeClient/OpenCodeClient/Views --include="*.swift" 
 **Plan phase:** 2, Step 4
 **Depends on:** P2-1
 **Description:**
-Migrate the 57 hardcoded numeric spacing values in Views to `DesignSpacing.*`.
+Migrate the 66 hardcoded numeric spacing values in Views to `DesignSpacing.*`.
 **Acceptance:**
 ```bash
 grep -rEn "\.(padding|spacing)\([^)]*[0-9]" OpenCodeClient/OpenCodeClient/Views --include="*.swift" | grep -v DesignSpacing | wc -l   # → 0
@@ -373,12 +380,12 @@ git diff OpenCodeClient/OpenCodeClient/Utils/DesignTokens.swift | grep -E "^[-+]
 ./scripts/test_unit.sh
 ```
 
-### P3-2 · Migrate the 102 raw system-font call sites
+### P3-2 · Migrate the 101 raw system-font call sites
 
 **Plan phase:** 3, Step 2
 **Depends on:** P1-1, P3-1
 **Description:**
-Sweep all 102 raw system-font call sites to `DesignTypography.*`. Covers
+Sweep all 101 raw system-font call sites to `DesignTypography.*`. Covers
 `Views/Chat/*` (`MessageRowView.swift:553,752`,
 `ChatToolbarView.swift:102,118,157,258,263,317,344`,
 `QuestionCardView.swift:81,84,90,119,157,168,179,226,228`,
@@ -774,4 +781,6 @@ grep -c "| PASS |" docs/features/polish/rubric.md   # every non-deferred row res
 | 6 — Preview coverage | 1 |
 | 7 — Rollout | 6 |
 | 8 — Closure | 1 |
-| **Total** | **36** |
+| **Subtotal (the planned 36)** | **36** |
+| Follow-ups raised during implementation | 3 |
+| **Total in the project** | **39** |

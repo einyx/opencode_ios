@@ -18,10 +18,11 @@ voice and tool results to an Apple Watch.
 - Swift + SwiftUI, with UIKit bridges (`UIViewRepresentable` / `UIViewControllerRepresentable`)
   for the composer and paste control
 - Xcode 27.x; deployment targets iOS 17.0, visionOS 26.0, watchOS 11.0
-- Four targets: `OpenCodeClient`, `OpenCodeClientTests` (52 files), `OpenCodeClientUITests`
+- Four targets: `OpenCodeClient`, `OpenCodeClientTests` (53 files), `OpenCodeClientUITests`
   (22 files), `OpenCodeWatch`
 - SSE streaming + REST against the OpenCode server; V1 and V2 wire protocols both supported
-- ~72k lines of Swift across ~198 files. `scripts/` holds shell and Python helpers:
+- ~73k lines of Swift across ~203 files (the app target itself is ~43k lines across 126
+  files). `scripts/` holds shell and Python helpers:
   unit/UI test runners, simulator pinning, and a V2 contract checker
 - A sibling Android client shares the core but lives in a separate repo — it is not in this tree
 
