@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    
+  <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+    <feGaussianBlur stdDeviation="26"/>
+  </filter>
+  <filter id="soft2" x="-40%" y="-40%" width="180%" height="180%">
+    <feGaussianBlur stdDeviation="12"/>
+  </filter>
+
+    
+  </defs>
+  
+  <rect width="1024" height="1024" fill="#B7C1C4"/>
+  <path d="M 250.2 376.3 Q 255.4 691.6 515.3 693.5 Q 775.1 695.3 772.1 564.4 Q 769.1 433.5 617.9 430.3 Q 466.7 427.0 440.3 400.9 Q 413.9 374.9 334.6 374.7 Q 255.3 374.5 252.7 375.4 L 250.2 376.3" fill="none" stroke="#1B1A18" stroke-width="8.000" stroke-linecap="round" stroke-linejoin="round"/><path d="M 250.2 376.3 Q 255.4 691.6 515.3 693.5 Q 775.1 695.3 772.1 564.4 Q 769.1 433.5 617.9 430.3 Q 466.7 427.0 440.3 400.9 Q 413.9 374.9 334.6 374.7 Q 255.3 374.5 252.7 375.4 L 250.2 376.3" fill="none" stroke="#1B1A18" stroke-width="2.880" stroke-linecap="round" stroke-linejoin="round" opacity="0.30" transform="translate(3 3)"/>
+<path d="M 415.9 560.8 Q 603.0 564.1 604.1 632.2 Q 605.1 700.2 514.8 699.0 Q 424.4 697.9 420.1 629.3 L 415.9 560.8" fill="none" stroke="#1B1A18" stroke-width="8.000" stroke-linecap="round" stroke-linejoin="round"/><path d="M 415.9 560.8 Q 603.0 564.1 604.1 632.2 Q 605.1 700.2 514.8 699.0 Q 424.4 697.9 420.1 629.3 L 415.9 560.8" fill="none" stroke="#1B1A18" stroke-width="2.880" stroke-linecap="round" stroke-linejoin="round" opacity="0.30" transform="translate(3 3)"/>
+
+</svg>

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    
+  <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+    <feGaussianBlur stdDeviation="26"/>
+  </filter>
+  <filter id="soft2" x="-40%" y="-40%" width="180%" height="180%">
+    <feGaussianBlur stdDeviation="12"/>
+  </filter>
+
+    
+  </defs>
+  
+  <rect width="1024" height="1024" fill="#F7F2EA"/>
+  <path d="M 295.7 242.1 Q 561.4 235.5 560.7 466.2 Q 560.1 697.0 427.3 696.2 Q 294.4 695.4 295.1 468.8 L 295.7 242.1" fill="none" stroke="#1B1A18" stroke-width="8.000" stroke-linecap="round" stroke-linejoin="round"/><path d="M 295.7 242.1 Q 561.4 235.5 560.7 466.2 Q 560.1 697.0 427.3 696.2 Q 294.4 695.4 295.1 468.8 L 295.7 242.1" fill="none" stroke="#1B1A18" stroke-width="2.880" stroke-linecap="round" stroke-linejoin="round" opacity="0.30" transform="translate(3 3)"/>
+<path d="M 660.8 316.1 Q 828.3 318.4 827.6 408.3 Q 826.9 498.1 742.6 498.8 Q 658.3 499.5 659.6 407.8 L 660.8 316.1" fill="none" stroke="#1B1A18" stroke-width="8.000" stroke-linecap="round" stroke-linejoin="round"/><path d="M 660.8 316.1 Q 828.3 318.4 827.6 408.3 Q 826.9 498.1 742.6 498.8 Q 658.3 499.5 659.6 407.8 L 660.8 316.1" fill="none" stroke="#1B1A18" stroke-width="2.880" stroke-linecap="round" stroke-linejoin="round" opacity="0.30" transform="translate(3 3)"/>
+<path d="M 599.7 578.4 Q 642.5 579.1 660.6 580.4 Q 678.7 581.7 698.7 581.2 Q 718.6 580.8 739.2 581.7 Q 759.8 582.6 778.7 580.4 Q 797.6 578.3 819.6 577.7 Q 841.6 577.2 861.4 577.4 L 881.2 577.6" fill="none" stroke="#1B1A18" stroke-width="8.000" stroke-linecap="round" stroke-linejoin="round"/><path d="M 599.7 578.4 Q 642.5 579.1 660.6 580.4 Q 678.7 581.7 698.7 581.2 Q 718.6 580.8 739.2 581.7 Q 759.8 582.6 778.7 580.4 Q 797.6 578.3 819.6 577.7 Q 841.6 577.2 861.4 577.4 L 881.2 577.6" fill="none" stroke="#1B1A18" stroke-width="2.880" stroke-linecap="round" stroke-linejoin="round" opacity="0.30" transform="translate(3 3)"/>
+<path d="M 597.6 641.5 Q 637.0 638.8 657.7 640.4 Q 678.3 641.9 699.2 639.7 Q 720.1 637.6 740.5 640.0 Q 760.9 642.4 779.2 641.6 Q 797.4 640.7 819.3 641.8 Q 841.2 642.8 861.9 642.8 L 882.5 642.9" fill="none" stroke="#1B1A18" stroke-width="8.000" stroke-linecap="round" stroke-linejoin="round"/><path d="M 597.6 641.5 Q 637.0 638.8 657.7 640.4 Q 678.3 641.9 699.2 639.7 Q 720.1 637.6 740.5 640.0 Q 760.9 642.4 779.2 641.6 Q 797.4 640.7 819.3 641.8 Q 841.2 642.8 861.9 642.8 L 882.5 642.9" fill="none" stroke="#1B1A18" stroke-width="2.880" stroke-linecap="round" stroke-linejoin="round" opacity="0.30" transform="translate(3 3)"/>
+
+</svg>
