@@ -553,6 +553,7 @@
 				DEVELOPMENT_TEAM = 9DBH2A7KB8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "OpenCode Remote";
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "OpenCode scans the QR code printed by `opencode pair` so this device can connect to your OpenCode server.";
@@ -599,6 +600,7 @@
 				DEVELOPMENT_TEAM = 9DBH2A7KB8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "OpenCode Remote";
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "OpenCode scans the QR code printed by `opencode pair` so this device can connect to your OpenCode server.";
@@ -727,7 +729,7 @@
 				DEVELOPMENT_TEAM = 9DBH2A7KB8;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = WatchInfo.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = OpenCode;
+				INFOPLIST_KEY_CFBundleDisplayName = "OpenCode Remote";
 				INFOPLIST_KEY_UIBackgroundModes = audio;
 				INFOPLIST_KEY_WKApplication = YES;
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.grapeot.OpenCodeClient;
@@ -756,7 +758,7 @@
 				DEVELOPMENT_TEAM = 9DBH2A7KB8;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = WatchInfo.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = OpenCode;
+				INFOPLIST_KEY_CFBundleDisplayName = "OpenCode Remote";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "用于手表实时语音对话。你主动开始后，语音会持续到结束。";
 				INFOPLIST_KEY_UIBackgroundModes = audio;
 				INFOPLIST_KEY_WKApplication = YES;

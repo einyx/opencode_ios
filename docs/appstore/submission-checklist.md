@@ -86,27 +86,19 @@ repository is public) closes that.
 
 ## 5. Build and upload
 
-Archive with the Release configuration (the version and build number come from
-the project, `1.0 (29)`):
+See `docs/appstore/testflight.md` for the full flow. In short:
 
 ```bash
-xcodebuild archive \
-  -project OpenCodeClient/OpenCodeClient.xcodeproj \
-  -scheme OpenCodeClient \
-  -configuration Release \
-  -destination 'generic/platform=iOS' \
-  -archivePath .occlient/OpenCodeClient.xcarchive
+./scripts/archive_appstore.sh              # archive
+./scripts/archive_appstore.sh --upload     # archive, then upload
 ```
 
-Then upload with the App Store Connect API key (from
-**Users and Access → Integrations → App Store Connect API**):
+The upload needs an App Store Connect API key (`ASC_KEY_ID`, `ASC_ISSUER_ID`),
+or Transporter, or an altool app-specific password.
 
-```bash
-xcrun altool --upload-app -f .occlient/OpenCodeClient.xcarchive \
-  --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
-```
-
-Or with Transporter (the GUI): open the archive and upload it.
+The archive currently fails with two signing errors — a distribution
+certificate and a profile that includes it are missing — which section 1 of
+`testflight.md` covers.
 
 ## 6. After the upload
 
