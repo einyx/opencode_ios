@@ -102,6 +102,13 @@ enum QuestionRecoveryFixture {
 
     actor StubClient: APIClientProtocol {
         private var remainingFailures = 1
+        /// Mirror of what a real server would report as pending. Returning
+        /// the fixture's questions keeps `refreshPendingQuestions()`
+        /// idempotent: a poll must not erase what the fixture injected.
+        private var openQuestions: [QuestionRequest] = [
+            QuestionRecoveryFixture.targetRequest,
+            QuestionRecoveryFixture.otherRequest,
+        ]
 
         func replyQuestion(requestID: String, answers: [[String]]) async throws {
             let recorded = answers.map { $0.joined(separator: "+") }.joined(separator: "/")
@@ -111,6 +118,9 @@ enum QuestionRecoveryFixture {
                 remainingFailures -= 1
                 throw APIError.httpError(statusCode: 503, data: Data("unavailable".utf8))
             }
+            // Admitted: a real server drops the question from pending here,
+            // so later polls must not resurrect the card.
+            openQuestions.removeAll { $0.id == requestID }
         }
 
         func configure(baseURL: String, username: String?, password: String?) {}
@@ -143,8 +153,12 @@ enum QuestionRecoveryFixture {
         func sessionStatus() async throws -> [String: SessionStatus] { [:] }
         func pendingPermissions() async throws -> [APIClient.PermissionRequest] { [] }
         func respondPermission(sessionID: String, permissionID: String, response: APIClient.PermissionResponse) async throws {}
-        func pendingQuestions() async throws -> [QuestionRequest] { [] }
-        func rejectQuestion(requestID: String) async throws {}
+        func pendingQuestions() async throws -> [QuestionRequest] {
+            openQuestions
+        }
+        func rejectQuestion(requestID: String) async throws {
+            openQuestions.removeAll { $0.id == requestID }
+        }
         func providers() async throws -> ProvidersResponse {
             try JSONDecoder().decode(ProvidersResponse.self, from: Data("{\"providers\":[]}".utf8))
         }
