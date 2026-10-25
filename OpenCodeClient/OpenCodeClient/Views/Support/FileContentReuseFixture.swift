@@ -165,9 +165,12 @@ private enum WebPreviewLinkClick {
         }
     }
 
-    nonisolated private static func webViews(in view: UIView) -> [WKWebView] {
-        let found = (view as? WKWebView).map { [$0] } ?? []
-        return found + view.subviews.flatMap(webViews(in:))
+    @MainActor private static func webViews(in view: UIView) -> [WKWebView] {
+        var found = (view as? WKWebView).map { [$0] } ?? []
+        for subview in view.subviews {
+            found += webViews(in: subview)
+        }
+        return found
     }
 }
 

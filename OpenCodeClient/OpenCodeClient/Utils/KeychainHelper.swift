@@ -20,25 +20,25 @@ enum KeychainError: LocalizedError {
 }
 
 enum KeychainHelper {
-    private static var service: String {
+    nonisolated private static var service: String {
         Bundle.main.bundleIdentifier ?? "com.opencode.client"
     }
 
-    private static var baseQuery: [String: Any] {
+    nonisolated private static var baseQuery: [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
         ]
     }
 
-    static func save(_ value: String, forKey key: String) throws {
+    nonisolated static func save(_ value: String, forKey key: String) throws {
         guard let data = value.data(using: .utf8) else {
             throw KeychainError.unhandledStatus(errSecInvalidData)
         }
         try save(data, forKey: key)
     }
 
-    static func save(_ data: Data, forKey key: String) throws {
+    nonisolated static func save(_ data: Data, forKey key: String) throws {
         var query = baseQuery
         query[kSecAttrAccount as String] = key
         let update: [String: Any] = [
@@ -59,14 +59,14 @@ enum KeychainHelper {
         }
     }
 
-    static func load(forKey key: String) throws -> String? {
+    nonisolated static func load(forKey key: String) throws -> String? {
         guard let data = try loadData(forKey: key) else { return nil }
         return String(data: data, encoding: .utf8)
     }
 
     /// Returns nil only when the item is truly absent (`errSecItemNotFound`);
     /// throws on any other Keychain failure (e.g. `errSecInteractionNotAllowed`).
-    static func loadData(forKey key: String) throws -> Data? {
+    nonisolated static func loadData(forKey key: String) throws -> Data? {
         var query = baseQuery
         query[kSecAttrAccount as String] = key
         query[kSecReturnData as String] = true
@@ -86,7 +86,7 @@ enum KeychainHelper {
         }
     }
 
-    static func delete(_ key: String) throws {
+    nonisolated static func delete(_ key: String) throws {
         var query = baseQuery
         query[kSecAttrAccount as String] = key
         let status = SecItemDelete(query as CFDictionary)

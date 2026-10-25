@@ -16,7 +16,7 @@ struct ClientCapabilityCallbackStore {
     private var pendingDirectory: URL { rootDirectory.appendingPathComponent("Pending", isDirectory: true) }
     private var outboxDirectory: URL { rootDirectory.appendingPathComponent("Outbox", isDirectory: true) }
 
-    static func applicationSupport() -> ClientCapabilityCallbackStore {
+    nonisolated static func applicationSupport() -> ClientCapabilityCallbackStore {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         return ClientCapabilityCallbackStore(rootDirectory: base.appendingPathComponent("ClientCapabilityCallbacks", isDirectory: true))
     }
