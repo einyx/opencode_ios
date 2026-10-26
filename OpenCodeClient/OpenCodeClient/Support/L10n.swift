@@ -429,8 +429,6 @@ enum L10n {
         case toolOpenInFileTree
         case toolOpenFile
         case toolSelectFile
-        case toolCallsCountOne
-        case toolCallsCountMany
         case toolImageFile
         case toolReadFileAccessibilityLabel
         case toolWriteFileAccessibilityLabel
@@ -511,8 +509,6 @@ enum L10n {
         case sessionsClose
         case sessionsNew
         case sessionsUntitled
-        case sessionsFilesOne
-        case sessionsFilesMany
         case sessionsStatusBusy
         case sessionsIndicatorNeedsYou
         case sessionsIndicatorFailed
@@ -520,8 +516,6 @@ enum L10n {
         case sessionsStatusRetry
         case sessionsStatusIdle
         case sessionsStatusNeedAttention
-        case sessionsStatusSubagentsRunningOne
-        case sessionsStatusSubagentsRunningMany
         case sessionsActive
         case sessionsArchived
         case sessionsArchive
@@ -832,7 +826,9 @@ enum L10n {
         Key.hostExportErrorEncodeConfigJSON.rawValue: "Could not encode Host Config JSON.",
         Key.hostConnectionErrorInvalidURL.rawValue: "Invalid OpenCode URL. Check the host address and port.",
         Key.hostConnectionErrorUnsupportedServer.rawValue: "This address is not an OpenCode server. It does not answer the OpenCode API.",
-        Key.hostConnectionErrorBasicAuthRejected.rawValue: "OpenCode rejected Basic Auth. Check username and password.",
+        // HIG Feedback: the diagnostic states what happened; the paired
+        // recovery hint carries the action, so the message never repeats it.
+        Key.hostConnectionErrorBasicAuthRejected.rawValue: "OpenCode rejected Basic Auth.",
         Key.hostConnectionErrorHTTPStatus.rawValue: "OpenCode returned HTTP %d. Check the server logs or provider setup.",
         Key.hostConnectionErrorCannotConnect.rawValue: "Could not connect to OpenCode. Check network reachability and that the server is running.",
         Key.hostConnectionErrorTimedOut.rawValue: "Connection timed out. Check the host, port, VPN/Tailscale, and firewall.",
@@ -1039,8 +1035,6 @@ enum L10n {
         Key.toolOpenInFileTree.rawValue: "Open \"%@\" in File Tree",
         Key.toolOpenFile.rawValue: "Open File",
         Key.toolSelectFile.rawValue: "Select file to open",
-        Key.toolCallsCountOne.rawValue: "%d tool call",
-        Key.toolCallsCountMany.rawValue: "%d tool calls",
         Key.toolImageFile.rawValue: "Image file",
         Key.toolReadFileAccessibilityLabel.rawValue: "Read file %@",
         Key.toolWriteFileAccessibilityLabel.rawValue: "Write file %@",
@@ -1105,8 +1099,6 @@ enum L10n {
         Key.sessionsClose.rawValue: "Close",
         Key.sessionsNew.rawValue: "New",
         Key.sessionsUntitled.rawValue: "Untitled",
-        Key.sessionsFilesOne.rawValue: "%d file",
-        Key.sessionsFilesMany.rawValue: "%d files",
         Key.sessionsStatusBusy.rawValue: "Running",
         Key.sessionsIndicatorNeedsYou.rawValue: "Needs your attention",
         Key.sessionsIndicatorFailed.rawValue: "Last turn failed",
@@ -1114,8 +1106,6 @@ enum L10n {
         Key.sessionsStatusRetry.rawValue: "Retrying",
         Key.sessionsStatusIdle.rawValue: "Idle",
         Key.sessionsStatusNeedAttention.rawValue: "Need attention",
-        Key.sessionsStatusSubagentsRunningOne.rawValue: "1 subagent running",
-        Key.sessionsStatusSubagentsRunningMany.rawValue: "%d subagents running",
         Key.sessionsActive.rawValue: "Active",
         Key.sessionsArchived.rawValue: "Archived",
         Key.sessionsArchive.rawValue: "Archive",
@@ -1430,7 +1420,7 @@ enum L10n {
         Key.hostExportErrorEncodeConfigJSON.rawValue: "无法生成 Host Config JSON。",
         Key.hostConnectionErrorInvalidURL.rawValue: "OpenCode 地址无效，请检查主机地址和端口。",
         Key.hostConnectionErrorUnsupportedServer.rawValue: "该地址不是 OpenCode 服务器，没有响应 OpenCode API。",
-        Key.hostConnectionErrorBasicAuthRejected.rawValue: "OpenCode 拒绝了 Basic Auth，请检查用户名和密码。",
+        Key.hostConnectionErrorBasicAuthRejected.rawValue: "OpenCode 拒绝了 Basic Auth。",
         Key.hostConnectionErrorHTTPStatus.rawValue: "OpenCode 返回 HTTP %d。请检查服务器日志或服务商配置。",
         Key.hostConnectionErrorCannotConnect.rawValue: "无法连接到 OpenCode。请检查网络是否可达，以及服务器是否正在运行。",
         Key.hostConnectionErrorTimedOut.rawValue: "连接超时。请检查主机、端口、VPN/Tailscale 和防火墙。",
@@ -1621,8 +1611,6 @@ enum L10n {
         Key.toolOpenInFileTree.rawValue: "在文件树中打开“%@”",
         Key.toolOpenFile.rawValue: "打开文件",
         Key.toolSelectFile.rawValue: "选择要打开的文件",
-        Key.toolCallsCountOne.rawValue: "%d 个工具调用",
-        Key.toolCallsCountMany.rawValue: "%d 个工具调用",
         Key.toolImageFile.rawValue: "图片文件",
         Key.toolReadFileAccessibilityLabel.rawValue: "读取文件 %@",
         Key.toolWriteFileAccessibilityLabel.rawValue: "写入文件 %@",
@@ -1703,8 +1691,6 @@ enum L10n {
         Key.sessionsClose.rawValue: "关闭",
         Key.sessionsNew.rawValue: "新建",
         Key.sessionsUntitled.rawValue: "无标题",
-        Key.sessionsFilesOne.rawValue: "%d 个文件",
-        Key.sessionsFilesMany.rawValue: "%d 个文件",
         Key.sessionsStatusBusy.rawValue: "运行中",
         Key.sessionsIndicatorNeedsYou.rawValue: "需要你处理",
         Key.sessionsIndicatorFailed.rawValue: "上一轮失败",
@@ -1712,8 +1698,6 @@ enum L10n {
         Key.sessionsStatusRetry.rawValue: "重试中",
         Key.sessionsStatusIdle.rawValue: "空闲",
         Key.sessionsStatusNeedAttention.rawValue: "需要关注",
-        Key.sessionsStatusSubagentsRunningOne.rawValue: "1 个子代理运行中",
-        Key.sessionsStatusSubagentsRunningMany.rawValue: "%d 个子代理运行中",
         Key.sessionsActive.rawValue: "活跃",
         Key.sessionsArchived.rawValue: "已归档",
         Key.sessionsArchive.rawValue: "归档",
@@ -1840,28 +1824,7 @@ enum L10n {
         return String(format: template, locale: currentLocale, arguments: arguments)
     }
 
-    /// Kept for the session sheet / tool summaries; the chat itself renders
-    /// one row per tool call.
-    static func toolCallsCount(_ count: Int) -> String {
-        let key: Key = count == 1 ? .toolCallsCountOne : .toolCallsCountMany
-        return formatCount(key: key, count: count)
-    }
-
-    static func sessionsFiles(_ count: Int) -> String {
-        let key: Key = count == 1 ? .sessionsFilesOne : .sessionsFilesMany
-        return formatCount(key: key, count: count)
-    }
-
-    static func sessionsSubagentsRunning(_ count: Int) -> String {
-        let key: Key = count == 1 ? .sessionsStatusSubagentsRunningOne : .sessionsStatusSubagentsRunningMany
-        return formatCount(key: key, count: count)
-    }
-
-    static func chatBackgroundTasks(_ count: Int) -> String {
-        let key: Key = count == 1 ? .chatBackgroundTasksOne : .chatBackgroundTasksMany
-        return formatCount(key: key, count: count)
-    }
-
+    /// How many files a turn changed.
     static func patchFilesChanged(_ count: Int) -> String {
         let key: Key = count == 1 ? .patchFilesChangedOne : .patchFilesChangedMany
         return formatCount(key: key, count: count)

@@ -112,14 +112,4 @@ enum ToolCardClassifier {
         }
         return (fileParts, changeParts, otherParts)
     }
-
-    /// Number shown in the merged "N tool calls" row: the tools that are
-    /// neither file operations nor change parts.
-    ///
-    /// It counts the `otherParts` group of `split`, so the three-way
-    /// classification stays in one place — a change part is not a tool call
-    /// and must not be counted as one.
-    static func toolCallsCount(_ parts: [Part]) -> Int {
-        split(parts).otherParts.count
-    }
 }

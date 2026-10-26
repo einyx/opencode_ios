@@ -134,13 +134,9 @@ struct LocalizationTests {
         defer { L10n.ephemeralLanguageOverride = previousOverride }
 
         L10n.useEphemeralLanguage(.en)
-        #expect(L10n.toolCallsCount(2) == "2 tool calls")
-        #expect(L10n.sessionsFiles(2) == "2 files")
         #expect(L10n.patchFilesChanged(2) == "2 files changed")
 
         L10n.languagePreference = .zh
-        #expect(L10n.toolCallsCount(2) == "2 个工具调用")
-        #expect(L10n.sessionsFiles(2) == "2 个文件")
         #expect(L10n.patchFilesChanged(2) == "2 个文件已变更")
         #expect(UserDefaults.standard.string(forKey: key) == standardBefore)
     }

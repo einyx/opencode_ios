@@ -79,7 +79,7 @@ struct ToolCardClassifierTests {
         #expect(!ToolCardClassifier.isFileOperation(part))
     }
 
-    // MARK: - split + count
+    // MARK: - split
 
     @Test func splitPartitionsFileChangeAndOtherTools() throws {
         let parts = [
@@ -96,7 +96,7 @@ struct ToolCardClassifierTests {
         #expect(split.otherParts.map(\.id) == ["2", "4"])
     }
 
-    @Test func toolCallsCountIsOtherToolsOnly() throws {
+    @Test func changePartsAreNotToolCalls() throws {
         let parts = [
             try makePart(id: "1", type: "tool", tool: "write_file"),
             try makePart(id: "2", type: "tool", tool: "bash"),
@@ -104,10 +104,13 @@ struct ToolCardClassifierTests {
             try makePart(id: "4", type: "patch"),
         ]
         // 1 file op (write_file), 1 change part (patch), 2 other tools (bash + glob)
-        #expect(ToolCardClassifier.toolCallsCount(parts) == 2)
+        let split = ToolCardClassifier.split(parts)
+        #expect(split.fileParts.map(\.id) == ["1"])
+        #expect(split.changeParts.map(\.id) == ["4"])
+        #expect(split.otherParts.map(\.id) == ["2", "3"])
     }
 
-    @Test func fileOpsOnlyMeansZeroToolCalls() throws {
+    @Test func fileOpsAndChangePartsLeaveNoOtherTools() throws {
         let parts = [
             try makePart(id: "1", type: "tool", tool: "read_file"),
             try makePart(id: "2", type: "patch"),
@@ -116,7 +119,6 @@ struct ToolCardClassifierTests {
         #expect(split.fileParts.count == 1)
         #expect(split.changeParts.count == 1)
         #expect(split.otherParts.isEmpty)
-        #expect(ToolCardClassifier.toolCallsCount(parts) == 0)
     }
 
     @Test func allOtherToolsMeansNoFileCards() throws {
@@ -129,7 +131,6 @@ struct ToolCardClassifierTests {
         #expect(split.fileParts.isEmpty)
         #expect(split.changeParts.isEmpty)
         #expect(split.otherParts.count == 3)
-        #expect(ToolCardClassifier.toolCallsCount(parts) == 3)
     }
 
     // MARK: - Directory read detection + entries parsing
