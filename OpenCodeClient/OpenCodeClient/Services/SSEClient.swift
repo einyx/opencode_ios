@@ -118,7 +118,7 @@ struct SSEHTTPResponse: Sendable {
     var cancel: @Sendable () -> Void
 }
 
-final class URLSessionSSEHTTPOpener: SSEHTTPOpener, @unchecked Sendable {
+nonisolated final class URLSessionSSEHTTPOpener: SSEHTTPOpener, @unchecked Sendable {
     func open(_ request: URLRequest) async throws -> SSEHTTPResponse {
         let (bytes, response) = try await URLSession.shared.bytes(for: request)
         let http = response as? HTTPURLResponse

@@ -12,7 +12,7 @@ import VoiceFlowKit
 import UIKit
 #endif
 
-struct SessionNode: Identifiable {
+nonisolated struct SessionNode: Identifiable {
     let session: Session
     let children: [SessionNode]
     var id: String { session.id }
@@ -203,9 +203,9 @@ final class AppState {
     static let aiBuilderRecordingStrategyKey = "aiBuilderRecordingStrategy"
     static let aiBuilderLastOKSignatureKey = "aiBuilderLastOKSignature"
     static let aiBuilderLastOKTestedAtKey = "aiBuilderLastOKTestedAt"
-    static let draftInputsBySessionKey = "draftInputsBySession"
+    nonisolated static let draftInputsBySessionKey = "draftInputsBySession"
     static let selectedModelBySessionKey = "selectedModelBySession"
-    static let draftInputsByHostKey = "draftInputsByHost.v1"
+    nonisolated static let draftInputsByHostKey = "draftInputsByHost.v1"
     static let selectedModelByHostKey = "selectedModelByHost.v1"
     static let selectedProjectWorktreeKey = "selectedProjectWorktree"
     static let customProjectPathKey = "customProjectPath"
@@ -232,7 +232,7 @@ final class AppState {
         apiClient: APIClientProtocol = APIClient(),
         sseClient: SSEClientProtocol = SSEClient(),
         sshTunnelManager: SSHTunnelManager? = nil,
-        aiUsageQuotaClient: AIUsageQuotaClientProtocol = AIUsageQuotaClient(),
+        aiUsageQuotaClient: AIUsageQuotaClientProtocol? = nil,
         carSpeechOutput: CarSpeechOutputProviding? = nil,
         deepLinkSessionResolver: ((String) async throws -> Session)? = nil,
         deepLinkHydratesSelection: Bool = true,
@@ -251,7 +251,7 @@ final class AppState {
         self.apiClient = apiClient
         self.sseClient = sseClient
         self.sshTunnelManager = sshTunnelManager ?? SSHTunnelManager()
-        self.aiUsageQuotaClient = aiUsageQuotaClient
+        self.aiUsageQuotaClient = aiUsageQuotaClient ?? AIUsageQuotaClient()
         self.carSpeechOutput = carSpeechOutput ?? CarSpeechOutputService()
         self.deepLinkSessionResolver = deepLinkSessionResolver
         self.deepLinkHydratesSelection = deepLinkHydratesSelection
@@ -756,12 +756,22 @@ final class AppState {
             .sorted { $0.time.updated > $1.time.updated }
     }
 
-    func sessionTree(archived: Bool) -> [SessionNode] {
-        Self.prioritizeAttention(
+    func sessionTree(archived: Bool, query: String = "") -> [SessionNode] {
+        let tree = Self.prioritizeAttention(
             Self.buildSessionTree(from: filteredSessions(archived: archived)),
             attentionCounts: sessionAttentionCounts,
             descendantBusyCounts: sessionDescendantBusyCounts
         )
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return tree }
+        func matching(_ nodes: [SessionNode]) -> [SessionNode] {
+            nodes.compactMap { node in
+                let children = matching(node.children)
+                guard node.session.title.localizedCaseInsensitiveContains(query) || !children.isEmpty else { return nil }
+                return SessionNode(session: node.session, children: children)
+            }
+        }
+        return matching(tree)
     }
 
     var attentionSessionIDs: [String] {
@@ -1711,19 +1721,24 @@ final class AppState {
                     )
                 )
             }
+            // The sort closure is nonisolated, so the flags are resolved
+            // before it runs: reading the node ids inside would cross the
+            // actor boundary.
+            .map { node -> (SessionNode, Bool, Int) in
+                let surfaces = attentionCounts[node.id, default: 0] > 0
+                    || descendantBusyCounts[node.id, default: 0] > 0
+                return (node, surfaces, node.session.time.updated)
+            }
             .sorted { lhs, rhs in
                 // A collapsed row hides its children, so a tree whose delegated
                 // work is still running must surface by its parent row the same
                 // way an attention-needing tree does.
-                let lhsSurfaces = attentionCounts[lhs.id, default: 0] > 0
-                    || descendantBusyCounts[lhs.id, default: 0] > 0
-                let rhsSurfaces = attentionCounts[rhs.id, default: 0] > 0
-                    || descendantBusyCounts[rhs.id, default: 0] > 0
-                if lhsSurfaces != rhsSurfaces {
-                    return lhsSurfaces
+                if lhs.1 != rhs.1 {
+                    return lhs.1
                 }
-                return lhs.session.time.updated > rhs.session.time.updated
+                return lhs.2 > rhs.2
             }
+            .map(\.0)
     }
 
     var currentSession: Session? {

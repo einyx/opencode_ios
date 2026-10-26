@@ -111,6 +111,7 @@ extension AppState {
                 refreshSessionActivityText(sessionID: sessionID)
             }
             recomputeSessionActivityAfterMessageSnapshot(sessionID: sessionID)
+            noteFileChangeSignals(sessionID: sessionID, messages: dedupedMessages)
         } catch let error as DecodingError {
             Self.logger.error("loadMessages decode failed: session=\(sessionID, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
         } catch {

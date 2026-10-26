@@ -7,6 +7,7 @@ import SwiftUI
 
 struct QuestionCardView: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var typeSize
     let request: QuestionRequest
     let onReply: @MainActor ([[String]]) async -> Bool
     let onReject: () -> Void
@@ -97,16 +98,22 @@ struct QuestionCardView: View {
     }
 
     private var progressDots: some View {
-        HStack(spacing: 4) {
+        ScrollView(.horizontal) {
+        HStack(spacing: DesignSpacing.xs) {
             ForEach(0..<request.questions.count, id: \.self) { index in
+                Button { goToTab(index) } label: {
                 Circle()
                     .fill(dotColor(for: index))
                     .frame(width: 8, height: 8)
+                    .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
-                    .onTapGesture {
-                        goToTab(index)
-                    }
+                }
+                .buttonStyle(.plain)
+                .disabled(isSending)
+                .accessibilityLabel(L10n.t(.questionGoTo, Int32(index + 1)))
+                .accessibilityAddTraits(index == currentTab ? [.isSelected] : [])
             }
+        }
         }
     }
 
@@ -126,6 +133,7 @@ struct QuestionCardView: View {
                 .padding(.vertical, 6)
                 .padding(.horizontal, 10)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(minHeight: 44)
                 .background(isCustomActive ? Color.blue.opacity(0.08) : Color.clear)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .contentShape(Rectangle())
@@ -153,13 +161,17 @@ struct QuestionCardView: View {
 
     private var actionButtons: some View {
         VStack(spacing: 10) {
-            HStack(spacing: 10) {
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(spacing: DesignSpacing.sm))
+                : AnyLayout(HStackLayout(spacing: DesignSpacing.sm))
+            layout {
                 Button {
                     onReject()
                 } label: {
                     Text(L10n.t(.questionDismiss))
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity)
+                        .frame(minHeight: 44)
                 }
                 .buttonStyle(.bordered)
                 .tint(.red)
@@ -171,6 +183,7 @@ struct QuestionCardView: View {
                         Text(L10n.t(.questionBack))
                             .font(.subheadline.weight(.semibold))
                             .frame(maxWidth: .infinity)
+                            .frame(minHeight: 44)
                     }
                     .buttonStyle(.bordered)
                     .tint(.blue)
@@ -182,12 +195,14 @@ struct QuestionCardView: View {
                     Text(currentTab >= request.questions.count - 1 ? L10n.t(.questionSubmit) : L10n.t(.questionNext))
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity)
+                        .frame(minHeight: 44)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.blue)
                 .disabled(!canProceed || isSending)
                 .accessibilityIdentifier("question-submit-\(request.id)")
             }
+            .disabled(isSending)
         }
     }
 
@@ -236,15 +251,17 @@ struct QuestionCardView: View {
             .padding(.vertical, 6)
             .padding(.horizontal, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minHeight: 44)
             .background(selected ? Color.blue.opacity(0.08) : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(option.label)
+        .accessibilityLabel([option.label, option.description].filter { !$0.isEmpty }.joined(separator: ". "))
         .accessibilityIdentifier("question-option-\(request.id)-\(option.label)")
-        .accessibilityValue(selected ? "selected" : "unselected")
+        .accessibilityValue(L10n.t(selected ? .selected : .notSelected))
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
         .accessibilityAddTraits(.isButton)
     }
 

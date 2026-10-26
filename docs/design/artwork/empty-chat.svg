@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    
+  <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+    <feGaussianBlur stdDeviation="26"/>
+  </filter>
+  <filter id="soft2" x="-40%" y="-40%" width="180%" height="180%">
+    <feGaussianBlur stdDeviation="12"/>
+  </filter>
+
+    
+  </defs>
+  
+  <defs>
+    <radialGradient id="halo" cx="50%" cy="46%" r="58%">
+      <stop offset="0" stop-color="#E0AE95" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#F7F2EA" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="512" cy="540" rx="430" ry="330" fill="url(#halo)"/>
+  <path d="M 143.2 404.9 Q 155.0 352.7 179.5 333.4 Q 204.1 314.0 227.6 279.9 Q 251.1 245.9 267.5 224.6 Q 284.0 203.2 308.0 195.2 Q 332.0 187.2 358.4 170.5 Q 384.8 153.8 426.5 153.2 Q 468.3 152.6 492.8 151.9 Q 517.2 151.3 558.8 145.2 Q 600.4 139.0 630.9 159.6 Q 661.4 180.2 682.3 184.7 Q 703.1 189.1 739.7 210.3 Q 776.3 231.5 784.5 249.6 Q 792.7 267.6 824.5 301.8 Q 856.3 335.9 870.2 366.3 Q 884.2 396.7 889.4 431.1 L 894.6 465.5" fill="none" stroke="#1B1A18" stroke-width="5" stroke-opacity="0.22" stroke-linecap="round"/>
+  <path d="M 756.0 624.3 Q 736.0 671.0 726.1 698.7 Q 716.2 726.3 692.0 741.8 Q 667.8 757.2 637.1 770.6 Q 606.5 783.9 583.7 798.0 Q 560.8 812.0 534.4 813.3 Q 508.1 814.6 478.1 803.4 Q 448.1 792.3 426.4 791.0 Q 404.7 789.7 374.2 765.1 Q 343.6 740.5 324.7 725.7 L 305.9 710.8" fill="none" stroke="#1B1A18" stroke-width="4" stroke-opacity="0.15" stroke-linecap="round"/>
+  <path d="M 269.7 314.3 Q 333.2 260.3 352.3 241.9 Q 371.5 223.5 401.2 213.1 Q 430.9 202.7 464.3 206.6 Q 497.6 210.4 542.9 216.0 Q 588.2 221.6 610.7 226.6 L 633.1 231.6" fill="none" stroke="#1B1A18" stroke-width="3.5" stroke-opacity="0.13" stroke-linecap="round"/>
+  <g transform="translate(512 580) scale(360)"><path d="M -0.1 0.4 Q -0.2 0.3 -0.2 0.2 Q -0.2 0.1 -0.2 0.1 Q -0.1 0.0 -0.2 -0.0 Q -0.3 -0.1 -0.2 -0.1 Q -0.2 -0.1 -0.2 -0.2 Q -0.3 -0.3 -0.2 -0.3 Q -0.2 -0.3 -0.1 -0.2 Q -0.1 -0.0 -0.1 -0.0 Q -0.1 -0.0 -0.1 -0.2 Q -0.1 -0.4 -0.1 -0.5 Q -0.0 -0.5 -0.0 -0.4 Q -0.0 -0.4 -0.0 -0.2 Q 0.0 -0.0 0.0 -0.2 Q 0.0 -0.4 0.1 -0.4 Q 0.1 -0.4 0.1 -0.2 Q 0.1 -0.0 0.1 -0.1 Q 0.2 -0.3 0.2 -0.3 Q 0.2 -0.3 0.2 -0.1 Q 0.2 -0.0 0.2 0.1 Q 0.2 0.1 0.2 0.2 Q 0.2 0.3 0.1 0.4 L 0.1 0.4" fill="none" stroke="#1B1A18" stroke-width="0.014" stroke-linecap="round" stroke-linejoin="round"/><path d="M -0.1 0.4 Q -0.2 0.3 -0.2 0.2 Q -0.2 0.1 -0.2 0.1 Q -0.1 0.0 -0.2 -0.0 Q -0.3 -0.1 -0.2 -0.1 Q -0.2 -0.1 -0.2 -0.2 Q -0.3 -0.3 -0.2 -0.3 Q -0.2 -0.3 -0.1 -0.2 Q -0.1 -0.0 -0.1 -0.0 Q -0.1 -0.0 -0.1 -0.2 Q -0.1 -0.4 -0.1 -0.5 Q -0.0 -0.5 -0.0 -0.4 Q -0.0 -0.4 -0.0 -0.2 Q 0.0 -0.0 0.0 -0.2 Q 0.0 -0.4 0.1 -0.4 Q 0.1 -0.4 0.1 -0.2 Q 0.1 -0.0 0.1 -0.1 Q 0.2 -0.3 0.2 -0.3 Q 0.2 -0.3 0.2 -0.1 Q 0.2 -0.0 0.2 0.1 Q 0.2 0.1 0.2 0.2 Q 0.2 0.3 0.1 0.4 L 0.1 0.4" fill="none" stroke="#1B1A18" stroke-width="0.005" stroke-linecap="round" stroke-linejoin="round" opacity="0.30" transform="translate(0.005 0.005)"/></g>
+  <g fill="#1B1A18" fill-opacity="0.34">
+    <circle cx="196" cy="214" r="7"/><circle cx="286" cy="146" r="5"/>
+    <circle cx="748" cy="222" r="6"/><circle cx="846" cy="158" r="4"/>
+    <circle cx="614" cy="112" r="5"/>
+  </g>
+
+</svg>

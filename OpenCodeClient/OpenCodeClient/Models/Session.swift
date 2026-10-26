@@ -5,7 +5,7 @@
 
 import Foundation
 
-struct Session: Identifiable, Equatable {
+nonisolated struct Session: Identifiable, Equatable {
     let id: String
     let slug: String
     let projectID: String
@@ -55,7 +55,7 @@ struct Session: Identifiable, Equatable {
 
 nonisolated extension Session: Codable {}
 
-struct SessionStatus: Codable, Equatable {
+nonisolated struct SessionStatus: Codable, Equatable {
     let type: String // "idle" | "busy" | "retry"
     let attempt: Int?
     let message: String?

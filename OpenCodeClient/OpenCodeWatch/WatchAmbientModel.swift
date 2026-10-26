@@ -35,18 +35,18 @@ final class WatchAmbientModel: NSObject, WCSessionDelegate {
     var phase: CarLivePhase { fixture ? .listening : live.phase }
 
     var status: String {
-        if fixture { return "正在听" }
-        if connecting { return "连接中…" }
+        if fixture { return String(localized: "Listening") }
+        if connecting { return String(localized: "Connecting…") }
         switch live.phase {
-        case .listening: return live.isMuted ? "已静音" : "正在听"
-        case .speaking: return "正在播报，轻点打断"
-        case .closing: return "正在结束语音"
-        case .failed: return "语音连接已断开"
-        default: return bridgeStatus.isEmpty ? "开始语音" : bridgeStatus
+        case .listening: return live.isMuted ? String(localized: "Muted") : String(localized: "Listening")
+        case .speaking: return String(localized: "Speaking, tap to interrupt")
+        case .closing: return String(localized: "Ending voice")
+        case .failed: return String(localized: "Voice disconnected")
+        default: return bridgeStatus.isEmpty ? String(localized: "Start voice") : bridgeStatus
         }
     }
     var latestCaption: String {
-        if fixture { return "已交给手机继续处理" }
+        if fixture { return String(localized: "Continuing on iPhone") }
         return live.captions.last?.text ?? ""
     }
 
@@ -133,7 +133,7 @@ final class WatchAmbientModel: NSObject, WCSessionDelegate {
         } catch {
             if run == owner {
                 if case WatchBridgeError.unreachable = error {
-                    self.error = "手机不可达，请先在 iPhone 打开 OpenCode"
+                    self.error = String(localized: "iPhone unavailable. Open OpenCode on your iPhone first.")
                 } else {
                     // A reply such as busy or a phone-side health failure is
                     // evidence that the companion was reached, not unreachable.
@@ -156,7 +156,7 @@ final class WatchAmbientModel: NSObject, WCSessionDelegate {
         pendingCommentaryAcks.removeAll()
         await live.stop()
         await end(owner)
-        bridgeStatus = "语音已结束，后台工作仍在继续"
+        bridgeStatus = String(localized: "Voice ended. Background work continues.")
     }
 
     private func end(_ owner: String) async {

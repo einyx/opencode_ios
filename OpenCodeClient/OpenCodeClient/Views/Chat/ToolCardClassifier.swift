@@ -10,8 +10,8 @@
 import Foundation
 
 enum ToolCardClassifier {
-    /// A "file operation" is a patch part, or a tool whose name matches one of the
-    /// file-op verbs. Loose prefix match so aliases like "edit"/"write"/"read"/"patch"
+    /// A "file operation" is a tool whose name matches one of the file-op
+    /// verbs. Loose prefix match so aliases like "edit"/"write"/"read"/"patch"
     /// and full forms like "edit_file"/"apply_patch" all count.
     static let fileOpToolPrefixes = [
         "apply_patch", "edit_file", "write_file", "read_file",
@@ -19,9 +19,28 @@ enum ToolCardClassifier {
     ]
 
     static func isFileOperation(_ part: Part) -> Bool {
-        if part.isPatch { return true }
         guard part.isTool, let tool = part.tool?.lowercased() else { return false }
         return fileOpToolPrefixes.contains { tool.hasPrefix($0) }
+    }
+
+    /// The "files changed" signal. A patch part is not a single file
+    /// operation: it summarizes the files a turn changed and renders as the
+    /// changes card, not as one file card.
+    static func isChangePart(_ part: Part) -> Bool {
+        part.isPatch
+    }
+
+    /// Tool names that mutate the workspace. A read is not a write.
+    static let writeToolPrefixes = [
+        "apply_patch", "edit_file", "write_file",
+        "patch", "edit", "write",
+    ]
+
+    /// True when the part is a tool that can change files on disk. Used to
+    /// decide when the file tree and status need a refresh.
+    static func isWriteOperation(_ part: Part) -> Bool {
+        guard part.isTool, let tool = part.tool?.lowercased() else { return false }
+        return writeToolPrefixes.contains { tool.hasPrefix($0) }
     }
 
     /// `read` tool names (and aliases) — a directory read can only come from one of
@@ -75,23 +94,32 @@ enum ToolCardClassifier {
         return entries
     }
 
-    /// Split a buffered run of tool/patch parts into the file-card group (grid) and
-    /// the "other tools" group (merged into one "N tool calls" disclosure row).
-    static func split(_ parts: [Part]) -> (fileParts: [Part], otherParts: [Part]) {
+    /// Split a buffered run of tool/patch parts into the file-card group (grid),
+    /// the changes group (the "N files changed" card) and the "other tools"
+    /// group (merged into one "N tool calls" disclosure row).
+    static func split(_ parts: [Part]) -> (fileParts: [Part], changeParts: [Part], otherParts: [Part]) {
         var fileParts: [Part] = []
+        var changeParts: [Part] = []
         var otherParts: [Part] = []
         for part in parts {
-            if isFileOperation(part) {
+            if isChangePart(part) {
+                changeParts.append(part)
+            } else if isFileOperation(part) {
                 fileParts.append(part)
             } else {
                 otherParts.append(part)
             }
         }
-        return (fileParts, otherParts)
+        return (fileParts, changeParts, otherParts)
     }
 
-    /// Number shown in the merged "N tool calls" row (count of non-file tools).
+    /// Number shown in the merged "N tool calls" row: the tools that are
+    /// neither file operations nor change parts.
+    ///
+    /// It counts the `otherParts` group of `split`, so the three-way
+    /// classification stays in one place — a change part is not a tool call
+    /// and must not be counted as one.
     static func toolCallsCount(_ parts: [Part]) -> Int {
-        parts.lazy.filter { !isFileOperation($0) }.count
+        split(parts).otherParts.count
     }
 }

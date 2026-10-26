@@ -1,7 +1,7 @@
 import Foundation
 
 enum L10n {
-    enum LanguagePreference: String, CaseIterable, Identifiable {
+    nonisolated enum LanguagePreference: String, CaseIterable, Identifiable {
         case system
         case en
         case zh
@@ -17,9 +17,17 @@ enum L10n {
         }
     }
 
-    static let languagePreferenceUserDefaultsKey = "languagePreference"
+    nonisolated static let languagePreferenceUserDefaultsKey = "languagePreference"
 
     enum Key: String, CaseIterable {
+        case expanded, collapsed, selected, notSelected, moveUp, moveDown
+        case hostSaveAndConnect, hostConnect, hostDiscardTitle, hostDiscardChanges, hostKeepEditing
+        case hostManualImport, hostScanTitle, hostDiscardPairingWarning
+        case sessionsSearchLoaded, sessionsSearchScope, sessionsNoMatches
+        case sessionsDeleteConfirmation, sessionsDeleteWarning
+        case fileTreeEmpty, fileStatusAdded, fileStatusDeleted, fileStatusModified, fileStatusUntracked
+        case chatConnectServer, chatSend, chatAttachImage, chatStopRecording
+        case questionGoTo, settingsOpenSystem
         case appChat
         case appClose
         case appDone
@@ -119,6 +127,7 @@ enum L10n {
         case settingsCarMode
         case settingsAppleOnDevice
         case settingsAppleOnDeviceFooter
+        case settingsVoiceCloudDisclosure
         case settingsModelShortlist
         case settingsModelShortlistFooter
         case settingsModelShortlistEmpty
@@ -432,6 +441,22 @@ enum L10n {
         case patchFilesChangedOne
         case patchFilesChangedMany
 
+        case changesScopeTurn
+        case changesScopeSession
+        case changesAdded
+        case changesDeleted
+        case changesOpenInFiles
+        case changesLoadingDiff
+        case changesDiffUnavailable
+        case changesSectionTitle
+        case changesSectionSubtitle
+        case changesBadgeAdded
+        case changesBadgeModified
+        case changesBadgeDeleted
+        case changesAccessibilityLabel
+        case changesFileAccessibility
+        case changesNoDiffForFile
+
         case contextUsageHelp
         case contextUsageClose
         case contextUsageTitle
@@ -571,6 +596,36 @@ enum L10n {
     }
 
     nonisolated private static let en: [String: String] = [
+        Key.expanded.rawValue: "Expanded",
+        Key.collapsed.rawValue: "Collapsed",
+        Key.selected.rawValue: "Selected",
+        Key.notSelected.rawValue: "Not selected",
+        Key.moveUp.rawValue: "Move up",
+        Key.moveDown.rawValue: "Move down",
+        Key.hostSaveAndConnect.rawValue: "Save and Connect",
+        Key.hostConnect.rawValue: "Connect to This Host",
+        Key.hostDiscardTitle.rawValue: "Discard unsaved host changes?",
+        Key.hostDiscardChanges.rawValue: "Discard Changes",
+        Key.hostKeepEditing.rawValue: "Keep Editing",
+        Key.hostDiscardPairingWarning.rawValue: "Discarding also loses the paired credentials. A redeemed pairing code cannot be used again; generate a new code on the server to pair later.",
+        Key.hostManualImport.rawValue: "Import JSON configuration",
+        Key.hostScanTitle.rawValue: "Scan pairing code",
+        Key.sessionsSearchLoaded.rawValue: "Search loaded sessions",
+        Key.sessionsSearchScope.rawValue: "Searches titles in loaded sessions for this host and project. Load more to include older sessions.",
+        Key.sessionsNoMatches.rawValue: "No matching loaded sessions",
+        Key.sessionsDeleteConfirmation.rawValue: "Delete session?",
+        Key.sessionsDeleteWarning.rawValue: "“%@” will be permanently deleted from the server. This cannot be undone. Archive instead if you may need it later.",
+        Key.fileTreeEmpty.rawValue: "This workspace is empty",
+        Key.fileStatusAdded.rawValue: "Added",
+        Key.fileStatusDeleted.rawValue: "Deleted",
+        Key.fileStatusModified.rawValue: "Modified",
+        Key.fileStatusUntracked.rawValue: "Untracked",
+        Key.chatConnectServer.rawValue: "Connect a Server",
+        Key.chatSend.rawValue: "Send message",
+        Key.chatAttachImage.rawValue: "Attach image",
+        Key.chatStopRecording.rawValue: "Stop recording",
+        Key.questionGoTo.rawValue: "Go to question %d",
+        Key.settingsOpenSystem.rawValue: "Open System Settings",
         Key.appChat.rawValue: "Chat",
         Key.appClose.rawValue: "Close",
         Key.appDone.rawValue: "Done",
@@ -668,6 +723,7 @@ enum L10n {
         Key.settingsCarMode.rawValue: "Ambient Mode",
         Key.settingsAppleOnDevice.rawValue: "Apple On-Device (private, no setup)",
         Key.settingsAppleOnDeviceFooter.rawValue: "Transcription runs entirely on this device with Apple's speech recognizer. Nothing is uploaded and no account is needed.",
+        Key.settingsVoiceCloudDisclosure.rawValue: "Audio is captured on this device and uploaded to the speech service for transcription.",
         Key.settingsModelShortlist.rawValue: "Models",
         Key.settingsModelShortlistFooter.rawValue: "The chat picker only shows this shortlist. Add models from the connected server.",
         Key.settingsModelShortlistEmpty.rawValue: "No models yet. Tap + to search and add.",
@@ -741,13 +797,13 @@ enum L10n {
         Key.hostCopyConfigJSON.rawValue: "Copy Host Config JSON",
         Key.hostNotFound.rawValue: "Host not found",
         Key.hostImportConfig.rawValue: "Import Host Config",
-        Key.hostImportFooter.rawValue: "Paste a setup JSON from your server admin, or continue with manual setup below.",
+        Key.hostImportFooter.rawValue: "Paste a setup JSON from your server admin. Import fills this form; Save commits the configuration.",
         Key.hostConnectionType.rawValue: "Connection Type",
         Key.hostTransportFooter.rawValue: "Direct is for LAN, VPN, Tailscale, or HTTPS. SSH Tunnel is for an OpenCode server behind an SSH gateway.",
         Key.hostSSHGatewayFooter.rawValue: "These values come from your OpenCode host admin. The app connects locally through the tunnel after this is saved.",
         Key.hostDeviceKeySendFooter.rawValue: "Send this public key to the server admin before testing. Never share the private key.",
         Key.hostBasicAuth.rawValue: "Basic Auth",
-        Key.hostSaveHelp.rawValue: "Save is enabled after required fields are present. Test verifies the selected transport and OpenCode health endpoint.",
+        Key.hostSaveHelp.rawValue: "Save stores this configuration and selects the host. Save and Connect also checks the connection. Cancel discards only changes that have not been saved.",
         Key.hostPairSection.rawValue: "Pair with OpenCode",
         Key.hostPairScanQR.rawValue: "Scan QR code",
         Key.hostPairPasteLink.rawValue: "Or paste a pairing link",
@@ -944,6 +1000,22 @@ enum L10n {
         Key.attachmentImageReadFailed.rawValue: "Could not read the selected image.",
         Key.attachmentImageTooLargeAfterCompression.rawValue: "Image is too large after compression (%@ MB). Please choose a smaller image.",
 
+        Key.changesScopeTurn.rawValue: "this turn",
+        Key.changesScopeSession.rawValue: "this session",
+        Key.changesAdded.rawValue: "+%d",
+        Key.changesDeleted.rawValue: "−%d",
+        Key.changesOpenInFiles.rawValue: "Open in Files",
+        Key.changesLoadingDiff.rawValue: "Reading the diff…",
+        Key.changesDiffUnavailable.rawValue: "Couldn't load the diff",
+        Key.changesSectionTitle.rawValue: "Changes",
+        Key.changesSectionSubtitle.rawValue: "in this session",
+        Key.changesBadgeAdded.rawValue: "new",
+        Key.changesBadgeModified.rawValue: "mod",
+        Key.changesBadgeDeleted.rawValue: "del",
+        Key.changesAccessibilityLabel.rawValue: "%d files changed, %d lines added, %d lines removed",
+        Key.changesFileAccessibility.rawValue: "%@, %d lines added, %d lines removed",
+        Key.changesNoDiffForFile.rawValue: "No diff for this file",
+
         Key.permissionAllowOnce.rawValue: "Allow Once",
         Key.permissionAllowAlways.rawValue: "Allow Always",
         Key.permissionReject.rawValue: "Reject",
@@ -1119,6 +1191,36 @@ enum L10n {
     ]
 
     nonisolated private static let zh: [String: String] = [
+        Key.expanded.rawValue: "已展开",
+        Key.collapsed.rawValue: "已收起",
+        Key.selected.rawValue: "已选中",
+        Key.notSelected.rawValue: "未选中",
+        Key.moveUp.rawValue: "上移",
+        Key.moveDown.rawValue: "下移",
+        Key.hostSaveAndConnect.rawValue: "保存并连接",
+        Key.hostConnect.rawValue: "连接此主机",
+        Key.hostDiscardTitle.rawValue: "放弃未保存的主机更改？",
+        Key.hostDiscardChanges.rawValue: "放弃更改",
+        Key.hostKeepEditing.rawValue: "继续编辑",
+        Key.hostDiscardPairingWarning.rawValue: "放弃更改也会丢失配对凭据。已使用的配对码无法再次使用；如需稍后配对，请在服务器上生成新码。",
+        Key.hostManualImport.rawValue: "导入 JSON 配置",
+        Key.hostScanTitle.rawValue: "扫描配对码",
+        Key.sessionsSearchLoaded.rawValue: "搜索已加载的会话",
+        Key.sessionsSearchScope.rawValue: "搜索当前主机和项目中已加载的会话标题。加载更多可包含更早的会话。",
+        Key.sessionsNoMatches.rawValue: "没有匹配的已加载会话",
+        Key.sessionsDeleteConfirmation.rawValue: "删除会话？",
+        Key.sessionsDeleteWarning.rawValue: "“%@”将从服务器永久删除，且无法撤销。如果以后可能需要，请改为归档。",
+        Key.fileTreeEmpty.rawValue: "此工作区为空",
+        Key.fileStatusAdded.rawValue: "已添加",
+        Key.fileStatusDeleted.rawValue: "已删除",
+        Key.fileStatusModified.rawValue: "已修改",
+        Key.fileStatusUntracked.rawValue: "未跟踪",
+        Key.chatConnectServer.rawValue: "连接服务器",
+        Key.chatSend.rawValue: "发送消息",
+        Key.chatAttachImage.rawValue: "添加图片",
+        Key.chatStopRecording.rawValue: "停止录音",
+        Key.questionGoTo.rawValue: "转到第 %d 个问题",
+        Key.settingsOpenSystem.rawValue: "打开系统设置",
         Key.appChat.rawValue: "聊天",
         Key.appClose.rawValue: "关闭",
         Key.appDone.rawValue: "完成",
@@ -1216,6 +1318,7 @@ enum L10n {
         Key.settingsCarMode.rawValue: "Ambient Mode",
         Key.settingsAppleOnDevice.rawValue: "Apple 设备端识别（私密，无需配置）",
         Key.settingsAppleOnDeviceFooter.rawValue: "转写完全在这台设备上用 Apple 语音识别完成，不上传任何数据，也无需账号。",
+        Key.settingsVoiceCloudDisclosure.rawValue: "录音在这台设备上采集，并上传到语音服务进行转写。",
         Key.settingsModelShortlist.rawValue: "模型",
         Key.settingsModelShortlistFooter.rawValue: "聊天栏只显示这份短名单。从已连接的 server 目录里搜索添加。",
         Key.settingsModelShortlistEmpty.rawValue: "还没有模型。点右上角 + 搜索添加。",
@@ -1292,13 +1395,13 @@ enum L10n {
         Key.hostCopyConfigJSON.rawValue: "复制 Host Config JSON",
         Key.hostNotFound.rawValue: "找不到 Host",
         Key.hostImportConfig.rawValue: "导入 Host Config",
-        Key.hostImportFooter.rawValue: "粘贴管理员提供的配置 JSON，或继续手动配置。",
+        Key.hostImportFooter.rawValue: "粘贴管理员提供的配置 JSON。导入只填写此表单，保存后才会提交配置。",
         Key.hostConnectionType.rawValue: "连接类型",
         Key.hostTransportFooter.rawValue: "直连适用于局域网、VPN、Tailscale 或 HTTPS。SSH 隧道适用于放在 SSH 网关后的 OpenCode 服务器。",
         Key.hostSSHGatewayFooter.rawValue: "这些值由 OpenCode host 管理员提供。保存后 app 会通过本地隧道连接。",
         Key.hostDeviceKeySendFooter.rawValue: "测试前把这个公钥发给服务器管理员。不要分享私钥。",
         Key.hostBasicAuth.rawValue: "Basic Auth",
-        Key.hostSaveHelp.rawValue: "必填项完整后即可保存。测试连接会检查连接方式和 OpenCode 服务状态。",
+        Key.hostSaveHelp.rawValue: "保存会存储配置并选择此主机。保存并连接还会检查连接。取消仅放弃尚未保存的更改。",
         Key.hostPairSection.rawValue: "与 OpenCode 配对",
         Key.hostPairScanQR.rawValue: "扫描二维码",
         Key.hostPairPasteLink.rawValue: "或粘贴配对链接",
@@ -1530,6 +1633,22 @@ enum L10n {
         Key.patchFilesChangedOne.rawValue: "%d 个文件已变更",
         Key.patchFilesChangedMany.rawValue: "%d 个文件已变更",
 
+        Key.changesScopeTurn.rawValue: "本轮",
+        Key.changesScopeSession.rawValue: "本次会话",
+        Key.changesAdded.rawValue: "+%d",
+        Key.changesDeleted.rawValue: "−%d",
+        Key.changesOpenInFiles.rawValue: "在文件中打开",
+        Key.changesLoadingDiff.rawValue: "正在读取差异…",
+        Key.changesDiffUnavailable.rawValue: "无法加载差异",
+        Key.changesSectionTitle.rawValue: "变更",
+        Key.changesSectionSubtitle.rawValue: "本次会话",
+        Key.changesBadgeAdded.rawValue: "新增",
+        Key.changesBadgeModified.rawValue: "修改",
+        Key.changesBadgeDeleted.rawValue: "删除",
+        Key.changesAccessibilityLabel.rawValue: "%d 个文件已变更，新增 %d 行，删除 %d 行",
+        Key.changesFileAccessibility.rawValue: "%@，新增 %d 行，删除 %d 行",
+        Key.changesNoDiffForFile.rawValue: "该文件没有差异内容",
+
         Key.contextUsageHelp.rawValue: "上下文用量",
         Key.contextUsageClose.rawValue: "关闭",
         Key.contextUsageTitle.rawValue: "上下文",
@@ -1666,13 +1785,13 @@ enum L10n {
         Key.todoUpdatedBadge.rawValue: "任务更新 · %d/%d",
     ]
 
-    static var ephemeralLanguageOverride: LanguagePreference?
+    nonisolated(unsafe) static var ephemeralLanguageOverride: LanguagePreference?
 
     static func useEphemeralLanguage(_ preference: LanguagePreference) {
         ephemeralLanguageOverride = preference
     }
 
-    static var languagePreference: LanguagePreference {
+    nonisolated static var languagePreference: LanguagePreference {
         get {
             if let ephemeralLanguageOverride { return ephemeralLanguageOverride }
             let raw = UserDefaults.standard.string(forKey: languagePreferenceUserDefaultsKey)
@@ -1687,14 +1806,14 @@ enum L10n {
         }
     }
 
-    static var currentLocale: Locale {
+    nonisolated static var currentLocale: Locale {
         if let identifier = languagePreference.localeIdentifier {
             return Locale(identifier: identifier)
         }
         return Locale.current
     }
 
-    private static var languageIsChinese: Bool {
+    nonisolated private static var languageIsChinese: Bool {
         switch languagePreference {
         case .system:
             let preferred = Locale.preferredLanguages.first ?? "en"
@@ -1710,12 +1829,12 @@ enum L10n {
         return (en, languageIsChinese ? zh : en)
     }
 
-    static func t(_ key: Key) -> String {
+    nonisolated static func t(_ key: Key) -> String {
         let translations = languageIsChinese ? zh : en
         return translations[key.rawValue] ?? en[key.rawValue] ?? key.rawValue
     }
 
-    static func t(_ key: Key, _ arguments: CVarArg...) -> String {
+    nonisolated static func t(_ key: Key, _ arguments: CVarArg...) -> String {
         let template = t(key)
         guard !arguments.isEmpty else { return template }
         return String(format: template, locale: currentLocale, arguments: arguments)

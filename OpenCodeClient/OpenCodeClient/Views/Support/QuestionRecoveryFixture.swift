@@ -9,10 +9,10 @@ final class QuestionRecoveryProbe {
 
 enum QuestionRecoveryFixture {
     static let argument = "UITEST_QUESTION_RECOVERY_FIXTURE"
-    static let sessionID = "question-recovery-session"
-    static let targetID = "q-target"
-    static let otherID = "q-other"
-    static let optionLabel = "Build"
+    nonisolated static let sessionID = "question-recovery-session"
+    nonisolated static let targetID = "q-target"
+    nonisolated static let otherID = "q-other"
+    nonisolated static let optionLabel = "Build"
     static let customAnswer = "kept-answer"
 
     static var isActive: Bool {
@@ -66,7 +66,7 @@ enum QuestionRecoveryFixture {
         state.pendingQuestions = [targetRequest, otherRequest]
     }
 
-    static var targetRequest: QuestionRequest {
+    nonisolated static var targetRequest: QuestionRequest {
         QuestionRequest(
             id: targetID,
             sessionID: sessionID,
@@ -83,7 +83,7 @@ enum QuestionRecoveryFixture {
         )
     }
 
-    static var otherRequest: QuestionRequest {
+    nonisolated static var otherRequest: QuestionRequest {
         QuestionRequest(
             id: otherID,
             sessionID: sessionID,

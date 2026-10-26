@@ -38,13 +38,13 @@ enum CarLiveModelError: Error, Equatable {
     }
 }
 
-struct CarLiveTransportLease: Equatable {
+nonisolated struct CarLiveTransportLease: Equatable {
     var issued: UInt64 = 0
     var active: UInt64 = 0
 }
 
 enum CarLiveTransportGate {
-    static func arm(_ lease: CarLiveTransportLease) -> (lease: CarLiveTransportLease, token: UInt64) {
+    nonisolated static func arm(_ lease: CarLiveTransportLease) -> (lease: CarLiveTransportLease, token: UInt64) {
         let next = lease.issued &+ 1
         guard next != 0, next != lease.active else { return (lease, 0) }
         var updated = lease
@@ -53,20 +53,20 @@ enum CarLiveTransportGate {
         return (updated, next)
     }
 
-    static func retire(_ lease: CarLiveTransportLease, token: UInt64) -> CarLiveTransportLease {
+    nonisolated static func retire(_ lease: CarLiveTransportLease, token: UInt64) -> CarLiveTransportLease {
         guard lease.active == token else { return lease }
         var updated = lease
         updated.active = 0
         return updated
     }
 
-    static func invalidate(_ lease: CarLiveTransportLease) -> CarLiveTransportLease {
+    nonisolated static func invalidate(_ lease: CarLiveTransportLease) -> CarLiveTransportLease {
         var updated = lease
         updated.active = 0
         return updated
     }
 
-    static func allows(_ lease: CarLiveTransportLease, token: UInt64) -> Bool {
+    nonisolated static func allows(_ lease: CarLiveTransportLease, token: UInt64) -> Bool {
         token != 0 && lease.active == token
     }
 }
@@ -78,9 +78,9 @@ enum CarLiveRunOwner {
 }
 
 enum CarLiveModel {
-    static let deepseek = "ollama-cloud/deepseek-v4.1-flash"
+    nonisolated static let deepseek = "ollama-cloud/deepseek-v4.1-flash"
     static let sol = "openai/gpt-6.1-sol"
-    static let refs = [deepseek, sol]
+    nonisolated static let refs = [deepseek, sol]
 
     static func canonicalize(_ raw: String?) -> Result<String, CarLiveModelError> {
         let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -106,7 +106,7 @@ enum CarLiveModel {
 }
 
 enum CarLivePromptWire {
-    static func sessionCreateData(title: String?) throws -> Data {
+    nonisolated static func sessionCreateData(title: String?) throws -> Data {
         let body = title.map { ["title": $0] } ?? [:]
         return try JSONEncoder().encode(body)
     }
@@ -123,7 +123,7 @@ enum CarLivePromptWire {
         return items
     }
 
-    static func startData(messageID: String, text: String, agent: String, model: Message.ModelInfo) throws -> Data {
+    nonisolated static func startData(messageID: String, text: String, agent: String, model: Message.ModelInfo) throws -> Data {
         try JSONSerialization.data(withJSONObject: [
             "messageID": messageID,
             "parts": [["type": "text", "text": text]],
@@ -132,7 +132,7 @@ enum CarLivePromptWire {
         ])
     }
 
-    static func continueData(messageID: String, text: String, agent: String?, variant: String?) throws -> Data {
+    nonisolated static func continueData(messageID: String, text: String, agent: String?, variant: String?) throws -> Data {
         var body: [String: Any] = [
             "messageID": messageID,
             "parts": [["type": "text", "text": text]],
@@ -147,7 +147,7 @@ enum CarLivePromptWire {
         return try JSONSerialization.data(withJSONObject: body)
     }
 
-    static func object(_ data: Data) -> [String: Any] {
+    nonisolated static func object(_ data: Data) -> [String: Any] {
         (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
     }
 }
@@ -191,7 +191,7 @@ struct CarLiveSessionPage: Equatable, Sendable {
     var nextCursor: Int?
 }
 
-struct CarLiveMessagePage: Sendable {
+nonisolated struct CarLiveMessagePage: Sendable {
     var messages: [MessageWithParts]
     var hasOlder: Bool
     var requestedLimit: Int
@@ -241,15 +241,15 @@ struct CarLiveListWindow: Equatable {
 
 enum CarLiveSessionWalk {
     static let pageLimit = 50
-    static let maxPages = 8
+    nonisolated static let maxPages = 8
 
-    static func include(_ item: CarLiveListItem, archivedOnly: Bool) -> Bool {
+    nonisolated static func include(_ item: CarLiveListItem, archivedOnly: Bool) -> Bool {
         if !item.parentID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return false }
         if archivedOnly { return item.archivedAt > 0 }
         return true
     }
 
-    static func walk(pages: [CarLiveListPage], archivedOnly: Bool, skip: Int, count: Int, maxPages: Int = maxPages) -> CarLiveListWindow {
+    nonisolated static func walk(pages: [CarLiveListPage], archivedOnly: Bool, skip: Int, count: Int, maxPages: Int = maxPages) -> CarLiveListWindow {
         var seen = Set<String>()
         var qualified: [CarLiveListItem] = []
         var cursor: Int?
@@ -293,7 +293,7 @@ enum CarLiveSessionWalk {
 }
 
 enum CarLiveHistory {
-    static let bound = 200
+    nonisolated static let bound = 200
 
     struct Draft: Equatable {
         var id: String
@@ -442,7 +442,7 @@ enum CarLiveHistory {
     static let outputByteLimit = CarLiveProtocol.maxFunctionOutputBytes
     static let textByteLimit = 8_000
 
-    static func iso(_ ms: Int) -> String {
+    nonisolated static func iso(_ ms: Int) -> String {
         let formatter = ISO8601DateFormatter()
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -465,7 +465,7 @@ enum CarLiveHistory {
 
 enum CarLiveOutputBound {
     static func json(_ object: [String: Any]) -> String {
-        var rows = object["records"] as? [[String: String]] ?? object["sessions"] as? [[String: String]] ?? []
+        let rows = object["records"] as? [[String: String]] ?? object["sessions"] as? [[String: String]] ?? []
         var limit = 512
         var dropped = 0
         var last = CarLiveToolJSON.error(code: "failed", message: "查询结果没有送出")
@@ -502,7 +502,7 @@ enum CarLiveOutputBound {
 }
 
 enum CarLiveStopJudge {
-    static func isActive(_ status: String?) -> Bool {
+    nonisolated static func isActive(_ status: String?) -> Bool {
         status == "busy" || status == "retry" || status == "queued"
     }
 
@@ -596,7 +596,7 @@ enum CarLiveRound {
         return text.isEmpty ? nil : text
     }
 
-    static func isFinal(_ finish: String?) -> Bool {
+    nonisolated static func isFinal(_ finish: String?) -> Bool {
         guard let finish, !finish.isEmpty, finish != "unknown" else { return false }
         return finish != "tool-calls" && finish != "tool_calls"
     }
@@ -1306,11 +1306,11 @@ actor CarLiveAPIBox: CarLiveToolClient {
     }
 
     func history(sessionID: String, directory: String, skip: Int, count: Int) async -> String {
-        let limit = await min(max(skip, 0) + max(count, 1), CarLiveHistory.bound)
+        let limit = min(max(skip, 0) + max(count, 1), CarLiveHistory.bound)
         do {
             let page = try await guarded { try await self.api.messagePageForLive(sessionID: sessionID, limit: limit, transportToken: self.transportToken) }
             let session = try? await guarded { try await self.api.sessionForLive(sessionID: sessionID, directory: directory, transportToken: self.transportToken) }
-            return CarLiveHistory.render(
+            return await CarLiveHistory.render(
                 sessionID: sessionID,
                 title: session?.title ?? sessionID,
                 directory: directory,

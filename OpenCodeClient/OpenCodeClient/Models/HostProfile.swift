@@ -24,6 +24,23 @@ enum ConnectionPhase: String, Codable, Equatable {
     case connected
     case failed
 
+    /// A check is in progress, not evidence that the host is unhealthy.
+    var isChecking: Bool {
+        switch self {
+        case .sshGateway, .sshAuth, .localTunnel, .health, .bootstrap: return true
+        case .idle, .connected, .failed: return false
+        }
+    }
+
+    var diagnosticSymbol: String {
+        switch self {
+        case .failed: return "exclamationmark.triangle"
+        case .connected: return "checkmark.circle"
+        case .idle: return "network"
+        default: return "arrow.triangle.2.circlepath"
+        }
+    }
+
     var label: String {
         switch self {
         case .idle: return L10n.t(.connectionPhaseIdle)

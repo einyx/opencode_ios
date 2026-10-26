@@ -7,6 +7,7 @@ import SwiftUI
 
 struct PermissionCardView: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var typeSize
     let permission: PendingPermission
     let onRespond: (APIClient.PermissionResponse) -> Void
 
@@ -52,11 +53,16 @@ struct PermissionCardView: View {
                     }
                 }
 
-                HStack(spacing: DesignSpacing.lg) {
+                let actions = typeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: DesignSpacing.sm))
+                    : AnyLayout(HStackLayout(spacing: DesignSpacing.sm))
+                actions {
                     Button {
                         onRespond(.once)
                     } label: {
                         Text(L10n.t(.permissionAllowOnce))
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(accent)
                     }
@@ -67,6 +73,8 @@ struct PermissionCardView: View {
                             onRespond(.always)
                         } label: {
                             Text(L10n.t(.permissionAllowAlways))
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(Rectangle())
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(accent)
                         }
@@ -77,6 +85,8 @@ struct PermissionCardView: View {
                         onRespond(.reject)
                     } label: {
                         Text(L10n.t(.permissionReject))
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(DesignColors.Neutral.textSecondary)
                     }

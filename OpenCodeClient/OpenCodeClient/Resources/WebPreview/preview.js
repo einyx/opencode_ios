@@ -379,6 +379,10 @@
     try {
       payload = payload || {};
       applyTheme(payload.theme);
+      // SwiftUI supplies the preferred body-text scale, including accessibility sizes.
+      var fontScale = Number(payload.fontScale);
+      if (!Number.isFinite(fontScale) || fontScale <= 0) fontScale = 1;
+      document.body.style.fontSize = (16 * Math.min(4, Math.max(0.75, fontScale))) + "px";
 
       var markdown = typeof payload.markdown === "string" ? payload.markdown : "";
 

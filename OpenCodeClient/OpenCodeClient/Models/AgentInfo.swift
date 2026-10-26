@@ -7,7 +7,7 @@ import Foundation
 
 /// Represents an agent from the OpenCode server.
 /// Used for agent selection in the Chat toolbar.
-struct AgentInfo: Codable, Identifiable, Hashable {
+nonisolated struct AgentInfo: Codable, Identifiable, Hashable {
     var id: String { name }
     
     let name: String              // Agent name, e.g. "Sisyphus (Ultraworker)"

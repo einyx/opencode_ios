@@ -218,14 +218,14 @@ actor CarLiveSendSerializer {
                 try await previous.value
             }
             try Task.checkCancellation()
-            guard await self.owns(generation) else { throw CarLiveTransportError.socket }
+            guard self.owns(generation) else { throw CarLiveTransportError.socket }
             try await body()
         }
         tail = job
         do {
             try await job.value
         } catch {
-            await fail(generation)
+            fail(generation)
             throw error
         }
     }

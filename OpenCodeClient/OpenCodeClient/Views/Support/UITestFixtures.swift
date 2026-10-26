@@ -917,7 +917,7 @@ enum UITestFixtures {
 
     /// Decode a Part from a JSON-object dictionary, mirroring how the server feeds
     /// parts through Codable (so metadata/state/path classification flows identically).
-    static func decodePart(_ obj: [String: Any]) -> Part {
+    nonisolated static func decodePart(_ obj: [String: Any]) -> Part {
         let data = try! JSONSerialization.data(withJSONObject: obj)
         return try! JSONDecoder().decode(Part.self, from: data)
     }

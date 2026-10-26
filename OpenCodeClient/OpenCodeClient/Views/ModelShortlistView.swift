@@ -37,6 +37,14 @@ struct ModelShortlistView: View {
                             }
                         }
                         .accessibilityIdentifier("model-shortlist-row-\(item.providerID)-\(item.modelID)")
+                        .accessibilityAction(named: Text(L10n.t(.moveUp))) { move(item, offset: -1) }
+                        .accessibilityAction(named: Text(L10n.t(.moveDown))) { move(item, offset: 1) }
+                        .contextMenu {
+                            Button(L10n.t(.moveUp)) { move(item, offset: -1) }
+                                .disabled(state.modelShortlist.first?.id == item.id)
+                            Button(L10n.t(.moveDown)) { move(item, offset: 1) }
+                                .disabled(state.modelShortlist.last?.id == item.id)
+                        }
                         .shortlistDropHighlight(isDropTarget(item))
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
@@ -115,7 +123,7 @@ struct ModelShortlistView: View {
                 commitReorder(id: item.id, translation: translation)
             }
         )
-        .frame(width: 28, height: 44)
+        .frame(width: 44, height: 44)
         .overlay {
             Image(systemName: "line.3.horizontal")
                 .font(.body.weight(.semibold))
@@ -124,6 +132,14 @@ struct ModelShortlistView: View {
         }
         .accessibilityLabel(L10n.t(.settingsModelShortlistReorder))
         .accessibilityIdentifier("model-shortlist-handle-\(item.providerID)-\(item.modelID)")
+    }
+
+    private func move(_ item: ModelShortlistItem, offset: Int) {
+        guard let index = state.modelShortlist.firstIndex(where: { $0.id == item.id }) else { return }
+        let target = index + offset
+        guard state.modelShortlist.indices.contains(target) else { return }
+        state.moveShortlist(from: IndexSet(integer: index),
+                            to: ShortlistReorderMath.moveDestination(from: index, to: target))
     }
 
     private func shortlistLabel(_ item: ModelShortlistItem) -> some View {

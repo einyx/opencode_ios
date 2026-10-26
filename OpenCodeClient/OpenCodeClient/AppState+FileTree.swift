@@ -91,6 +91,8 @@ extension AppState {
         let changed = fileStore.fileChildrenScope != scope
         if changed {
             fileTreeRoot = []
+            fileStore.fileTreeError = nil
+            fileStore.fileChildrenErrors = [:]
             fileChildrenCache = [:]
             expandedPaths = []
             fileStore.fileChildrenScope = scope
@@ -103,9 +105,19 @@ extension AppState {
     func loadFileTree() async {
         let host = captureHostRequestSnapshot()
         let directory = effectiveProjectDirectory
+        fileStore.fileTreeLoadGeneration &+= 1
+        let generation = fileStore.fileTreeLoadGeneration
+        fileStore.isLoadingFileTree = true
+        fileStore.fileTreeError = nil
+        defer {
+            if generation == fileStore.fileTreeLoadGeneration {
+                fileStore.isLoadingFileTree = false
+            }
+        }
         do {
             let root = try await apiClient.fileList(path: "", directory: directory)
-            guard isCurrentHostRequest(host), effectiveProjectDirectory == directory else { return }
+            guard isCurrentHostRequest(host), effectiveProjectDirectory == directory,
+                  generation == fileStore.fileTreeLoadGeneration else { return }
             fileTreeRoot = root
             let scope = FileChildrenScope(host: host, directory: directory)
             if fileStore.fileChildrenScope == nil || fileStore.fileChildrenScope == scope {
@@ -117,8 +129,10 @@ extension AppState {
             }
             fileStore.fileChildrenScope = scope
         } catch {
-            guard isCurrentHostRequest(host), effectiveProjectDirectory == directory else { return }
-            fileTreeRoot = []
+            guard isCurrentHostRequest(host), effectiveProjectDirectory == directory,
+                  generation == fileStore.fileTreeLoadGeneration else { return }
+            guard !(error is CancellationError) else { return }
+            fileStore.fileTreeError = error.localizedDescription
         }
     }
 
@@ -144,6 +158,7 @@ extension AppState {
         let directory = effectiveProjectDirectory
         fileStore.fileChildrenLoadGeneration[path, default: 0] &+= 1
         let generation = fileStore.fileChildrenLoadGeneration[path] ?? 0
+        fileStore.fileChildrenErrors[path] = nil
         do {
             let children = try await apiClient.fileList(path: path, directory: directory)
             guard isCurrentFileChildrenLoad(path: path, host: host, directory: directory, generation: generation) else {
@@ -155,7 +170,9 @@ extension AppState {
             guard isCurrentFileChildrenLoad(path: path, host: host, directory: directory, generation: generation) else {
                 return []
             }
-            fileChildrenCache.removeValue(forKey: path)
+            if !(error is CancellationError) {
+                fileStore.fileChildrenErrors[path] = error.localizedDescription
+            }
             return []
         }
     }

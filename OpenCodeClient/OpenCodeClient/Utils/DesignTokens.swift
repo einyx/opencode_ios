@@ -25,6 +25,22 @@ enum DesignColors {
         /// Gold accent #D9A621. Session triage uses gold for pending user requests;
         /// execution uses the dedicated SessionIndicator.running token.
         static let gold = Color(red: 0.851, green: 0.651, blue: 0.129)
+
+        /// The accent at surface strength — card fills and change surfaces.
+        ///
+        /// A View must not call `.opacity(` on the accent itself (POL-COLOR-09:
+        /// opacity comes from `DesignColors.Opacity`), so the muted accent
+        /// lives here as a token.
+        @MainActor
+        static func surface(for scheme: ColorScheme) -> Color {
+            primary.opacity(DesignColors.surfaceFill(for: scheme))
+        }
+
+        /// The accent at selection strength — a selected row.
+        @MainActor
+        static func selection(for scheme: ColorScheme) -> Color {
+            primary.opacity(DesignColors.Opacity.selectionFill)
+        }
     }
 
     // MARK: Semantic
@@ -34,6 +50,14 @@ enum DesignColors {
         static let success = Color(red: 0.20, green: 0.65, blue: 0.35)
         static let warning = Color.orange
         static let info = Color(red: 0.25, green: 0.47, blue: 0.85)
+    }
+
+    /// The live-capture accent. A dedicated token so the mic control and the
+    /// voice rail share one recording colour instead of each reaching for a
+    /// raw system red. It reuses `Semantic.error` — the same dynamic system
+    /// red — so the indicator keeps its light/dark adaptation.
+    enum Recording {
+        static let active = Semantic.error
     }
 
     enum SessionIndicator {
@@ -64,6 +88,15 @@ enum DesignColors {
         static let composerLight = Color(red: 0.957, green: 0.961, blue: 0.965)
         /// Composer input background — dark mode (#141619, the secondary bg)
         static let composerDark = Color(red: 0.078, green: 0.086, blue: 0.098)
+
+        /// A barely-there neutral fill — diff rows, quiet containers.
+        ///
+        /// Kept as a token so a View never calls `.opacity(` itself
+        /// (POL-COLOR-09).
+        @MainActor
+        static func subtleFill(for scheme: ColorScheme) -> Color {
+            text.opacity(scheme == .dark ? 0.08 : 0.04)
+        }
     }
 
     // MARK: Opacity Rules
@@ -90,12 +123,31 @@ enum DesignColors {
         static let recordingActionBorder: Double = 0.36
         /// Inline chip/pill fill (e.g. the tool card status pill).
         static let chipFill: Double = 0.14
+        /// A primary action that cannot run yet: the brand colour at a third
+        /// of its strength.
+        static let disabledFill: Double = 0.35
     }
 
     /// Returns the appropriate surface fill opacity for the current color scheme.
     @MainActor
     static func surfaceFill(for scheme: ColorScheme) -> Double {
         scheme == .dark ? Opacity.surfaceFillDark : Opacity.surfaceFill
+    }
+
+    /// A fill dimmed to the "cannot run yet" strength.
+    ///
+    /// The opacity lives here rather than in the View: POL-COLOR-09 wants
+    /// every `.opacity(` out of the View layer, so a View asks for a colour
+    /// and never composes one.
+    @MainActor
+    static func dimmedFill(_ color: Color) -> Color {
+        color.opacity(Opacity.disabledFill)
+    }
+
+    /// The quiet border stroke drawn over the given ink.
+    @MainActor
+    static func stroke(of ink: Color, scheme: ColorScheme) -> Color {
+        ink.opacity(scheme == .dark ? Opacity.borderStrokeDark : Opacity.borderStroke)
     }
 
     /// Returns the appropriate border stroke opacity for the current color scheme.

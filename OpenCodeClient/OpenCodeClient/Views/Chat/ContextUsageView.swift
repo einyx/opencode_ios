@@ -111,6 +111,17 @@ struct ContextUsageButton: View {
     private var ringSize: CGFloat { 18 }
 
     var body: some View {
+        // Without a session there is nothing to measure, and an empty ring
+        // reads as a broken control rather than as "no data". Hide it until
+        // a session exists.
+        if state.currentSessionID == nil {
+            EmptyView()
+        } else {
+            ringButton
+        }
+    }
+
+    private var ringButton: some View {
         Button {
             if state.providerModelsIndex.isEmpty, state.isConnected {
                 isLoadingProviderConfig = true

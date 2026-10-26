@@ -120,7 +120,7 @@ struct SpeechRecognitionEngineTests {
 
 @Suite
 struct AppleSpeechTranscriberTests {
-    @Test func deniedAuthorizationThrowsPermissionDenied() async {
+    @Test @MainActor func deniedAuthorizationThrowsPermissionDenied() async {
         let transcriber = AppleSpeechTranscriber(
             requestAuthorization: { .denied },
             makeRecognizer: { _ in Issue.record("recognizer must not be built before authorization"); return nil }
@@ -138,7 +138,7 @@ struct AppleSpeechTranscriberTests {
         }
     }
 
-    @Test func unavailableRecognizerThrowsRecognizerUnavailable() async {
+    @Test @MainActor func unavailableRecognizerThrowsRecognizerUnavailable() async {
         let transcriber = AppleSpeechTranscriber(
             requestAuthorization: { .authorized },
             makeRecognizer: { _ in nil },
@@ -157,7 +157,7 @@ struct AppleSpeechTranscriberTests {
         }
     }
 
-    @Test func recognizeReceivesAnOnDevicePinnedRequest() async throws {
+    @Test @MainActor func recognizeReceivesAnOnDevicePinnedRequest() async throws {
         nonisolated(unsafe) var seenRequest: SFSpeechURLRecognitionRequest?
         let transcriber = AppleSpeechTranscriber(
             requestAuthorization: { .authorized },
@@ -175,7 +175,7 @@ struct AppleSpeechTranscriberTests {
         #expect(seenRequest?.shouldReportPartialResults == false)
     }
 
-    @Test func onDeviceProbeFailureThrowsOnDeviceUnavailable() async {
+    @Test @MainActor func onDeviceProbeFailureThrowsOnDeviceUnavailable() async {
         let transcriber = AppleSpeechTranscriber(
             requestAuthorization: { .authorized },
             makeRecognizer: { _ in FakeRecognizer() },

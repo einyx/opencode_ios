@@ -4,6 +4,71 @@ import Testing
 
 @Suite(.serialized)
 struct FileFlowTests {
+    @Test @MainActor func failedCreationReportsFailureWithoutReplacingExistingSelection() async {
+        let harness = FileFlowHarness(api: FileFlowAPI())
+        defer { harness.cleanup() }
+        harness.state.isConnected = true
+        harness.state.currentSessionID = "existing"
+        let created = await harness.state.createSession()
+        #expect(!created)
+        #expect(harness.state.currentSessionID == "existing")
+        #expect(harness.state.connectionError != nil)
+    }
+
+    @Test @MainActor func failedRootRefreshPreservesPreviouslyLoadedFiles() async {
+        let api = FileFlowAPI()
+        let harness = FileFlowHarness(api: api)
+        defer { harness.cleanup() }
+        await api.succeedList("", [fileNode("README.md")])
+        await harness.state.loadFileTree()
+        await api.failList("")
+        await harness.state.loadFileTree()
+        #expect(harness.state.fileTreeRoot.map(\.path) == ["README.md"])
+        #expect(harness.state.fileStore.fileTreeError != nil)
+        #expect(!harness.state.fileStore.isLoadingFileTree)
+        await api.succeedList("", [])
+        await harness.state.loadFileTree()
+        #expect(harness.state.fileTreeRoot.isEmpty)
+        #expect(harness.state.fileStore.fileTreeError == nil)
+    }
+
+    @Test @MainActor func lateRootFailureDoesNotOverwriteNewerSuccess() async {
+        let api = FileFlowAPI()
+        await api.pauseLists()
+        let harness = FileFlowHarness(api: api)
+        defer { harness.cleanup() }
+        let first = Task { await harness.state.loadFileTree() }
+        await api.waitUntilListStarted(1)
+        let second = Task { await harness.state.loadFileTree() }
+        await api.waitUntilListStarted(2)
+        await api.releaseLastList(.success([fileNode("new.swift")]))
+        await second.value
+        await api.releaseFirstList(.failure(FileFlowError()))
+        await first.value
+        #expect(harness.state.fileTreeRoot.map(\.path) == ["new.swift"])
+        #expect(harness.state.fileStore.fileTreeError == nil)
+        #expect(!harness.state.fileStore.isLoadingFileTree)
+    }
+
+    @Test @MainActor func failedChildRefreshPreservesCacheAndCancellationIsNotAnError() async {
+        let api = FileFlowAPI()
+        let harness = FileFlowHarness(api: api)
+        defer { harness.cleanup() }
+        await api.succeedList("src", [fileNode("src/kept.swift")])
+        _ = await harness.state.loadFileChildren(path: "src")
+        await api.failList("src")
+        _ = await harness.state.loadFileChildren(path: "src")
+        #expect(harness.state.cachedChildren(for: "src")?.map(\.path) == ["src/kept.swift"])
+        #expect(harness.state.fileStore.fileChildrenErrors["src"] != nil)
+        await api.pauseLists()
+        let cancelled = Task { await harness.state.loadFileChildren(path: "src") }
+        await api.waitUntilListStarted(1)
+        await api.releaseFirstList(.failure(CancellationError()))
+        _ = await cancelled.value
+        #expect(harness.state.cachedChildren(for: "src")?.map(\.path) == ["src/kept.swift"])
+        #expect(harness.state.fileStore.fileChildrenErrors["src"] == nil)
+    }
+
     @Test @MainActor func hostOrRevisionChangeChangesLoadKey() async throws {
         let api = FileFlowAPI()
         let harness = FileFlowHarness(api: api)
@@ -145,12 +210,14 @@ struct FileFlowTests {
         let failed = await state.loadFileChildren(path: "src")
         #expect(failed.isEmpty)
         #expect(state.cachedChildren(for: "src") == nil)
+        #expect(state.fileStore.fileChildrenErrors["src"] != nil)
         #expect(await api.listCount(for: "src") == 1)
 
         await api.succeedList("src", [fileNode("src/main.swift")])
         let loaded = await state.loadFileChildren(path: "src")
         #expect(loaded.map(\.path) == ["src/main.swift"])
         #expect(state.cachedChildren(for: "src")?.map(\.path) == ["src/main.swift"])
+        #expect(state.fileStore.fileChildrenErrors["src"] == nil)
         #expect(await api.listCount(for: "src") == 2)
     }
 

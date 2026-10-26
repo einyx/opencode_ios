@@ -30,17 +30,19 @@ enum WindowWidthClass: Equatable {
     }
 }
 
-enum EffectiveLayout: Equatable {
+nonisolated enum EffectiveLayout: Equatable {
     case compact
     case regular
 }
 
 enum EffectiveLayoutResolver {
-    static func resolve(preference: LayoutPreference, width: WindowWidthClass) -> EffectiveLayout {
+    static func resolve(preference: LayoutPreference, width: WindowWidthClass, availableWidth: CGFloat? = nil) -> EffectiveLayout {
         switch preference {
         case .focus:
             return .compact
         case .automatic:
+            // Three panes need room for a usable transcript and accessible controls.
+            if let availableWidth, availableWidth < 900 { return .compact }
             return width == .regular ? .regular : .compact
         }
     }
@@ -57,7 +59,7 @@ extension EnvironmentValues {
     }
 }
 
-struct LayoutPreviewSlots: Equatable {
+nonisolated struct LayoutPreviewSlots: Equatable {
     var inlinePath: String?
     var inlineWorkspace: String?
     var columnPath: String?
@@ -230,7 +232,7 @@ enum ComposerHitTarget {
     static let minimum: CGFloat = 44
 }
 
-struct ComposerWriteOrigin: Equatable, Sendable {
+nonisolated struct ComposerWriteOrigin: Equatable, Sendable {
     var sessionID: String?
     var host: HostRequestSnapshot
 }
@@ -331,7 +333,7 @@ enum ComposerFocusPolicy {
     }
 }
 
-enum ComposerPastePlacement: Equatable {
+nonisolated enum ComposerPastePlacement: Equatable {
     case append
     case insert(NSRange)
     case deferUntilMarkedTextEnds

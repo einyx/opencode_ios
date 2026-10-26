@@ -5,7 +5,7 @@
 
 import Foundation
 
-enum DisplayTextDecoder {
+nonisolated enum DisplayTextDecoder {
     static func decodeJSONUnicodeEscapes(_ text: String) -> String {
         var result = ""
         var index = text.startIndex
@@ -505,7 +505,7 @@ struct ComposerImageAttachment: Identifiable, Equatable {
 }
 
 /// Part.state can be String (simple) or object (ToolState with status/title/input/output)
-struct PartStateBridge: Codable {
+nonisolated struct PartStateBridge: Codable {
     let displayString: String
     /// 调用的理由/描述，来自 state.title 或 state.metadata.description
     let title: String?

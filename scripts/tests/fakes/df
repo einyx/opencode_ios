@@ -1,0 +1,5 @@
+#!/bin/bash
+# Deterministic disk inventory for offline runner tests.
+set -eu
+printf 'Filesystem 1024-blocks Used Available Capacity Mounted on\n'
+printf '/dev/mock 999999999 100 %s 50%% /mock volume\n' "${MOCK_FREE_KIB:-52428800}"

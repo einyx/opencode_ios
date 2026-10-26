@@ -396,15 +396,16 @@ extension AppState {
         }
     }
 
-    func createSession() async {
-        guard isConnected else { return }
+    @discardableResult
+    func createSession() async -> Bool {
+        guard isConnected else { return false }
 
         let loadingID = UUID()
         sessionLoadingID = loadingID
 
         do {
             let session = try await apiClient.createSession(title: nil, directory: effectiveProjectDirectory)
-            guard sessionLoadingID == loadingID else { return }
+            guard sessionLoadingID == loadingID else { return false }
 
             Self.logger.debug("createSession: created id=\(session.id, privacy: .public) directory=\(session.directory, privacy: .public) effectiveProjectDir=\(self.effectiveProjectDirectory ?? "nil", privacy: .public)")
 
@@ -417,9 +418,11 @@ extension AppState {
             }
             messages = []
             partsByMessage = [:]
+            return true
         } catch {
-            guard sessionLoadingID == loadingID else { return }
+            guard sessionLoadingID == loadingID else { return false }
             connectionError = error.localizedDescription
+            return false
         }
     }
 
@@ -450,7 +453,10 @@ extension AppState {
         }
     }
 
-    func deleteSession(sessionID: String) async throws {
+    func deleteSession(sessionID: String, expectedHost: HostRequestSnapshot? = nil) async throws {
+        // Revalidate at execution, not just when the confirmation is tapped:
+        // the caller's Task may start after a queued host transition.
+        if let expectedHost, !isCurrentHostRequest(expectedHost) { throw CancellationError() }
         let selectionAtStart = currentSessionID
         let sourceHost = captureHostRequestSnapshot()
         try await apiClient.deleteSession(sessionID: sessionID)

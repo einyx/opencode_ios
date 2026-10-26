@@ -30,7 +30,7 @@ enum TaskNotificationParser {
     static let completedSummaryPrefix = "Background task completed: "
     static let failedSummaryPrefix = "Background task failed: "
 
-    static func parse(_ text: String) -> TaskNotification? {
+    nonisolated static func parse(_ text: String) -> TaskNotification? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard isTaskOpen(trimmed), trimmed.hasSuffix("</task>") else { return nil }
         guard let openEnd = tagEnd(in: trimmed, from: trimmed.startIndex) else { return nil }
@@ -73,7 +73,7 @@ enum TaskNotificationParser {
         return summary
     }
 
-    private static func isTaskOpen(_ text: String) -> Bool {
+    nonisolated private static func isTaskOpen(_ text: String) -> Bool {
         guard text.hasPrefix("<task") else { return false }
         let after = text.index(text.startIndex, offsetBy: "<task".count)
         guard after < text.endIndex else { return false }
@@ -81,7 +81,7 @@ enum TaskNotificationParser {
         return boundary.isWhitespace || boundary == ">"
     }
 
-    private static func tagEnd(in text: String, from open: String.Index) -> String.Index? {
+    nonisolated private static func tagEnd(in text: String, from open: String.Index) -> String.Index? {
         var index = open
         var quote: Character?
         while index < text.endIndex {
@@ -106,7 +106,7 @@ enum TaskNotificationParser {
         return nil
     }
 
-    private static func attributes(in source: Substring) -> [String: String]? {
+    nonisolated private static func attributes(in source: Substring) -> [String: String]? {
         var index = source.startIndex
         var parsed: [String: String] = [:]
         while index < source.endIndex {
@@ -143,17 +143,17 @@ enum TaskNotificationParser {
         return parsed
     }
 
-    private static func isAttributeName(_ char: Character) -> Bool {
+    nonisolated private static func isAttributeName(_ char: Character) -> Bool {
         char.isLetter || char.isNumber || char == "_" || char == "-" || char == ":"
     }
 
-    private static func resultBody(state: TaskState, in inner: Substring) -> String? {
+    nonisolated private static func resultBody(state: TaskState, in inner: Substring) -> String? {
         let preferred = state == .error ? "task_error" : "task_result"
         let fallback = state == .error ? "task_result" : "task_error"
         return elementBody(preferred, in: inner) ?? elementBody(fallback, in: inner)
     }
 
-    private static func elementBody(_ name: String, in text: Substring) -> String? {
+    nonisolated private static func elementBody(_ name: String, in text: Substring) -> String? {
         let open = "<\(name)>"
         let close = "</\(name)>"
         guard let openRange = text.range(of: open) else { return nil }
@@ -162,7 +162,7 @@ enum TaskNotificationParser {
         return unwrapEnvelopeNewline(String(afterOpen[..<closeRange.lowerBound]))
     }
 
-    private static func unwrapEnvelopeNewline(_ text: String) -> String {
+    nonisolated private static func unwrapEnvelopeNewline(_ text: String) -> String {
         var result = text
         if result.hasPrefix("\n") { result.removeFirst() }
         if result.hasSuffix("\n") { result.removeLast() }

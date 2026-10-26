@@ -15,6 +15,9 @@ struct SessionListView: View {
     @State private var showCreateDisabledAlert = false
     @State private var showRenameAlert = false
     @State private var renameText = ""
+    @State private var searchText = ""
+    @State private var pendingDeletion: Session?
+    @State private var pendingDeletionHost: HostRequestSnapshot?
 
     /// Session counters: rounds, tool calls, tokens and cache hit. These moved
     /// out of the chat composer — a third band above the input read as a
@@ -50,85 +53,37 @@ struct SessionListView: View {
     }
 
     private var activeNodes: [SessionNode] {
-        state.sessionTree(archived: false)
+        state.sessionTree(archived: false, query: searchText)
     }
 
     private var archivedNodes: [SessionNode] {
-        state.sessionTree(archived: true)
+        state.sessionTree(archived: true, query: searchText)
     }
 
     var body: some View {
         let presentations = state.sessionIndicatorPresentations
+        NavigationStack {
         VStack(spacing: 0) {
-            HStack {
-                Button(L10n.t(.sessionsClose)) { dismiss() }
-                    .frame(width: 88, alignment: .leading)
-
-                Spacer()
-
-                Text(L10n.t(.sessionsTitle))
-                    .font(DesignTypography.display)
-                    .foregroundStyle(DesignColors.Neutral.text)
-
-                Spacer()
-
-                HStack(spacing: 8) {
-                    Button {
-                        renameText = state.currentSession?.title ?? ""
-                        showRenameAlert = true
-                    } label: {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 22, weight: .regular))
-                    }
-                    .disabled(state.currentSession == nil)
-                    .accessibilityIdentifier("chat-toolbar-rename-session")
-
-                    Button {
-                        Task {
-                            await state.createSession()
-                            dismiss()
-                        }
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 28, weight: .regular))
-                    }
-                    .disabled(!state.canCreateSession)
-                    .foregroundColor(state.canCreateSession ? DesignColors.Brand.primary : DesignColors.Neutral.textTertiary)
-                    .accessibilityIdentifier("chat-toolbar-create-session")
-
-                    if !state.canCreateSession {
-                        Button {
-                            showCreateDisabledAlert = true
-                        } label: {
-                            Image(systemName: "info.circle")
-                        }
-                        .foregroundColor(.secondary)
-                    }
-                }
-                .frame(width: 88, alignment: .trailing)
-            }
-            .padding(.horizontal, DesignSpacing.lg)
-            .padding(.top, DesignSpacing.lg)
-            .padding(.bottom, DesignSpacing.sm)
-
             sessionStatsLine
                 .padding(.horizontal, DesignSpacing.lg)
                 .padding(.bottom, DesignSpacing.md)
 
             Group {
-                if activeNodes.isEmpty && archivedNodes.isEmpty {
-                    ContentUnavailableView(
-                        L10n.t(.sessionsEmptyTitle),
-                        systemImage: "bubble.left.and.text.bubble.right",
-                        description: Text(L10n.t(.sessionsEmptyDescription))
-                    )
+                if activeNodes.isEmpty && archivedNodes.isEmpty && searchText.isEmpty {
+                    SessionListEmptyState()
                 } else {
                     List {
+                        if !searchText.isEmpty {
+                            Text(L10n.t(.sessionsSearchScope)).font(DesignTypography.meta)
+                            if activeNodes.isEmpty && archivedNodes.isEmpty {
+                                Text(L10n.t(.sessionsNoMatches))
+                            }
+                        }
                         SessionSectionHeader(title: L10n.t(.sessionsActive), isExpanded: activeExpanded) {
                             activeExpanded.toggle()
                         }
 
-                        if activeExpanded {
+                        if activeExpanded || !searchText.isEmpty {
                             sessionNodes(activeNodes, archived: false, presentations: presentations)
                         }
 
@@ -136,7 +91,7 @@ struct SessionListView: View {
                             archivedExpanded.toggle()
                         }
 
-                        if archivedExpanded {
+                        if archivedExpanded || !searchText.isEmpty {
                             sessionNodes(archivedNodes, archived: true, presentations: presentations)
                         }
 
@@ -156,6 +111,50 @@ struct SessionListView: View {
                     }
                 }
             }
+        }
+        .navigationTitle(L10n.t(.sessionsTitle))
+        .navigationBarTitleDisplayMode(.inline)
+        .searchable(text: $searchText, prompt: L10n.t(.sessionsSearchLoaded))
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button(L10n.t(.sessionsClose)) { dismiss() }
+            }
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button {
+                    renameText = state.currentSession?.title ?? ""
+                    showRenameAlert = true
+                } label: { Image(systemName: "pencil") }
+                .disabled(state.currentSession == nil)
+                .accessibilityLabel(L10n.t(.chatRenameSession))
+                .accessibilityIdentifier("chat-toolbar-rename-session")
+                Button {
+                    Task {
+                        if await state.createSession() { dismiss() }
+                        else { actionError = state.connectionError ?? L10n.t(.chatCreateDisabledHint) }
+                    }
+                } label: { Image(systemName: "plus") }
+                .disabled(!state.canCreateSession)
+                .accessibilityLabel(L10n.t(.sessionsNew))
+                .accessibilityIdentifier("chat-toolbar-create-session")
+                if !state.canCreateSession {
+                    Button { showCreateDisabledAlert = true } label: { Image(systemName: "info.circle") }
+                        .accessibilityLabel(L10n.t(.chatCreateDisabledHint))
+                }
+            }
+        }
+        .alert(L10n.t(.sessionsDeleteConfirmation), isPresented: Binding(
+            get: { pendingDeletion != nil }, set: { if !$0 { pendingDeletion = nil } }
+        ), presenting: pendingDeletion) { session in
+            Button(L10n.t(.commonCancel), role: .cancel) {}
+            Button(L10n.t(.sessionsDelete), role: .destructive) {
+                guard let host = pendingDeletionHost, state.isCurrentHostRequest(host) else { return }
+                mutateSession(session) {
+                    try await state.deleteSession(sessionID: session.id, expectedHost: host)
+                    DesignHaptics.fire(.destructiveConfirmed, microphoneOpen: state.isMicrophoneCaptureActive)
+                }
+            }
+        } message: { session in
+            Text(L10n.t(.sessionsDeleteWarning, session.title))
         }
         .alert(
             L10n.t(.sessionsActionFailedTitle),
@@ -188,6 +187,7 @@ struct SessionListView: View {
             }
         } message: {
             Text(L10n.t(.chatRenameSessionPlaceholder))
+        }
         }
     }
 
@@ -239,15 +239,8 @@ struct SessionListView: View {
                 }
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     Button {
-                        // The haptic fires on the confirmed delete, not on the
-                        // gesture: a delete that fails must not feel like a
-                        // success. `docs/design.md` §QT-MOCKUP puts no secondary
-                        // confirmation dialog in front of a swipe delete.
-                        mutateSession(session) {
-                            try await state.deleteSession(sessionID: session.id)
-                            DesignHaptics.fire(.destructiveConfirmed,
-                                               microphoneOpen: state.isMicrophoneCaptureActive)
-                        }
+                        pendingDeletionHost = state.captureHostRequestSnapshot()
+                        pendingDeletion = session
                     } label: {
                         Label(L10n.t(.sessionsDelete), systemImage: "trash")
                     }
@@ -255,7 +248,7 @@ struct SessionListView: View {
                     .disabled(mutatingSessionID != nil)
                 }
 
-                if state.expandedSessionIDs.contains(session.id) {
+                if state.expandedSessionIDs.contains(session.id) || !searchText.isEmpty {
                     sessionNodes(
                         node.children,
                         archived: archived,
@@ -278,6 +271,37 @@ struct SessionListView: View {
             }
             mutatingSessionID = nil
         }
+    }
+}
+
+/// The empty region of the session list.
+///
+/// A connected host that reports no sessions gets the ruled-lines scene: the
+/// list is empty, not broken. The drawing is decorative, so the copy below it
+/// stays the only thing VoiceOver reads. The same scene serves the phone sheet
+/// and the iPad column — one idea, one surface, two layouts.
+struct SessionListEmptyState: View {
+    var body: some View {
+        VStack(spacing: DesignSpacing.md) {
+            Image("NoSessionsArt")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 140, height: 140)
+                .accessibilityHidden(true)
+
+            Text(L10n.t(.sessionsEmptyTitle))
+                .font(DesignTypography.headline)
+                .foregroundStyle(DesignColors.Neutral.text)
+                .multilineTextAlignment(.center)
+
+            Text(L10n.t(.sessionsEmptyDescription))
+                .font(DesignTypography.meta)
+                .foregroundStyle(DesignColors.Neutral.textSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, DesignSpacing.lg)
+        .padding(.vertical, DesignSpacing.xl)
     }
 }
 
@@ -305,6 +329,7 @@ struct SessionSectionHeader: View {
         }
         .buttonStyle(.plain)
         .textCase(nil)
+        .accessibilityValue(L10n.t(isExpanded ? .expanded : .collapsed))
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
     }
@@ -396,7 +421,8 @@ struct SessionRowView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .padding(.horizontal, -16)
+                .accessibilityLabel(session.title)
+                .accessibilityValue(L10n.t(isCollapsed ? .collapsed : .expanded))
                 .accessibilityIdentifier("session-toggle-\(session.id)")
             } else if depth > 0 {
                 RoundedRectangle(cornerRadius: 1.5)
@@ -408,6 +434,11 @@ struct SessionRowView: View {
                     .frame(width: 12)
             }
 
+            Button {
+                guard !isMutating else { return }
+                onSelect()
+            } label: {
+            HStack(spacing: DesignSpacing.sm) {
             ZStack {
                 if let indicator {
                     SessionIndicatorDot(indicator: indicator)
@@ -442,20 +473,24 @@ struct SessionRowView: View {
                 ProgressView()
                     .controlSize(.small)
             }
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(isMutating)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         }
         .padding(.vertical, DesignSpacing.sm)
         .padding(.leading, CGFloat(depth) * DesignSpacing.xl)
         .contentShape(Rectangle())
-        .onTapGesture {
-            guard !isMutating else { return }
-            onSelect()
-        }
         // Selected row: a single rounded fill with the accent bar baked into its
         // left edge. Drawing the bar as part of the background (rather than a
         // separate overlay) keeps it clipped to the rounded corners, so it can't
         // poke out past the pill or collide with the expand/indent of child rows.
         .listRowBackground(selectionBackground)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("session-row-\(session.id)")
     }
 
@@ -515,8 +550,13 @@ struct SessionIndicatorDot: View {
             if indicator == .running {
                 RunningIndicatorLayer(color: UIColor(color), animates: animates)
             } else {
-            Circle()
-                .fill(color)
+                if indicator == .failed {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(color)
+                } else if indicator == .needsYou {
+                    Image(systemName: "diamond.fill").foregroundStyle(color)
+                } else {
+                    Circle().fill(color)
+                }
             }
         }
         .frame(width: diameter, height: diameter)
@@ -559,7 +599,8 @@ private struct RunningIndicatorLayer: UIViewRepresentable {
     final class DotView: UIView {
         override func layoutSubviews() {
             super.layoutSubviews()
-            layer.cornerRadius = min(bounds.width, bounds.height) / 2
+            // Distinct from unread's circle even with reduced motion and no color.
+            layer.cornerRadius = min(2, min(bounds.width, bounds.height) / 4)
         }
     }
     let color: UIColor

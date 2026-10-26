@@ -16,19 +16,19 @@ struct CarLiveReplyBridgeTests {
             return livePage(rows)
         }
         let token = await h.reserve(sessionID: "s", isNew: true)
-        await h.bridge.accept(token)
+        h.bridge.accept(token)
         await h.bridge.flush()
         let event = try #require(h.sent.first?.eventID)
-        await h.bridge.noteExplicitIdle(sessionID: "s")
+        h.bridge.noteExplicitIdle(sessionID: "s")
         await h.bridge.flush()
         #expect(h.sent.count == 1)
         h.bridge.noteUndelivered(event)
         laterTurn = true
-        await h.bridge.noteExplicitIdle(sessionID: "s")
+        h.bridge.noteExplicitIdle(sessionID: "s")
         await h.bridge.flush()
         #expect(h.sent.count == 2)
         #expect(h.sent.last?.text.contains("第二条回复") == true)
-        await h.bridge.noteExplicitIdle(sessionID: "s")
+        h.bridge.noteExplicitIdle(sessionID: "s")
         await h.bridge.flush()
         #expect(h.sent.count == 2)
     }
@@ -43,8 +43,8 @@ struct CarLiveReplyBridgeTests {
             ])
         }
         let token = await h.reserve(sessionID: "s", isNew: true)
-        await h.bridge.accept(token)
-        await h.bridge.noteExplicitIdle(sessionID: "s")
+        h.bridge.accept(token)
+        h.bridge.noteExplicitIdle(sessionID: "s")
         await h.bridge.flush()
         #expect(h.sent.count == 1)
         #expect(h.sent[0].text.contains("先核实预约"))
@@ -69,10 +69,10 @@ struct CarLiveReplyBridgeTests {
             return livePage(rows)
         }
         let token = await h.reserve(sessionID: "s", isNew: true)
-        await h.bridge.accept(token)
+        h.bridge.accept(token)
         await h.bridge.flush()
         includeSummary = true
-        await h.bridge.noteExplicitIdle(sessionID: "s")
+        h.bridge.noteExplicitIdle(sessionID: "s")
         await h.bridge.flush()
         #expect(h.sent.map(\.text).filter { $0.contains("先交给子代理") }.count == 1)
         #expect(h.sent.contains { $0.text.contains("预约已核对") && !$0.text.contains("来源 agent：") })
@@ -85,13 +85,13 @@ struct CarLiveReplyBridgeTests {
         }
         let a = await h.reserve(sessionID: "A", directory: "/a", title: "甲", isNew: true)
         let b = await h.reserve(sessionID: "B", directory: "/b", title: "乙", isNew: true)
-        await h.bridge.accept(a)
-        await h.bridge.accept(b)
+        h.bridge.accept(a)
+        h.bridge.accept(b)
         await h.bridge.flush()
         #expect(h.bridge.subscribedSessionIDs == ["A", "B"])
         #expect(h.sent.contains { $0.text.contains("回复A") && $0.text.contains("来源会话：甲") })
         #expect(h.sent.contains { $0.text.contains("回复B") && $0.text.contains("来源会话：乙") })
-        await h.bridge.noteExplicitIdle(sessionID: "A")
+        h.bridge.noteExplicitIdle(sessionID: "A")
         await h.bridge.flush()
         #expect(h.sent.filter { $0.text.contains("回复B") }.count == 1)
     }
@@ -100,9 +100,9 @@ struct CarLiveReplyBridgeTests {
         let h = ReplyHarness()
         h.pages = { _, _, _ in livePage([liveRow(id: "a1", sessionID: "s", role: "assistant", text: "一次")]) }
         let token = await h.reserve(sessionID: "s", isNew: true)
-        await h.bridge.accept(token)
-        await h.bridge.noteExplicitIdle(sessionID: "s")
-        await h.bridge.noteExplicitIdle(sessionID: "s")
+        h.bridge.accept(token)
+        h.bridge.noteExplicitIdle(sessionID: "s")
+        h.bridge.noteExplicitIdle(sessionID: "s")
         await h.bridge.flush()
         #expect(h.sent.count == 1)
     }
@@ -111,10 +111,10 @@ struct CarLiveReplyBridgeTests {
         let h = ReplyHarness()
         h.pages = { _, _, _ in livePage([liveRow(id: "a1", sessionID: "s", role: "assistant", text: "已经完成")]) }
         let token = await h.reserve(sessionID: "s", isNew: true)
-        await h.bridge.noteExplicitIdle(sessionID: "s")
+        h.bridge.noteExplicitIdle(sessionID: "s")
         await h.bridge.flush()
         #expect(h.sent.isEmpty)
-        await h.bridge.accept(token)
+        h.bridge.accept(token)
         await h.bridge.flush()
         #expect(h.sent.count == 1)
         #expect(h.sent[0].text.contains("已经完成"))
@@ -129,13 +129,13 @@ struct CarLiveReplyBridgeTests {
         h.pages = { id, _, _ in livePage([liveRow(id: "m-\(id)", sessionID: id, role: "assistant", text: "补\(id)")]) }
         let a = await h.reserve(sessionID: "A", directory: "/a", title: "甲", isNew: true)
         let b = await h.reserve(sessionID: "B", directory: "/b", title: "乙", isNew: true)
-        await h.bridge.accept(a)
-        await h.bridge.accept(b)
+        h.bridge.accept(a)
+        h.bridge.accept(b)
         await h.bridge.flush()
         #expect(h.sent.map(\.text).filter { $0.contains("补A") }.isEmpty)
         #expect(h.sent.contains { $0.text.contains("补B") })
         let before = h.sent.count
-        await h.bridge.noteConnected()
+        h.bridge.noteConnected()
         await h.bridge.flush()
         #expect(h.directories.contains("/a"))
         #expect(h.directories.contains("/b"))
@@ -148,10 +148,10 @@ struct CarLiveReplyBridgeTests {
         failed.statuses = { _ in throw ReplyStubError() }
         failed.pages = { _, _, _ in livePage([liveRow(id: "a1", sessionID: "s", role: "assistant", text: "正文")]) }
         let failedToken = await failed.reserve(sessionID: "s", isNew: true)
-        await failed.bridge.accept(failedToken)
+        failed.bridge.accept(failedToken)
         await failed.bridge.flush()
         #expect(failed.sent.isEmpty)
-        await failed.bridge.noteExplicitIdle(sessionID: "s")
+        failed.bridge.noteExplicitIdle(sessionID: "s")
         await failed.bridge.flush()
         #expect(failed.sent.count == 1)
 
@@ -162,10 +162,10 @@ struct CarLiveReplyBridgeTests {
         }
         stale.pages = { _, _, _ in livePage([liveRow(id: "a1", sessionID: "s", role: "assistant", text: "过期")]) }
         let staleToken = await stale.reserve(sessionID: "s", isNew: true)
-        await stale.bridge.accept(staleToken)
+        stale.bridge.accept(staleToken)
         await stale.bridge.flush()
         #expect(stale.sent.isEmpty)
-        await stale.bridge.noteConnected()
+        stale.bridge.noteConnected()
         await stale.bridge.flush()
         #expect(stale.sent.isEmpty)
     }
@@ -178,11 +178,11 @@ struct CarLiveReplyBridgeTests {
         }
         failed.pages = { _, _, _ in livePage([liveRow(id: "a1", sessionID: "s", role: "assistant", text: "失败")]) }
         let failedToken = await failed.reserve(sessionID: "s", isNew: true)
-        await failed.bridge.accept(failedToken)
+        failed.bridge.accept(failedToken)
         await failed.bridge.flush()
-        await failed.bridge.noteExplicitIdle(sessionID: "s")
+        failed.bridge.noteExplicitIdle(sessionID: "s")
         await failed.bridge.flush()
-        await failed.bridge.noteExplicitIdle(sessionID: "s")
+        failed.bridge.noteExplicitIdle(sessionID: "s")
         await failed.bridge.flush()
         #expect(failed.sent.count == 2)
 
@@ -194,18 +194,18 @@ struct CarLiveReplyBridgeTests {
         }
         early.pages = { _, _, _ in livePage([liveRow(id: "a1", sessionID: "s", role: "assistant", text: "早确认")]) }
         let earlyToken = await early.reserve(sessionID: "s", isNew: true)
-        await early.bridge.accept(earlyToken)
+        early.bridge.accept(earlyToken)
         await early.bridge.flush()
-        await early.bridge.noteExplicitIdle(sessionID: "s")
+        early.bridge.noteExplicitIdle(sessionID: "s")
         await early.bridge.flush()
         #expect(early.sent.count == 1)
 
         let submitted = ReplyHarness()
         submitted.pages = { _, _, _ in livePage([liveRow(id: "a1", sessionID: "s", role: "assistant", text: "已提交")]) }
         let submittedToken = await submitted.reserve(sessionID: "s", isNew: true)
-        await submitted.bridge.accept(submittedToken)
+        submitted.bridge.accept(submittedToken)
         await submitted.bridge.flush()
-        await submitted.bridge.noteExplicitIdle(sessionID: "s")
+        submitted.bridge.noteExplicitIdle(sessionID: "s")
         await submitted.bridge.flush()
         #expect(submitted.sent.count == 1)
     }
@@ -225,7 +225,7 @@ struct CarLiveReplyBridgeTests {
             }
             Task { @MainActor in
                 let token = await h.reserve(sessionID: "s", isNew: true)
-                await h.bridge.accept(token)
+                h.bridge.accept(token)
             }
         }
         h.bridge.invalidate()
@@ -239,7 +239,7 @@ struct CarLiveReplyBridgeTests {
             livePage([liveRow(id: "old", sessionID: "s", role: "assistant", text: "旧回复")])
         }
         let token = await closed.reserve(sessionID: "s", userID: "u-new", isNew: false)
-        await closed.bridge.accept(token)
+        closed.bridge.accept(token)
         await closed.bridge.flush()
         #expect(closed.sent.isEmpty)
     }
@@ -259,7 +259,7 @@ struct CarLiveReplyBridgeTests {
             }
             Task { @MainActor in
                 let token = await h.reserve(sessionID: "s", isNew: true)
-                await h.bridge.accept(token)
+                h.bridge.accept(token)
             }
         }
         h.open = false
@@ -283,7 +283,7 @@ struct CarLiveReplyBridgeTests {
             ])
         }
         let token = await paged.reserve(sessionID: "s", isNew: false)
-        await paged.bridge.accept(token)
+        paged.bridge.accept(token)
         await paged.bridge.flush()
         #expect(paged.sent.count == 1)
         #expect(paged.sent[0].text.contains("跨页新回复"))
@@ -294,7 +294,7 @@ struct CarLiveReplyBridgeTests {
         let gap = ReplyHarness()
         gap.pages = { _, _, _ in livePage([liveRow(id: "a1", sessionID: "s", role: "assistant", text: "缺口")], gaps: true) }
         let gapToken = await gap.reserve(sessionID: "s", isNew: true)
-        await gap.bridge.accept(gapToken)
+        gap.bridge.accept(gapToken)
         await gap.bridge.flush()
         #expect(gap.sent.isEmpty)
 
@@ -307,9 +307,9 @@ struct CarLiveReplyBridgeTests {
             return livePage([liveRow(id: "hist-\(missingCalls)", sessionID: "s", role: "assistant", text: "历史\(missingCalls)")], cursor: cursor)
         }
         let missingToken = await missing.reserve(sessionID: "s", userID: "u-new", isNew: false)
-        await missing.bridge.accept(missingToken)
+        missing.bridge.accept(missingToken)
         await missing.bridge.flush()
-        await missing.bridge.noteExplicitIdle(sessionID: "s")
+        missing.bridge.noteExplicitIdle(sessionID: "s")
         await missing.bridge.flush()
         #expect(missing.sent.isEmpty)
         #expect(missingCalls <= 6)
@@ -327,7 +327,7 @@ struct CarLiveReplyBridgeTests {
             return livePage([liveRow(id: "a1", sessionID: "s", role: "assistant", text: "缺口后")], cursor: "  c1  ", gaps: true)
         }
         let gapToken = await gap.reserve(sessionID: "s", directory: " /work ", isNew: false)
-        await gap.bridge.accept(gapToken)
+        gap.bridge.accept(gapToken)
         await gap.bridge.flush()
         #expect(gap.sent.isEmpty)
         #expect(!gapBefores.contains("  c1  "))
@@ -344,7 +344,7 @@ struct CarLiveReplyBridgeTests {
             return livePage([liveRow(id: "base", sessionID: "s", role: "user", text: "旧")])
         }
         let spacedToken = await spaced.reserve(sessionID: "s", isNew: false)
-        await spaced.bridge.accept(spacedToken)
+        spaced.bridge.accept(spacedToken)
         await spaced.bridge.flush()
         #expect(spaced.sent.count == 1)
         #expect(spaced.sent[0].text.contains("空白游标后"))
@@ -356,7 +356,7 @@ struct CarLiveReplyBridgeTests {
         let body = "😀" + String(repeating: "测", count: 1800)
         h.pages = { _, _, _ in livePage([liveRow(id: "a1", sessionID: "s", role: "assistant", text: body, agent: nil)]) }
         let token = await h.reserve(sessionID: "s", title: "很长的会话标题" + String(repeating: "题", count: 40), isNew: true)
-        await h.bridge.accept(token)
+        h.bridge.accept(token)
         await h.bridge.flush()
         let text = try #require(h.sent.first?.text)
         #expect(text.utf8.count <= 2000)
@@ -379,7 +379,7 @@ struct CarLiveReplyBridgeTests {
             return false
         }
         let first = await h.reserve(sessionID: "s", isNew: true)
-        await h.bridge.accept(first)
+        h.bridge.accept(first)
         await h.bridge.flush()
         let seen = calls
         let second = await h.reserve(sessionID: "s", userID: "u2", isNew: false)
@@ -388,7 +388,7 @@ struct CarLiveReplyBridgeTests {
             h.sent.append((text, eventID, owner))
             return true
         }
-        await h.bridge.accept(second)
+        h.bridge.accept(second)
         await h.bridge.flush()
         #expect(h.sent.contains { $0.text.contains("还没送出") })
         #expect(h.bridge.subscribedSessionIDs == ["s"])
@@ -404,16 +404,16 @@ struct CarLiveReplyBridgeTests {
             return livePage([liveRow(id: "a1", sessionID: "s", role: "assistant", text: "还在写", completed: nil, finish: nil)])
         }
         let token = await h.reserve(sessionID: "s", isNew: true)
-        await h.bridge.accept(token)
-        await h.bridge.noteExplicitIdle(sessionID: "s")
+        h.bridge.accept(token)
+        h.bridge.noteExplicitIdle(sessionID: "s")
         await h.bridge.flush()
         #expect(h.sent.isEmpty)
         done = true
-        await h.bridge.noteMessageUpdated(sessionID: "s")
+        h.bridge.noteMessageUpdated(sessionID: "s")
         await h.bridge.flush()
         #expect(h.sent.count == 1)
         #expect(h.sent[0].text.contains("写完了"))
-        await h.bridge.noteMessageUpdated(sessionID: "s")
+        h.bridge.noteMessageUpdated(sessionID: "s")
         await h.bridge.flush()
         #expect(h.sent.count == 1)
     }
@@ -528,10 +528,10 @@ struct CarLiveReplyBridgeTests {
             }
             let token = UUID().uuidString
             await state.carLiveReplies.reserve(CarLiveReplyReservation(token: token, sessionID: "s", directory: "/work", userMessageID: "u", title: "路线", isNewSession: true), lease: CarLiveLease(hostID: UUID(), generation: 1, contextKey: "ctx", epoch: 1, ownerToken: "owner", transportToken: 1))
-            await state.carLiveReplies.accept(token)
+            state.carLiveReplies.accept(token)
             await state.carLiveReplies.flush()
             #expect(calls == 0)
-            await state.carLiveReplies.noteExplicitIdle(sessionID: "s")
+            state.carLiveReplies.noteExplicitIdle(sessionID: "s")
             await state.carLiveReplies.flush()
             #expect(calls == 3)
             #expect(sent.isEmpty)
@@ -577,7 +577,7 @@ struct CarLiveReplyBridgeTests {
                 return livePage([liveRow(id: "u1", sessionID: "s", role: "user", text: "问")])
             }
             let token = await h.reserve(sessionID: "s", isNew: true)
-            await h.bridge.accept(token)
+            h.bridge.accept(token)
             await h.bridge.flush()
             #expect(pages == 0)
             await withCheckedContinuation { (ready: CheckedContinuation<Void, Never>) in
@@ -605,22 +605,22 @@ struct CarLiveReplyBridgeTests {
                     }
                 }
                 Task { @MainActor in
-                    await h.bridge.noteExplicitIdle(sessionID: "s")
+                    h.bridge.noteExplicitIdle(sessionID: "s")
                 }
             }
             filled = true
-            await h.bridge.noteMessageUpdated(sessionID: "s")
+            h.bridge.noteMessageUpdated(sessionID: "s")
             hold.release()
             await h.bridge.flush()
             #expect(h.sent.count == 1)
             #expect(h.sent[0].text.contains("写完了"))
             let after = pages
-            await h.bridge.noteMessageUpdated(sessionID: "s")
+            h.bridge.noteMessageUpdated(sessionID: "s")
             await h.bridge.flush()
             #expect(h.sent.count == 1)
             #expect(pages == after)
             later = true
-            await h.bridge.noteExplicitIdle(sessionID: "s")
+            h.bridge.noteExplicitIdle(sessionID: "s")
             await h.bridge.flush()
             #expect(h.sent.count == 2)
             #expect(h.sent[1].text.contains("后到"))
@@ -652,12 +652,12 @@ struct CarLiveReplyBridgeTests {
             return id
         }
         let token = await h.reserve(sessionID: "s", isNew: false)
-        await h.bridge.accept(token)
+        h.bridge.accept(token)
         await h.bridge.flush()
         for round in 0..<13 {
             for _ in 0..<40 { _ = add("user", "垫") }
             _ = add("assistant", "轮次\(round)")
-            await h.bridge.noteExplicitIdle(sessionID: "s")
+            h.bridge.noteExplicitIdle(sessionID: "s")
             await h.bridge.flush()
             #expect(h.sent.contains { $0.text.contains("轮次\(round)") })
         }
@@ -677,12 +677,12 @@ struct CarLiveReplyBridgeTests {
             return livePage(blockedRows)
         }
         let blockedToken = await blocked.reserve(sessionID: "s", isNew: false)
-        await blocked.bridge.accept(blockedToken)
+        blocked.bridge.accept(blockedToken)
         await blocked.bridge.flush()
         #expect(blocked.sent.contains { $0.text.contains("可先送") })
         #expect(!blocked.sent.contains { $0.text.contains("未完成") })
         blockedRows[1] = liveRow(id: "hold", sessionID: "s", role: "assistant", text: "未完成", completed: 4, finish: "stop")
-        await blocked.bridge.noteExplicitIdle(sessionID: "s")
+        blocked.bridge.noteExplicitIdle(sessionID: "s")
         await blocked.bridge.flush()
         #expect(blocked.sent.contains { $0.text.contains("未完成") })
 
@@ -702,12 +702,12 @@ struct CarLiveReplyBridgeTests {
             return livePage(failedRows)
         }
         let failedToken = await failed.reserve(sessionID: "s", isNew: false)
-        await failed.bridge.accept(failedToken)
+        failed.bridge.accept(failedToken)
         await failed.bridge.flush()
         #expect(failed.sent.filter { $0.text.contains("失败发送") }.count == 1)
         failedRows.append(liveRow(id: "after", sessionID: "s", role: "assistant", text: "失败后的新回复"))
         let continued = await failed.reserve(sessionID: "s", userID: "u2", isNew: false)
-        await failed.bridge.accept(continued)
+        failed.bridge.accept(continued)
         await failed.bridge.flush()
         #expect(failed.sent.filter { $0.text.contains("失败发送") }.count == 2)
         #expect(failed.sent.contains { $0.text.contains("失败后的新回复") })
@@ -910,7 +910,7 @@ private func naturalSession(_ id: String) -> Session {
     Session(id: id, slug: id, projectID: "p", directory: "/work", parentID: nil, title: "路线", version: "1", time: .init(created: 1, updated: 2, archived: nil), share: nil, summary: nil)
 }
 
-private final class NaturalEndTransport: CarLiveTransporting, @unchecked Sendable {
+nonisolated private final class NaturalEndTransport: CarLiveTransporting, @unchecked Sendable {
     private let lock = NSLock()
     private var openCount = 0
     private var opened: [NaturalEndLink] = []

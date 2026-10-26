@@ -37,6 +37,20 @@ struct CurrentHostSummaryView: View {
     }
 }
 
+/// The hand-drawn pairing scene: the invitation to connect a server.
+///
+/// It is decorative, so VoiceOver skips it. It means "nothing here yet" —
+/// a real load keeps using `ProgressView`.
+private struct PairingArtwork: View {
+    var body: some View {
+        Image("PairingArt")
+            .resizable()
+            .scaledToFit()
+            .frame(width: 140, height: 140)
+            .accessibilityHidden(true)
+    }
+}
+
 struct HostProfilesView: View {
     @Bindable var state: AppState
     @State private var editorMode: HostProfileEditorMode?
@@ -92,6 +106,26 @@ struct HostProfilesView: View {
                                 do { try state.deleteHostProfile(profile) } catch { errorMessage = error.localizedDescription }
                             }
                         }
+                }
+
+                if state.hostProfiles.isEmpty {
+                    // Nothing here yet: the drawing invites the first host and
+                    // the "Add Host" button under it is the action it points
+                    // at. It is not a loading state — nothing is in flight.
+                    VStack(spacing: DesignSpacing.sm) {
+                        PairingArtwork()
+                        Text(L10n.t(.hostNoHost))
+                            .font(DesignTypography.headline)
+                            .foregroundStyle(DesignColors.Neutral.text)
+                        Text(L10n.t(.hostAddToConnect))
+                            .font(DesignTypography.meta)
+                            .foregroundStyle(DesignColors.Neutral.textSecondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, DesignSpacing.md)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("hosts-empty-state")
                 }
 
                 Button {
@@ -432,7 +466,7 @@ private struct HostProfileDetailView: View {
                         }
                         .accessibilityIdentifier("host-detail-use-this-host")
                     }
-                    Button(L10n.t(.settingsTestConnection)) {
+                    Button(L10n.t(isCurrent ? .settingsTestConnection : .hostConnect)) {
                         if !isCurrent {
                             Task {
                                 await state.switchHostProfile(to: profile.id)
@@ -549,6 +583,9 @@ struct HostProfileEditorView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var profile: HostProfile
+    @State private var savedProfile: HostProfile
+    @State private var showDiscardConfirmation = false
+    @State private var showImport = false
     @State var credentialDraft: HostEditorCredentialDraft
     @State private var importText = ""
     @State private var publicKeyCopied = false
@@ -682,6 +719,7 @@ struct HostProfileEditorView: View {
             loadError = nil
         }
         _profile = State(initialValue: initial)
+        _savedProfile = State(initialValue: initial)
         _credentialDraft = State(initialValue: HostEditorCredentialDraft(
             password: loadedPassword,
             loadFailed: loadError != nil,
@@ -693,12 +731,13 @@ struct HostProfileEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
-                if case .add = mode {
+                if case .add = mode, showImport {
                     Section {
                         TextEditor(text: $importText)
                             .frame(minHeight: 80)
                             .textInputAutocapitalization(.never)
                             .accessibilityIdentifier("host-import-json")
+                            .accessibilityLabel(L10n.t(.hostManualImport))
                         Button {
                             do {
                                 profile = try state.importHostProfile(from: importText)
@@ -717,6 +756,14 @@ struct HostProfileEditorView: View {
                 }
 
                 Section {
+                    // The drawing is the invitation and the scan button under
+                    // it is the point. It steps aside once a pairing landed:
+                    // the confirmation label says it for itself.
+                    if pairedHostName == nil {
+                        PairingArtwork()
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, DesignSpacing.sm)
+                    }
                     #if os(iOS)
                     Button {
                         isScanningQR = true
@@ -726,6 +773,10 @@ struct HostProfileEditorView: View {
                     .accessibilityIdentifier("host-pair-scan-qr")
                     .disabled(pairingState.isBusy)
                     #endif
+
+                    if case .add = mode {
+                        Button(L10n.t(.hostManualImport)) { showImport.toggle() }
+                    }
 
                     HStack {
                         TextField(L10n.t(.hostPairLinkPlaceholder), text: $pairingLinkText)
@@ -757,6 +808,7 @@ struct HostProfileEditorView: View {
                             }
                         }
                         .accessibilityIdentifier("host-pair-link-redeem")
+                        .accessibilityLabel(L10n.t(.hostPairSection))
                         .disabled(pairingLinkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || pairingState.isBusy)
                     }
 
@@ -856,7 +908,7 @@ struct HostProfileEditorView: View {
                 }
 
                 Section {
-                    Button(L10n.t(.settingsTestConnection)) {
+                    Button(L10n.t(.hostSaveAndConnect)) {
                         if save(makeCurrent: true) {
                             Task { await state.refresh() }
                         }
@@ -872,7 +924,10 @@ struct HostProfileEditorView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(L10n.t(.commonCancel)) { dismiss() }
+                    Button(L10n.t(.commonCancel)) {
+                        if hasUnsavedChanges { showDiscardConfirmation = true }
+                        else { dismiss() }
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(L10n.t(.hostSave)) {
@@ -891,6 +946,14 @@ struct HostProfileEditorView: View {
                 Button(L10n.t(.commonOk), role: .cancel) {}
             } message: {
                 Text(credentialDraft.errorMessage ?? "")
+            }
+            .confirmationDialog(L10n.t(.hostDiscardTitle), isPresented: $showDiscardConfirmation, titleVisibility: .visible) {
+                Button(L10n.t(.hostDiscardChanges), role: .destructive) { dismiss() }
+                Button(L10n.t(.hostKeepEditing), role: .cancel) {}
+            } message: {
+                if lastRedeemedCode != nil || isPairing {
+                    Text(L10n.t(.hostDiscardPairingWarning))
+                }
             }
             .alert(L10n.t(.hostPairReplaceTitle), isPresented: Binding(
                 get: { pendingPairingReplacement != nil },
@@ -923,6 +986,16 @@ struct HostProfileEditorView: View {
             }
             #endif
         }
+        .interactiveDismissDisabled(hasUnsavedChanges || isPairing)
+        .onAppear {
+            if !importText.isEmpty { showImport = true }
+        }
+        .onDisappear { pendingPairingRedeem?.cancel() }
+    }
+
+    var hasUnsavedChanges: Bool {
+        profile != savedProfile || credentialDraft.passwordDirty
+            || !importText.isEmpty || !pairingLinkText.isEmpty || isPairing
     }
 
     private var isEditing: Bool {
@@ -1026,6 +1099,9 @@ struct HostProfileEditorView: View {
         let passwordArgument: String? = credentialDraft.passwordDirty ? credentialDraft.password : nil
         do {
             try state.saveHostProfile(toSave, password: passwordArgument, makeCurrent: makeCurrent)
+            profile = state.hostProfiles.first(where: { $0.id == toSave.id }) ?? toSave
+            savedProfile = profile
+            credentialDraft.passwordDirty = false
             return true
         } catch {
             credentialDraft.errorMessage = error.localizedDescription
@@ -1112,6 +1188,7 @@ private struct LabeledNumberField: View {
             Text(title)
             Spacer()
             TextField("", value: $value, formatter: NumberFormatter())
+                .accessibilityLabel(title)
                 .keyboardType(.numberPad)
                 .multilineTextAlignment(.trailing)
                 .frame(width: 90)

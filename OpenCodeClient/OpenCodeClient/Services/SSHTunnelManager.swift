@@ -15,7 +15,7 @@ import NIOSSH
 import Network
 #endif
 
-enum SSHConnectionStatus: Equatable {
+nonisolated enum SSHConnectionStatus: Equatable {
     case disconnected
     case connecting
     case connected
@@ -119,7 +119,7 @@ private final class SSHTOFUHostKeyValidator: NIOSSHClientServerAuthenticationDel
 }
 #endif
 
-struct SSHTunnelConfig: Codable, Equatable {
+nonisolated struct SSHTunnelConfig: Codable, Equatable {
     var isEnabled: Bool = false
     var host: String = ""
     var port: Int = 8006
@@ -558,7 +558,7 @@ final class SSHTunnelManager: ObservableObject {
                     _ = wait.resume(throwing: CancellationError())
                 case .failed(let err):
                     let detail = err.localizedDescription
-                    Task { @MainActor in
+                    Task { @MainActor [weak self] in
                         let listenerDetail = L10n.t(.hostDiagnosticLocalListenerFailed, detail)
                         let message = L10n.t(.sshErrorTunnelFailed, listenerDetail)
                         let first = wait.resume(throwing: SSHError.tunnelFailed(listenerDetail))
@@ -718,13 +718,14 @@ private final class NIOToNWConnectionHandler: ChannelInboundHandler {
         // pattern. Swift 6 strict concurrency still flags the capture; the
         // fix lives upstream in NIO. See
         // https://forums.swift.org/t/nio-channelhandlercontext-sendable
+        let boxedContext = SendableBox(value: context)
         nwConnection.send(content: Data(bytes), completion: .contentProcessed { error in
             if let error {
                 #if DEBUG
                 print("[SSH Tunnel] send failed: \(error)")
                 #endif
-                context.eventLoop.execute {
-                    context.close(promise: nil)
+                boxedContext.value.eventLoop.execute {
+                    boxedContext.value.close(promise: nil)
                 }
             }
         })
@@ -767,4 +768,11 @@ enum SSHError: LocalizedError {
             return L10n.t(.sshErrorHostKeyMismatch, expected, got)
         }
     }
+}
+
+/// A minimal Sendable wrapper for values whose thread-safety is guaranteed by
+/// their own semantics (e.g. NIO's ChannelHandlerContext, whose eventLoop
+/// execute() closure always runs on the context's own loop).
+private struct SendableBox<Value>: @unchecked Sendable {
+    let value: Value
 }

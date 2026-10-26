@@ -5,7 +5,7 @@
 
 import Foundation
 
-struct ModelPreset: Codable, Identifiable, Equatable {
+nonisolated struct ModelPreset: Codable, Identifiable, Equatable {
     var id: String { "\(providerID)/\(modelID)" }
     let displayName: String
     let providerID: String

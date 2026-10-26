@@ -367,6 +367,12 @@ extension AppState {
                    let data = try? JSONSerialization.data(withJSONObject: partObj),
                    let part = try? JSONDecoder().decode(Part.self, from: data),
                    part.sessionID == currentSessionID {
+                    // A completed write means the file state may be stale: the
+                    // tree, the status map and the diff need a refresh.
+                    if ToolCardClassifier.isChangePart(part)
+                        || (ToolCardClassifier.isWriteOperation(part) && part.state?.displayString == "completed") {
+                        noteFileChangeSignal(partID: part.id, sessionID: part.sessionID, turnUserMessageID: nil)
+                    }
                     switch messageStore.upsertPart(part) {
                     case .applied, .ignored:
                         break

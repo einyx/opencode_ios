@@ -141,6 +141,9 @@ oc_output_root() {
   printf '%s\n' "$root"
 }
 oc_init() {
+  # Fail before artifact creation, simulator boot, or an expensive Xcode build.
+  source "$REPO_ROOT/scripts/lib_storage.sh"
+  oc_storage_preflight || exit $?
   OC_KIND=$1
   OC_START=$SECONDS
   OC_HELPER="$REPO_ROOT/scripts/lib_test_observability.sh"

@@ -38,7 +38,7 @@ struct CarLiveMicrophoneMeterTests {
     }
 
     @Test func mappingDoesNotChangeRawInput() {
-        var raw = 0.08
+        let raw = 0.08
         let mapped = CarLiveMicrophoneMeter.displayFill(inputLevel: raw)
         let clamped = CarLiveMicrophoneMeter.sanitized(raw)
         #expect(raw == 0.08)

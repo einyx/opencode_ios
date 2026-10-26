@@ -28,6 +28,7 @@ struct ChatToolbarModifier: ViewModifier {
                                 .font(.body)
                         }
                         .accessibilityIdentifier("chat-toolbar-session-list")
+                        .accessibilityLabel(L10n.t(.sessionsTitle))
                     }
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
@@ -64,18 +65,22 @@ struct ChatModelChip: View {
                 Text(state.selectedModel?.shortName ?? L10n.t(.configureModel))
                     .font(.caption.weight(.semibold))
                     .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
                 Image(systemName: "chevron.down")
                     .font(.caption2)
             }
-            .foregroundStyle(DesignColors.Brand.primary)
+            // Quiet by design: the send button is the only accent in the
+            // composer, so the model chip reads as context, not as an action.
+            .foregroundStyle(DesignColors.Neutral.textSecondary)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
             // The chip keeps its natural width; the counters next to it are the
             // ones that give way.
-            .fixedSize(horizontal: true, vertical: false)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
         }
         .accessibilityIdentifier("chat-toolbar-model")
+        .accessibilityLabel(L10n.t(.configureModel))
+        .accessibilityValue(state.selectedModel?.shortName ?? L10n.t(.configureModel))
         .sheet(isPresented: $showConfigSheet) {
             ModelConfigSheet(state: state, isPresented: $showConfigSheet)
         }
@@ -118,8 +123,12 @@ struct ChatTodoChip: View {
                 .foregroundStyle(DesignColors.Neutral.textSecondary)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
             }
             .accessibilityIdentifier("chat-toolbar-todo")
+            .accessibilityLabel(L10n.t(.todoPanelTitle))
+            .accessibilityValue(badge)
             .popover(isPresented: $showTodoPanel) {
                 NavigationStack {
                     TodoListPanel(todos: todos)

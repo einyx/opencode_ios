@@ -195,7 +195,7 @@ private final class ForegroundLiveLink: CarLiveLink, @unchecked Sendable {
     var closes: Int { lock.withLock { closeCount } }
 }
 
-private final class ForegroundLiveTransport: CarLiveTransporting, @unchecked Sendable {
+nonisolated private final class ForegroundLiveTransport: CarLiveTransporting, @unchecked Sendable {
     let link: ForegroundLiveLink
     private let lock = NSLock()
     private var openCount = 0
@@ -212,7 +212,7 @@ private final class ForegroundLiveTransport: CarLiveTransporting, @unchecked Sen
     var opens: Int { lock.withLock { openCount } }
 }
 
-private final class StickyHoldTransport: CarLiveTransporting, @unchecked Sendable {
+nonisolated private final class StickyHoldTransport: CarLiveTransporting, @unchecked Sendable {
     private let lock = NSLock()
     private var waiters: [CheckedContinuation<Void, Never>] = []
     private var openCount = 0
@@ -256,7 +256,7 @@ private final class LeaseHold {
     }
 }
 
-private final class HoldingTransport: CarLiveTransporting, @unchecked Sendable {
+nonisolated private final class HoldingTransport: CarLiveTransporting, @unchecked Sendable {
     private let lock = NSLock()
     private var waiters: [CheckedContinuation<any CarLiveLink, Error>] = []
     private var openCount = 0

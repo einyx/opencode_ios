@@ -8,15 +8,15 @@ import Foundation
 /// round-trips work fully offline: the UI test can switch away and back
 /// without a live server, and the fixture messages survive the reload.
 enum SessionScrollFixture {
-    static let longSessionID = "scroll-long-session"
-    static let shortSessionID = "scroll-short-session"
-    static let longMessageCount = 40
+    nonisolated static let longSessionID = "scroll-long-session"
+    nonisolated static let shortSessionID = "scroll-short-session"
+    nonisolated static let longMessageCount = 40
 
     static var isActive: Bool {
         ProcessInfo.processInfo.arguments.contains("UITEST_SESSION_SCROLL_FIXTURE")
     }
 
-    static func messageLabel(_ index: Int) -> String {
+    nonisolated static func messageLabel(_ index: Int) -> String {
         String(format: "Long message %03d", index)
     }
 
@@ -39,7 +39,7 @@ enum SessionScrollFixture {
         state.messages = makeLongMessages()
     }
 
-    static func makeSessions() -> [Session] {
+    nonisolated static func makeSessions() -> [Session] {
         [
             Session(
                 id: longSessionID,
@@ -68,7 +68,7 @@ enum SessionScrollFixture {
         ]
     }
 
-    static func makeLongMessages() -> [MessageWithParts] {
+    nonisolated static func makeLongMessages() -> [MessageWithParts] {
         (1...longMessageCount).map { index in
             let isUser = index % 2 == 1
             let info = Message(
@@ -96,7 +96,7 @@ enum SessionScrollFixture {
         }
     }
 
-    static func makeShortMessages() -> [MessageWithParts] {
+    nonisolated static func makeShortMessages() -> [MessageWithParts] {
         let user = Message(
             id: "scroll-short-user",
             sessionID: shortSessionID,
