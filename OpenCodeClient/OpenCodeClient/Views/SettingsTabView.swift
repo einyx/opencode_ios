@@ -188,15 +188,12 @@ struct SettingsTabView: View {
         let failed = state.connectionDiagnostic?.phase == .failed
         let label = checking ? L10n.t(.settingsChecking)
             : L10n.t(failed ? .connectionPhaseFailed : (state.isConnected ? .settingsConnected : .settingsDisconnected))
-        return ViewThatFits(in: .horizontal) {
-            HStack(spacing: DesignSpacing.sm) {
-                statusLabel(label, failed: failed)
-                serverVersion
-            }
-            VStack(alignment: .leading, spacing: DesignSpacing.xs) {
-                statusLabel(label, failed: failed)
-                serverVersion
-            }
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: DesignSpacing.xs))
+            : AnyLayout(HStackLayout(spacing: DesignSpacing.sm))
+        return layout {
+            statusLabel(label, failed: failed)
+            serverVersion
         }
         .font(.caption)
         .accessibilityElement(children: .contain)
@@ -219,7 +216,7 @@ struct SettingsTabView: View {
                             : (state.isConnected ? SettingsStyle.connected(scheme) : SettingsStyle.secondary(scheme))))
         .accessibilityElement(children: .ignore)
         .accessibilityIdentifier("host-connection-phase")
-        .accessibilityLabel(text)
+        .accessibilityLabel(L10n.t(.settingsConnection))
         .accessibilityValue(text)
     }
 

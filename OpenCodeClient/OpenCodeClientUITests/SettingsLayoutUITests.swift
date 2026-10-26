@@ -6,6 +6,22 @@ final class SettingsLayoutUITests: XCTestCase {
     }
 
     @MainActor
+    func testConnectedStatusAppearsOnceWithoutRepeatingItsAccessibilityLabel() {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST_SESSION_TREE_FIXTURE", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launchEnvironment["UITEST_LAYOUT_PREFERENCE"] = "focus"
+        app.launch()
+        let settings = app.tabBars.buttons["Settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 8))
+        settings.tap()
+        let statuses = app.descendants(matching: .any).matching(identifier: "host-connection-phase")
+        XCTAssertTrue(statuses.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertEqual(statuses.count, 1, "The connection row must render one status, not both layout alternatives")
+        XCTAssertEqual(statuses.firstMatch.label, "Connection")
+        XCTAssertEqual(statuses.firstMatch.value as? String, "Connected")
+    }
+
+    @MainActor
     func testSettingsLightAndDarkScreenshots() {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST_SESSION_TREE_FIXTURE", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
