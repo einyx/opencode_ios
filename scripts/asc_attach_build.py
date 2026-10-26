@@ -5,11 +5,15 @@
     python3 scripts/asc_attach_build.py 34 --notes-from docs/appstore/review-notes.md
 
 Finds the build with that version number in the app, attaches it to the
-version 1.0 that is waiting for review, and writes the review notes.
+version, and writes the review notes.
 
-The build has to be processed by Apple first: an upload appears as
-`processingState: PROCESSING` for a while, and only a `VALID` build can be
-attached.
+A version that is already awaiting review is *locked*: Apple refuses both a
+new build and new review notes ("A relationship value is not acceptable for
+the current resource state"). Such a version has to leave the review queue
+first — that means cancelling the submission, which also gives up the place in
+the review queue, so it is never done without being asked for. Pass
+`--withdraw` to cancel the submission as well; the version is not
+re-submitted, because the release is manual.
 """
 
 from __future__ import annotations
@@ -21,7 +25,7 @@ import sys
 import time
 
 APP_ID = "6826903678"
-API = "https://api.appstoreconnect.apple.com"
+VERSION_ID = "8fbf4b93-cc24-43d7-8087-83517987cb41"
 
 
 def call(method: str, path: str, payload: dict | None = None) -> dict:
@@ -62,19 +66,32 @@ def main() -> int:
         print(__doc__)
         return 64
     version = sys.argv[1]
+    withdraw = "--withdraw" in sys.argv
 
-    versions = call("GET", f"/v1/apps/{APP_ID}/appStoreVersions").get("data", [])
-    target = next((v for v in versions if v["attributes"]["versionString"] == "1.0"), None)
-    if target is None:
-        raise SystemExit("version 1.0 is not in the app")
-    print(f"version 1.0 is {target['attributes']['appStoreState']}")
+    version_resource = call("GET", f"/v1/appStoreVersions/{VERSION_ID}")["data"]
+    state = version_resource["attributes"]["appStoreState"]
+    print(f"version {version_resource['attributes']['versionString']} is {state}")
+
+    if state in ("WAITING_FOR_REVIEW", "IN_REVIEW"):
+        if not withdraw:
+            print(
+                "\nThe version is in the review queue, so Apple locks its build and\n"
+                "its review notes. To ship a new build it has to leave the queue\n"
+                "first, which gives up the place in the queue:\n\n"
+                "  python3 scripts/asc_attach_build.py " + version + " --withdraw\n\n"
+                "That cancels the submission and attaches the build; it does not\n"
+                "re-submit it — the release is manual.",
+            )
+            return 1
+        print("cancelling the submission so the build can be attached…")
+        call("DELETE", f"/v1/appStoreVersionSubmissions/{VERSION_ID}")
+        time.sleep(5)
 
     build = find_build(version)
     build_id = build["id"]
     print(f"attaching build {version} ({build_id})")
-
-    call("PATCH", f"/v1/appStoreVersions/{target['id']}", {
-        "relationships": {"build": {"data": {"id": build_id, "type": "builds"}}}
+    call("PATCH", f"/v1/appStoreVersions/{VERSION_ID}/relationships/build", {
+        "data": {"id": build_id, "type": "builds"}
     })
 
     notes_path = None
@@ -85,14 +102,14 @@ def main() -> int:
         # The document has a title and a "---" separator; the notes are the
         # part after it.
         body = text.split("---", 1)[1].strip() if "---" in text else text.strip()
-        detail = call("GET", f"/v1/appStoreVersions/{target['id']}/appStoreReviewDetail")
+        detail = call("GET", f"/v1/appStoreVersions/{VERSION_ID}/appStoreReviewDetail")
         detail_id = detail["data"]["id"]
         call("PATCH", f"/v1/appStoreReviewDetails/{detail_id}", {"notes": body})
         print(f"review notes updated ({len(body)} chars)")
 
-    final = call("GET", f"/v1/appStoreVersions/{target['id']}?include=build")
+    final = call("GET", f"/v1/appStoreVersions/{VERSION_ID}?include=build")
     attached = final.get("included", [{}])[0].get("attributes", {}).get("version")
-    print(f"version 1.0 now carries build {attached}")
+    print(f"version {version_resource['attributes']['versionString']} now carries build {attached}")
     return 0
 
 

@@ -71,9 +71,20 @@ audio leaving the device.
 - The privacy policy and the review notes now describe the on-device flow, and
   the privacy policy was republished.
 
-**Build 33 still carries the old voice path**, so this needs build 34 uploaded
-and attached to version 1.0 — `scripts/bump_build.sh` moves the number, and
-`scripts/archive_appstore.sh` bumps it automatically before it archives.
+**Build 34 is uploaded** (2026-10-26, `VALID`, `APP_STORE_ELIGIBLE`) and it is
+what the release will ship. It is not attached yet: version 1.0 is in the
+review queue, and Apple locks the build and the review notes of a version that
+is awaiting review ("A relationship value is not acceptable for the current
+resource state"). Attaching it means cancelling the submission, which gives up
+the place in the queue — a decision for the owner, not the agent:
+
+    python3 scripts/asc_attach_build.py 34 --withdraw
+
+That cancels the submission, attaches build 34 and writes the new review notes.
+It does not re-submit: the release is manual, and re-submitting is the owner's
+call. The review notes in App Store Connect still describe build 33 (the
+hosted voice path), because Apple refused the change while the version was
+locked.
 
 The Health export action can launch
 the separate Health Quantification app to export to its configured server;
