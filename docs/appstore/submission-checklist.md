@@ -3,25 +3,28 @@
 ## Current preparation status — 2026-10-26
 
 This section supersedes the historical signing/version notes below. Build 33
-is uploaded, validated, and attached to the version 1.0 draft.
+is uploaded, validated, attached to version 1.0, and **submitted to App Review**
+on 2026-10-26 (status: Waiting for Review).
 
 - [x] Saved listing description, promotional text, keywords, support/marketing URLs and copyright.
 - [x] Saved subtitle and Developer Tools / Productivity categories; preserved the store name OpenCodeX.
-- [x] Selected manual release. Nothing submitted for review or published.
+- [x] Selected manual release, so approval does not publish the app automatically.
 - [x] Uploaded three iPhone screenshots (1206×2622) and one iPad screenshot (2064×2752), captured from production views using debug-only illustrative sample data.
 - [x] Uploaded the product-page header (3840×1646) and search-results asset (1920×1280) built from the icon and real UI captures. See `creative-assets.md`.
+- [x] Uploaded an Apple Watch screenshot (416×496) captured from the watch app on an Apple Watch Series 11 simulator.
 - [x] Replaced the legacy Watch icon with opaque 1024×1024 artwork matching the iOS icon. `swift scripts/sync_watch_icon.swift --check` verifies pixel agreement.
 - [x] Built and uploaded build 33; selected it in the submission draft, which also updated the Apple Watch asset to the corrected artwork.
 - [x] Native unit suite: 1,177 tests passed, with six pre-existing known design-token issues. Screenshot capture UI tests passed on iPhone 17 Pro and iPad Pro 13-inch.
-- [x] App Privacy: Data Not Collected; privacy policy URL set to the reachable published page.
+- [x] App Privacy: Data Not Collected, published; privacy policy URL set to `https://einyx.github.io/opencodex/appstore/privacy-policy`.
+- [x] Rewrote and published the privacy policy on the `einyx/opencodex` Pages site: it names OpenCodeX, describes the optional cloud speech and Health export paths, and points at the current issue tracker.
 - [x] Age rating: 18+ (override of the 9+ calculation) with profanity marked infrequent, matching `metadata.md`.
 - [x] Content rights: answered that the app has the necessary rights to the third-party content it displays.
 - [x] Pricing (free, 175 regions, base Spain) and app availability (all countries or regions) configured.
 - [x] App Review contact details and notes saved, including how a reviewer reaches a server and what the optional services do.
 - [x] Build 33 metadata verified in App Store Connect: bundle `com.prysm.opencode`, binary validated, `App Uses Non-Exempt Encryption: No`, watch app embedded.
-- [ ] Provide a dedicated, externally reachable demo server with safe credentials. The notes explain how to run one; the owner still has to provide a reachable instance.
-- [ ] Correct the published privacy policy text so it names OpenCodeX and describes the optional cloud speech and Health export paths. The URL works, but its copy predates those features.
-- [ ] Submit for review. Nothing has been submitted; the release is set to manual, so approval does not publish automatically.
+- [x] Submitted to App Review on 2026-10-26. Watch the App Review → Submissions page for Apple's messages and the decision.
+- [ ] Provide a dedicated, externally reachable demo server with safe credentials. The review notes explain how to run one, but the reviewer needs a reachable instance if they cannot start their own.
+- [ ] After approval, release manually and verify the listing on the App Store.
 
 Optional cloud speech sends audio to the configured speech service, rather than
 necessarily through the OpenCode server. The Health export action can launch
@@ -29,7 +32,7 @@ the separate Health Quantification app to export to its configured server;
 the callback link does not contain health details. The questionnaire answers
 above treat these as user-operated services the developer does not receive,
 which is why Data Not Collected was chosen. The owner should confirm that the
-speech provider's terms match that description before submitting.
+speech provider's terms match that description.
 
 Screenshots and result bundles remain ignored under `.occlient/appstore-prep/`
 and `.occlient/test-runs/`. The capture workflow is
