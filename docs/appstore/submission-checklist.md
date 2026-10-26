@@ -86,6 +86,13 @@ call. The review notes in App Store Connect still describe build 33 (the
 hosted voice path), because Apple refused the change while the version was
 locked.
 
+**The published privacy policy still describes the hosted voice path**, for the
+same reason: version 1.0 ships build 33, and the page has to match the binary
+the reviewer is looking at. The device-only wording is ready in
+`docs/features/device_voice/privacy-policy-next-release.md`; swap it into
+`docs/appstore/privacy-policy.md` and republish before the build that removes
+the hosted path is submitted.
+
 The Health export action can launch
 the separate Health Quantification app to export to its configured server;
 the callback link does not contain health details. The questionnaire answers
