@@ -23,6 +23,11 @@ UPLOAD=0
 
 mkdir -p "$ARCHIVE_DIR"
 
+# Every archive carries a fresh build number, so no two uploads claim the
+# same one and the version in App Store Connect always has a newer build to
+# pick up.
+"$REPO_ROOT/scripts/bump_build.sh"
+
 echo "==> Archiving $SCHEME (Release)"
 xcodebuild archive \
   -project "$PROJECT" \
