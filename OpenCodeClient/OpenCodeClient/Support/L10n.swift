@@ -82,6 +82,7 @@ enum L10n {
         case settingsPreferences
         case settingsInputVoice
         case settingsAdvanced
+        case settingsOpenCode
         case settingsUsername
         case settingsPassword
         case settingsConnected
@@ -631,6 +632,7 @@ enum L10n {
         Key.settingsPreferences.rawValue: "Preferences",
         Key.settingsInputVoice.rawValue: "Input & Voice",
         Key.settingsAdvanced.rawValue: "Advanced",
+        Key.settingsOpenCode.rawValue: "OpenCode",
         Key.settingsUsername.rawValue: "Username",
         Key.settingsPassword.rawValue: "Password",
         Key.settingsConnected.rawValue: "Connected",
@@ -1182,6 +1184,7 @@ enum L10n {
         Key.settingsPreferences.rawValue: "偏好设置",
         Key.settingsInputVoice.rawValue: "输入与语音",
         Key.settingsAdvanced.rawValue: "高级设置",
+        Key.settingsOpenCode.rawValue: "OpenCode",
         Key.settingsUsername.rawValue: "用户名",
         Key.settingsPassword.rawValue: "密码",
         Key.settingsConnected.rawValue: "已连接",

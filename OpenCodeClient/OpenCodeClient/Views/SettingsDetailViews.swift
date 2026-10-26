@@ -53,9 +53,16 @@ struct SettingsInputVoiceView: View {
     }
 }
 
-struct SettingsAdvancedView: View {
+/// Everything about the OpenCode server, in one place: the connection, the
+/// workspace, the models, the agent's capabilities. These used to live across
+/// the settings root, Input & Voice and Advanced — three menus to hunt
+/// through for one subject.
+struct SettingsOpenCodeView: View {
     @Bindable var state: AppState
     @Binding var isCarModeEnabled: Bool
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @State private var highlightModelShortlist = false
 
     private var supportsCarMode: Bool {
         #if os(iOS)
@@ -67,17 +74,46 @@ struct SettingsAdvancedView: View {
 
     var body: some View {
         Form {
-            Section(L10n.t(.settingsLayout)) {
-                Picker(L10n.t(.settingsLayout), selection: $state.layoutPreference) {
-                    Text(L10n.t(.settingsLayoutAutomatic)).tag(LayoutPreference.automatic)
-                    Text(L10n.t(.settingsLayoutFocus)).tag(LayoutPreference.focus)
+
+            Section {
+                HStack(alignment: .firstTextBaseline, spacing: DesignSpacing.sm) {
+                    connectionStatus
+                    Spacer(minLength: DesignSpacing.sm)
+                    Button {
+                        guard !checking else { return }
+                        Task { @MainActor in
+                            await state.refresh()
+                        }
+                    } label: {
+                        Text(L10n.t(.settingsCheck))
+                            // HIG Buttons: a plain borderless label is
+                            // indistinguishable from body text, so the one
+                            // actionable control takes the house accent.
+                            .fontWeight(.medium)
+                            .frame(minHeight: ComposerHitTarget.minimum)
+                    }
+                    .buttonStyle(.borderless)
+                    // HIG: an inactive control must look inactive. The dim
+                    // strength comes from the shared disabled token.
+                    .tint(canCheckConnection ? DesignColors.Brand.primary
+                                             : DesignColors.dimmedFill(DesignColors.Brand.primary))
+                    .accessibilityIdentifier("settings-test-connection")
+                    .disabled(!canCheckConnection)
                 }
-                .pickerStyle(.segmented)
-                .accessibilityIdentifier("settings-layout-preference")
-                Text(L10n.t(.settingsLayoutFooter))
-                    .font(DesignTypography.micro)
-                    .foregroundStyle(.secondary)
+
+                NavigationLink {
+                    HostProfilesView(state: state)
+                } label: {
+                    valueLabel(L10n.t(.settingsManageHosts), value: "\(state.hostProfiles.count)")
+                }
+                .accessibilityIdentifier("settings-manage-hosts")
+            } header: {
+                Text(L10n.t(.settingsConnection))
             }
+            .listRowBackground(Color.clear)
+
+            workspaceSection
+
             Section {
                 if supportsCarMode {
                     Toggle(L10n.t(.settingsCarMode), isOn: $isCarModeEnabled)
@@ -110,6 +146,7 @@ struct SettingsAdvancedView: View {
             } footer: {
                 Text(L10n.t(.settingsAIUsageDashboardFooter))
             }
+            .listRowBackground(Color.clear)
             Section {
                 // The hand-drawn pulse belongs next to the capability it names
                 // (docs/design/artwork-placement.md: "inline illustration for
@@ -141,10 +178,107 @@ struct SettingsAdvancedView: View {
             } footer: {
                 Text(L10n.t(.capabilitySettingsFooter))
             }
+            .listRowBackground(Color.clear)
         }
         .modifier(SettingsPageStyle())
-        .navigationTitle(L10n.t(.settingsAdvanced))
+        .navigationTitle(L10n.t(.settingsOpenCode))
         .dismissableKeyboard()
+    }
+
+    // MARK: - Helpers
+
+    /// The workspace: which project the agent works in, and the models it may use.
+    private var workspaceSection: some View {
+        Section {
+            Picker(L10n.t(.settingsProjectShort), selection: Binding(
+                get: { state.selectedProjectWorktree ?? "" },
+                set: { state.selectedProjectWorktree = $0.isEmpty ? nil : $0 }
+            )) {
+                Text(L10n.t(.settingsProjectServerDefault)).tag("")
+                ForEach(state.projects) { Text($0.displayName).tag($0.worktree) }
+                Text(L10n.t(.settingsProjectCustomPath)).tag(AppState.customProjectSentinel)
+            }
+            .tint(SettingsStyle.secondary(scheme))
+            .disabled(!state.isConnected || state.isLoadingProjects)
+            .accessibilityIdentifier("settings-project")
+            .onChange(of: state.selectedProjectWorktree) { _, _ in Task { await state.refreshSessions() } }
+
+            if state.selectedProjectWorktree == AppState.customProjectSentinel {
+                TextField(L10n.t(.settingsProjectCustomPathPlaceholder), text: $state.customProjectPath)
+                    .textContentType(.URL)
+                    .autocapitalization(.none)
+                    .onChange(of: state.customProjectPath) { _, _ in Task { await state.refreshSessions() } }
+            }
+            if let warning = state.projectMismatchWarning {
+                Label(warning, systemImage: "exclamationmark.triangle")
+                    .font(DesignTypography.micro)
+                    .foregroundStyle(SettingsStyle.secondary(scheme))
+            }
+
+            NavigationLink {
+                ModelShortlistView(state: state)
+            } label: {
+                valueLabel(L10n.t(.settingsModelShortlist), value: "\(state.modelShortlist.count)")
+            }
+            .accessibilityIdentifier("settings-model-shortlist")
+            .id("settings-model-shortlist-row")
+            .listRowBackground(highlightModelShortlist ? DesignColors.Brand.selection(for: scheme) : Color.clear)
+        } header: {
+            Text(L10n.t(.settingsWorkspace))
+                .font(DesignTypography.meta.weight(.medium))
+                .foregroundStyle(SettingsStyle.secondary(scheme))
+                .textCase(nil)
+                .padding(.top, DesignSpacing.md)
+        } footer: {
+            Text(L10n.t(.settingsWorkspaceFooter))
+                .font(DesignTypography.micro)
+                .foregroundStyle(SettingsStyle.secondary(scheme))
+        }
+        .listRowBackground(Color.clear)
+    }
+
+
+
+
+    private var checking: Bool { state.isConnectionCheckInFlight }
+
+    private var currentHostDiagnostic: ConnectionDiagnostic? {
+        state.currentHostConnectionDiagnostic
+    }
+
+    private var canCheckConnection: Bool {
+        !checking && state.currentHostProfile != nil
+    }
+
+    private var connectionStatus: some View {
+        let failed = currentHostDiagnostic?.phase == .failed
+        let label = checking ? L10n.t(.settingsChecking)
+            : L10n.t(failed ? .connectionPhaseFailed : (state.isConnected ? .settingsConnected : .settingsDisconnected))
+        return HStack(spacing: DesignSpacing.sm) {
+            if checking {
+                ProgressView().controlSize(.small).accessibilityHidden(true)
+            } else {
+                Image(systemName: failed ? "exclamationmark.circle" : (state.isConnected ? "circle.fill" : "circle"))
+                    .imageScale(.small)
+                    .accessibilityHidden(true)
+            }
+            Text(label)
+        }
+        .font(DesignTypography.micro)
+        .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("host-connection-phase")
+        .accessibilityLabel(L10n.t(.settingsConnection))
+        .accessibilityValue(label)
+    }
+
+    private func valueLabel(_ title: String, value: String) -> some View {
+        LabeledContent {
+            Text(value)
+                .font(DesignTypography.meta)
+                .foregroundStyle(SettingsStyle.secondary(scheme))
+        } label: {
+            Text(title)
+        }
     }
 
     private var isLoadingQuotas: Bool {

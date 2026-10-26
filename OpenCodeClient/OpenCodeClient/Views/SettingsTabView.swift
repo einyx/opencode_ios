@@ -51,7 +51,6 @@ struct SettingsTabView: View {
                         .padding(.vertical, DesignSpacing.sm)
 
                     connectionSection
-                    workspaceSection
                     preferencesSection
 
                     Section {
@@ -124,30 +123,7 @@ struct SettingsTabView: View {
             }
             .accessibilityIdentifier("settings-current-host")
 
-            HStack(alignment: .firstTextBaseline, spacing: DesignSpacing.sm) {
-                connectionStatus
-                Spacer(minLength: DesignSpacing.sm)
-                Button {
-                    guard !checking else { return }
-                    Task { @MainActor in
-                        await state.refresh()
-                    }
-                } label: {
-                    Text(L10n.t(.settingsCheck))
-                        // HIG Buttons: on this ink-tinted screen a plain borderless
-                        // label is indistinguishable from body text, so the one
-                        // actionable control takes the house interactive accent.
-                        .fontWeight(.medium)
-                        .frame(minHeight: ComposerHitTarget.minimum)
-                }
-                .buttonStyle(.borderless)
-                // HIG: an inactive control must look inactive. The dim strength
-                // comes from the shared disabled token (POL-COLOR-09).
-                .tint(canCheckConnection ? DesignColors.Brand.primary
-                                         : DesignColors.dimmedFill(DesignColors.Brand.primary))
-                .accessibilityIdentifier("settings-test-connection")
-                .disabled(!canCheckConnection)
-            }
+            connectionStatus
 
             // Host unreachable: the unplugged-plug scene states the condition
             // visually. The reason below and the Check action above stay
@@ -182,12 +158,15 @@ struct SettingsTabView: View {
                     .accessibilityIdentifier("settings-connection-error")
             }
 
+            // One door into everything OpenCode: the host, the workspace, the
+            // models, the capabilities. The settings used to scatter these
+            // across the root, Input & Voice and Advanced.
             NavigationLink {
-                HostProfilesView(state: state)
+                SettingsOpenCodeView(state: state, isCarModeEnabled: $isCarModeEnabled)
             } label: {
-                valueLabel(L10n.t(.settingsManageHosts), value: "\(state.hostProfiles.count)")
+                valueLabel(L10n.t(.settingsOpenCode), value: state.currentHostProfile?.displayName ?? L10n.t(.hostNoHost))
             }
-            .accessibilityIdentifier("settings-manage-hosts")
+            .accessibilityIdentifier("settings-advanced")
         } header: {
             sectionTitle(.settingsConnection)
         }
@@ -237,51 +216,6 @@ struct SettingsTabView: View {
         }
     }
 
-    private var workspaceSection: some View {
-        Section {
-            Picker(L10n.t(.settingsProjectShort), selection: Binding(
-                get: { state.selectedProjectWorktree ?? "" },
-                set: { state.selectedProjectWorktree = $0.isEmpty ? nil : $0 }
-            )) {
-                Text(L10n.t(.settingsProjectServerDefault)).tag("")
-                ForEach(state.projects) { Text($0.displayName).tag($0.worktree) }
-                Text(L10n.t(.settingsProjectCustomPath)).tag(AppState.customProjectSentinel)
-            }
-            .tint(SettingsStyle.secondary(scheme))
-            .disabled(!state.isConnected || state.isLoadingProjects)
-            .accessibilityIdentifier("settings-project")
-            .onChange(of: state.selectedProjectWorktree) { _, _ in Task { await state.refreshSessions() } }
-
-            if state.selectedProjectWorktree == AppState.customProjectSentinel {
-                TextField(L10n.t(.settingsProjectCustomPathPlaceholder), text: $state.customProjectPath)
-                    .textContentType(.URL)
-                    .autocapitalization(.none)
-                    .onChange(of: state.customProjectPath) { _, _ in Task { await state.refreshSessions() } }
-            }
-            if let warning = state.projectMismatchWarning {
-                Label(warning, systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(SettingsStyle.secondary(scheme))
-            }
-
-            NavigationLink {
-                ModelShortlistView(state: state)
-            } label: {
-                valueLabel(L10n.t(.settingsModelShortlist), value: "\(state.modelShortlist.count)")
-            }
-            .accessibilityIdentifier("settings-model-shortlist")
-            .id("settings-model-shortlist-row")
-            .listRowBackground(highlightModelShortlist ? DesignColors.Brand.primary.opacity(DesignColors.Opacity.selectionFill) : Color.clear)
-        } header: {
-            sectionTitle(.settingsWorkspace)
-        } footer: {
-            Text(L10n.t(.settingsWorkspaceFooter))
-                .font(.caption)
-                .foregroundStyle(SettingsStyle.secondary(scheme))
-        }
-        .listRowBackground(Color.clear)
-    }
-
     private var preferencesSection: some View {
         Section {
             VStack(alignment: .leading, spacing: DesignSpacing.sm) {
@@ -308,10 +242,18 @@ struct SettingsTabView: View {
                 SettingsInputVoiceView(state: state)
             }
             .accessibilityIdentifier("settings-input-voice")
-            NavigationLink(L10n.t(.settingsAdvanced)) {
-                SettingsAdvancedView(state: state, isCarModeEnabled: $isCarModeEnabled)
+
+            // Layout is a device preference, not an OpenCode one: it moved
+            // out of the old Advanced page with everything else.
+            Picker(L10n.t(.settingsLayout), selection: $state.layoutPreference) {
+                Text(L10n.t(.settingsLayoutAutomatic)).tag(LayoutPreference.automatic)
+                Text(L10n.t(.settingsLayoutFocus)).tag(LayoutPreference.focus)
             }
-            .accessibilityIdentifier("settings-advanced")
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("settings-layout-preference")
+            Text(L10n.t(.settingsLayoutFooter))
+                .font(DesignTypography.micro)
+                .foregroundStyle(.secondary)
         } header: {
             sectionTitle(.settingsPreferences)
         }

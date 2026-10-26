@@ -169,13 +169,16 @@ struct MessageReconciliationTests {
         state.agents = [agent("build"), agent("plan")]
         state.selectedAgentName = "build"
         state.modelShortlist = [shortlist("captured"), shortlist("changed")]
-        state.selectedModelIndex = 0
+        // The model is picked explicitly: the app only writes a model the
+        // user chose for this session, never whatever sits at the picker's
+        // current index.
+        state.setSelectedModelIndex(0)
 
         let send = Task { await state.sendMessage("continue") }
         await api.waitArchive()
         state.sessions = [makeSession(id: "a", directory: "/work/changed", archived: 10)]
         state.selectedAgentName = "plan"
-        state.selectedModelIndex = 1
+        state.setSelectedModelIndex(1)
         await api.releaseArchive()
         #expect(await send.value)
 
