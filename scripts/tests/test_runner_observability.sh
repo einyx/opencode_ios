@@ -131,6 +131,17 @@ has "$RUN/state.tsv" $'outcome\tfailed'
 has "$RUN/preflight.log" 'simulator unresponsive'
 [ ! -e "$RUN/build.log" ] || fail 'build ran after preflight failure'
 unset MOCK_PREFLIGHT_FAIL
+# A pinned simulator whose runtime no longer boots must be re-pinned to the
+# next available iPhone, and the new pin persisted, not fail the run.
+unset OPENCODE_TEST_DESTINATION
+export MOCK_FALLBACK_UDID='11111111-2222-3333-4444-555555555555'
+export MOCK_BOOT_FAIL_UDID='AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE'
+printf 'AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE\n' > "$OC_STATE_DIR/simulator-udid"
+run stale_runtime_repin 0 test_unit.sh
+has "$OC_STATE_DIR/simulator-udid" "$MOCK_FALLBACK_UDID"
+if /usr/bin/grep -q 'AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE' "$OC_STATE_DIR/simulator-udid"; then fail 'stale pin survived re-pin'; fi
+unset MOCK_FALLBACK_UDID MOCK_BOOT_FAIL_UDID
+export OPENCODE_TEST_DESTINATION='platform=iOS Simulator,id=AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE'
 export MOCK_LINT_EXIT=1
 run lint_failure 65 test_unit.sh
 has "$RUN/lint.status.tsv" $'command_exit\t1'

@@ -23,6 +23,76 @@ if awk -v l="$LOAD1" -v c="$CPUS" 'BEGIN { exit !(l > c) }'; then
 fi
 
 # --- Simulator pinning --------------------------------------------------------
+# One pinned simulator per repo (UDID in .occlient/simulator-udid); concurrent
+# xcodebuild work from other repos must use its own device. A pin that can no
+# longer boot — deleted runtime, erased device — is discarded and the next
+# available iPhone is pinned in its place, so a runtime cleanup never wedges
+# the runner.
+
+# --- Simulator picking --------------------------------------------------------
+# The iPhone lines of a device list, minus a UDID to skip.
+# $1: the device state to ask for (booted / available).
+# $2: a UDID to skip — one that just failed to boot.
+#
+# The list is captured before it is filtered. Piping the list into `grep -q`
+# or `head` closes the pipe early, and under `pipefail` the writer's SIGPIPE
+# becomes the pipeline's status — which reads as "the device is missing".
+oc_list_iphones() {
+  local state="$1" skip="${2:-}" lines
+  lines="$(xcrun simctl list devices "$state" 2>/dev/null || true)"
+  if [ -n "$skip" ]; then
+    lines="$(printf '%s\n' "$lines" | grep -v "$skip" || true)"
+  fi
+  printf '%s\n' "$lines" | grep -E '^[[:space:]]+iPhone' || true
+}
+
+# A UDID counts as booted only when the device list says so: the UDID can
+# appear on the line of a device that is shut down.
+oc_device_booted() {
+  local line
+  while IFS= read -r line; do
+    case "$line" in
+      *"$1"*"(Booted)"*) return 0 ;;
+    esac
+  done <<EOF
+$(xcrun simctl list devices booted 2>/dev/null || true)
+EOF
+  return 1
+}
+
+# A device listed as unavailable (runtime deleted) is as useless as a missing
+# one: the marker travels on the same line as the UDID.
+oc_device_usable() {
+  local line found=0
+  while IFS= read -r line; do
+    case "$line" in
+      *"$1"*)
+        found=1
+        case "$line" in
+          *unavailable*) return 1 ;;
+        esac
+        ;;
+    esac
+  done <<EOF
+$(xcrun simctl list devices 2>/dev/null || true)
+EOF
+  [ "$found" -eq 1 ]
+}
+
+oc_pick_simulator() {
+  # $1 = UDID to exclude (a pin that just failed to boot), or empty.
+  # Prefer a booted iPhone: no boot cost. The skip applies to both lists —
+  # the device that just failed to boot must never be picked again.
+  SIM_UDID="$(oc_list_iphones booted "$1" | grep '(Booted)' | grep -oE '[0-9A-F-]{36}' | head -1 || true)"
+  if [ -z "$SIM_UDID" ]; then
+    SIM_UDID="$(oc_list_iphones available "$1" | grep -oE '[0-9A-F-]{36}' | head -1 || true)"
+  fi
+  if [ -z "$SIM_UDID" ]; then
+    echo "error: no available iPhone simulator; run: xcrun simctl create iPhone ..." >&2
+    return 1
+  fi
+}
+
 if [ -n "$OC_DEST_OVERRIDE" ]; then
   SIM_DEST="$OC_DEST_OVERRIDE"
   SIM_UDID="${SIM_DEST##*,id=}"
@@ -30,27 +100,24 @@ else
   SIM_UDID=""
   if [ -f "$OC_UDID_FILE" ]; then
     SIM_UDID="$(cat "$OC_UDID_FILE" 2>/dev/null || true)"
-    if [ -n "$SIM_UDID" ] && ! xcrun simctl list devices | grep -q "$SIM_UDID"; then
-      SIM_UDID=""  # device gone (OS update); re-pin below
+    if [ -n "$SIM_UDID" ] && ! oc_device_usable "$SIM_UDID"; then
+      SIM_UDID=""  # device gone or unbootable; re-pin below
     fi
   fi
   if [ -z "$SIM_UDID" ]; then
-    # Prefer an already-booted iPhone; else create/boot the first available one.
-    SIM_UDID="$(xcrun simctl list devices booted | grep -E '^[[:space:]]+iPhone' | grep -oE '[0-9A-F-]{36}' | head -1 || true)"
-    if [ -z "$SIM_UDID" ]; then
-      SIM_UDID="$(xcrun simctl list devices available | grep -E '^[[:space:]]+iPhone' | grep -oE '[0-9A-F-]{36}' | head -1 || true)"
-      if [ -z "$SIM_UDID" ]; then
-        echo "error: no available iPhone simulator; run: xcrun simctl create iPhone ..." >&2
-        exit 1
-      fi
-      echo "pinning simulator $SIM_UDID (first boot, slow)"
+    oc_pick_simulator || exit 1
+    echo "$SIM_UDID" > "$OC_UDID_FILE"
+    echo "pinning simulator $SIM_UDID (first boot, slow)"
+    xcrun simctl boot "$SIM_UDID"
+  fi
+  if ! oc_device_booted "$SIM_UDID"; then
+    echo "booting pinned simulator $SIM_UDID"
+    if ! xcrun simctl boot "$SIM_UDID"; then
+      echo "warn: pinned simulator $SIM_UDID did not boot; re-pinning" >&2
+      oc_pick_simulator "$SIM_UDID" || exit 1
+      echo "$SIM_UDID" > "$OC_UDID_FILE"
       xcrun simctl boot "$SIM_UDID"
     fi
-    echo "$SIM_UDID" > "$OC_UDID_FILE"
-  fi
-  if ! xcrun simctl list devices booted | grep -q "$SIM_UDID"; then
-    echo "booting pinned simulator $SIM_UDID"
-    xcrun simctl boot "$SIM_UDID"
   fi
   SIM_DEST="platform=iOS Simulator,id=$SIM_UDID"
 fi
