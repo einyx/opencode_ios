@@ -245,6 +245,10 @@ struct ContentView: View {
 
     var body: some View {
         widthAdjusted(rootContent)
+            // The warm page sits under every screen (QT-PALETTE): chat and
+            // files are scroll-based and transparent, so the ivory / warm
+            // near-black shows through instead of the system background.
+            .modifier(WarmPageBackground())
     }
 
     @ViewBuilder
@@ -967,4 +971,19 @@ private struct SystemTabBarVisibility: UIViewRepresentable {
 
 #Preview {
     ContentView()
+}
+
+/// The shared warm page background (QT-PALETTE).
+///
+/// Applied once at the root so every scroll-based screen reads the Warm
+/// Editorial page instead of the system background. Screens that own an
+/// explicit surface (Settings) draw on top of it unchanged.
+struct WarmPageBackground: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        content
+            .scrollContentBackground(.hidden)
+            .background(DesignColors.Page.background(for: colorScheme))
+    }
 }

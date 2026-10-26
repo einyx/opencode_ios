@@ -15,7 +15,7 @@ short form is what the rest of the initiative cites.
 | Clause | Section | Governs |
 |---|---|---|
 | `QT-PRINCIPLE` | Design Principles | Dark-first, single accent, shape-over-colour, borderless-first, whitespace hierarchy, motion restraint, button stability |
-| `QT-PALETTE` | Dual-Mode Palette | Dark/light token values, accent blue, status semantics, the one-coloured-element rule |
+| `QT-PALETTE` | Dual-Mode Palette | Dark/light token values, the terracotta accent, status semantics, the one-coloured-element rule |
 | `QT-TYPE` | Typography | The four-step type scale, SF fonts, the type hierarchy |
 | `QT-CARD` | Card Design Language | Information / action / status card shapes, corner radii |
 | `QT-MESSAGE` | Message Area | User-message bubble, container-free AI replies, spacing |
@@ -47,7 +47,7 @@ decision log is [`docs/features/polish/plan.md`](features/polish/plan.md).
 ## QT-PRINCIPLE · Design Principles
 
 1. **Dark is the main stage, light is the understudy.** OpenCode's target users are developers, so dark mode is the default aesthetic baseline. The design prioritizes polishing dark mode; light mode is mapped from the same token set rather than the other way around.
-2. **Single brand color: electric blue `#3B82F6`.** Sending, selection, and links use the brand blue; everything else renders on a neutral gray scale. The Session single-indicator light is an explicit semantic exception: the list and the composer share yellow (pending), red (unacknowledged failure), green (execution not finished), and blue (unread updates after stop). Green uses a dedicated running token and does not reuse success; see the triage rules below.
+2. **Single brand color: terracotta `#C96442`.** Sending, selection, and links use the brand terracotta on the warm ivory / warm near-black pages; everything else renders on the warm neutral scale. No blue accent anywhere. The Session single-indicator light is an explicit semantic exception: the list and the composer share yellow (pending), red (unacknowledged failure), green (execution not finished), and blue (unread updates after stop). Green uses a dedicated running token and does not reuse success; see the triage rules below.
 3. **Semantics come from shape and position, not from piling on colors.** The core pain point today is "the same shape wearing multiple colors on one screen" (tool, patch, and permission cards are all rounded rectangles with a light fill and a stroke, distinguished only by color). The new scheme distinguishes functional categories through **card shape** and uses color only as an accent in a very few key places.
 4. **Colors do not build hierarchy; font size and whitespace do.** Under unified text color, the primary/secondary relationship is expressed through size, weight, and spacing. Secondary grays are used only for genuinely secondary information (timestamps, file paths, and placeholders).
 5. **Borderless first.** Informational containers drop strokes and keep only a very light fill or rely purely on whitespace for visual grouping; only cards that require a user response get an accent stripe on the leading edge as an action cue. Strokes in iOS usually imply form input fields, so they should be avoided in the chat message stream.
@@ -59,35 +59,38 @@ decision log is [`docs/features/polish/plan.md`](features/polish/plan.md).
 
 Both modes share the same set of semantic token definitions and only switch the mapping between base and text colors. In code, `DesignTokens` wraps dual values with `Color(light:dark:)`, and the View layer consistently references semantic names, avoiding ad-hoc `.opacity()` calls or direct use of system grays.
 
+> **2026-10-26 — Warm Editorial adoption.** The palette below is Warm Editorial: the single accent is **terracotta `#C96442`**, pages are warm ivory / warm near-black, and there is **no blue accent anywhere** (it replaces the 2025-era electric-blue values and supersedes the 2026-10-25 "A1: design.md as-is is the authority" decision — `design.md` is still the authority; its palette section is what changed). The approved Settings refresh values (`#FAF9F5` / `#242422`, warm ink) became the shared page tokens rather than a settings-local palette. Session triage lights keep their own dedicated spec (exception below). Small accent text uses the darkened/lifted step `#B4573A` (light) / `#D2704C` (dark) because terracotta-on-ivory is ≈3.3:1.
+
 ### Dark Mode (Main Stage)
 
 | Token | Hex | Usage |
 |---|---|---|
-| `bg.primary` | `#0B0C0E` | Main background, near-black with a very slight cool cast |
-| `bg.secondary` | `#141619` | Secondary background: sidebar, sheet, and settings groups |
-| `surface` | `#1A1D21` | Information card background (tool/patch output areas) |
-| `text.primary` | `#ECEDEE` | Primary text, AI reply body |
-| `text.secondary` | `#9BA1A6` | Secondary information: timestamps, status, tool names |
-| `text.tertiary` | `#5A6066` | Placeholder, disabled state, code paths |
-| `divider` | `#23272B` | Hairline divider (1px, between sidebar/settings rows) |
-| `accent` | `#3B82F6` | The only brand recognition color: sending, selection, links, user message indicator bar |
-| `accent.muted` | `#3B82F614` | accent at 8% alpha, user message background and selected row background |
+| `bg.primary` | `#242422` | Main background, warm near-black |
+| `bg.secondary` | `#191816` | Secondary background: composer input, sidebar, sheet, and settings groups |
+| `surface` | `#1E1D1B` | Information card background (tool/patch output areas) |
+| `text.primary` | `#EFEEE8` | Primary text, AI reply body (warm ink) |
+| `text.secondary` | `#AAA79E` | Secondary information: timestamps, status, tool names |
+| `text.tertiary` | `#6E6B62` | Placeholder, disabled state, code paths |
+| `divider` | `rgba(239,238,232,.12)` | Hairline divider (1px, between sidebar/settings rows) |
+| `accent` | `#D2704C` | The only brand recognition color: sending, selection, links, user message indicator bar (lifted terracotta for the dark base) |
+| `accent.muted` | `#C9644214` | accent at 8% alpha, user message background and selected row background |
 | `gold` | `#D9A621` | In the Session single indicator, a pending permission/issue; other historical components follow their own dedicated specs |
 
 ### Light Mode (Understudy)
 
 | Token | Hex | Usage |
 |---|---|---|
-| `bg.primary` | `#FBFBFC` | Main background, near-white with a very slight cool cast |
-| `bg.secondary` | `#F4F5F6` | Secondary background |
-| `surface` | `#F0F1F3` | Information card background |
-| `text.primary` | `#1A1D21` | Primary text (deep ink, not pure black) |
-| `text.secondary` | `#6B7177` | Secondary text |
-| `text.tertiary` | `#9BA1A6` | Placeholder, disabled state |
-| `divider` | `#E6E8EA` | Hairline divider |
-| `accent` | `#2563EB` | Same hue, darkened one step on the light base to ensure contrast |
-| `accent.muted` | `#2563EB14` | accent at 8% alpha |
-| `gold` | `#B8860B` | Darkened gold adapted to the light base |
+| `bg.primary` | `#FAF9F5` | Main background — warm ivory (Claude ivory) |
+| `bg.secondary` | `#F1EDE6` | Secondary background |
+| `surface` | `#F4F1EC` | Information card background (warm stone) |
+| `text.primary` | `#292823` | Primary text (warm ink, not pure black) |
+| `text.secondary` | `#73716A` | Secondary text |
+| `text.tertiary` | `#9B958B` | Placeholder, disabled state |
+| `divider` | `rgba(41,40,35,.10)` | Hairline divider |
+| `accent` | `#B4573A` | Terracotta darkened one step on the ivory base for small-text contrast; icons, borders and semibold labels may use `#C96442` |
+| `accent.muted` | `#C964420F` | accent at 6% alpha |
+| `gold` | `#D9A621` | Pending / needs-you (unchanged) |
+| `sage` | `#43745A` | Connected / ok (was the settings-local green; now shared) |
 
 ### Status Color Semantics (Replacing "Red/Green/Orange Dots")
 
@@ -98,7 +101,7 @@ Today red/green/orange express error/success/warning, which violates the single-
 | AI idle / ready | No color treatment, plain text |
 | Session execution not finished | The dedicated green dot for the list and composer: light `#167C45` / dark `#4CBF82`, 6→9pt, 2.6s opacity 0.40–1.0; stays solid under Reduce Motion |
 | Success / completion | A checkmark styled with `text.secondary` plus a text explanation, no green |
-| Error | Uses `accent` (blue) to carry the warning together with explicit text, no red background block (red is reserved for destructive operations such as the delete-session confirmation button) |
+| Error | Uses `accent` (terracotta) to carry the warning together with explicit text, no red background block (red is reserved for destructive operations such as the delete-session confirmation button) |
 | Warning | Uses `gold` text with an explanation, no orange background block |
 
 At any moment, the entire screen may contain at most one colored element (accent or gold); everything else stays on the gray scale. This is a hard constraint that enforces the "calm" style.
@@ -137,7 +140,7 @@ The type scale is the primary carrier of visual hierarchy: converged to five cle
 Divided into three shape families by function — this is the core of fixing the previous color chaos:
 
 1. **Information cards** (tool input/output, patch, diff): **no stroke**, using only the `surface` fill. The information hierarchy is established through internal typography (a monospace mono font with whitespace). The expanded detail area uses 14pt padding. Multiple information cards on the same screen keep a unified, understated container quality that never upstages the content.
-   - **Clickable affordance**: although tool/patch cards use a neutral `surface` fill overall, they are **interactive by nature** (tappable to view input/output or to jump to the file preview). Therefore, the key actionable elements **inside** the card — the tool icon, the tool name, the jumpable file path, and the expand chevron — are all highlighted with the `accent` electric blue, conveying a clear clickable cue; the card body itself keeps the neutral fill. Graying out the entire card would easily make users mistake it for a disabled control (this was verified during actual iteration). Focusing accent on local interaction hotspots instead of flooding the whole card provides ample affordance while avoiding a regression to the messy colorful-card style. For purely descriptive, non-interactive text (such as the tool reason description), `text.secondary` gray is still used.
+   - **Clickable affordance**: although tool/patch cards use a neutral `surface` fill overall, they are **interactive by nature** (tappable to view input/output or to jump to the file preview). Therefore, the key actionable elements **inside** the card — the tool icon, the tool name, the jumpable file path, and the expand chevron — are all highlighted with the `accent` terracotta, conveying a clear clickable cue; the card body itself keeps the neutral fill. Graying out the entire card would easily make users mistake it for a disabled control (this was verified during actual iteration). Focusing accent on local interaction hotspots instead of flooding the whole card provides ample affordance while avoiding a regression to the messy colorful-card style. For purely descriptive, non-interactive text (such as the tool reason description), `text.secondary` gray is still used.
 2. **Action cards** (permission, question, and other components that require a user response): use a borderless design, with a 3pt `accent` stripe on the leading edge and a `surface` fill. That stripe acts as a functional signal prompting the user to act and is clearly recognizable in the iOS interface. This is also one of the few key areas on screen where accent is allowed.
 3. **Status rows** (turn activity, "2:30 elapsed", etc.): **not presented in card form**. The fill and the rounded container are dropped and the row is rendered directly as a single line of `text.secondary` meta text, with optional monospace timing display.
 
@@ -159,7 +162,7 @@ The chat screen follows the Claude iOS app's interaction model: minimal chrome, 
 - **Turn state is transient.** The indicator, the activity text and the abort menu appear only while there is something to say; they are not a permanent block above the input.
 - **One row per tool call.** There is no merged "N tool calls" group: every call renders the same compact row (icon, name, subject line, chevron) and expands in place. A group disclosure stacked on top of each card's own disclosure was a double disclosure.
 - **User message = bubble.** Right-aligned, capped at 320pt, one tucked corner — Claude's treatment. The full-width accent stripe read as a system event rather than as something the person said.
-- **The asterisk is the mark.** The app icon is an eight-spoke asterisk in the brand blue on the ink background (it was a pixel-art robot), and the empty chat greets you with the same mark over “How can I help you?”.
+- **The asterisk is the mark.** The app icon is an eight-spoke asterisk in the brand accent on the ink background (it was a pixel-art robot), and the empty chat greets you with the same mark over “How can I help you?”.
 - **Glass everywhere it is a surface.** Every floating surface goes through one `glassSurface` modifier: `glassEffect(.regular.interactive())` on iOS 26, a translucent material with a hairline edge on iOS 17–25, so the fallback never drifts from the design.
 
 ## QT-COMPOSER · Composer
@@ -171,7 +174,7 @@ The chat screen follows the Claude iOS app's interaction model: minimal chrome, 
 - text review field: during voice transcription or retry, the partial transcript that is continuously appended or replaced must drive the text field to auto-scroll to the end, presenting the latest text output in a typewriter-like fashion; in manual editing and draft restoration scenarios it keeps the system default scrolling behavior to avoid disturbing the user's cursor.
 - Send: a solid `accent` **circle** with a white icon, hugging the trailing edge of the card's bottom row and acting visually as "an organic part of the input area".
 - mic: moved to the **inner left side of the input field**, presented as an in-field functional icon (`text.secondary`).
-- While the AI is running: the send button is **always kept** (consistent with established product logic — new messages can still be appended directly while a task runs, with no need to manually terminate the preceding task), and it stays fixed in the **bottom slot** of the right-side vertical stack. stop is shown as an **additional** action button **above** send (same-size solid rounded square, arranged vertically in a VStack with stop on top and send below), and it hides automatically when the AI task ends. Note that stop does not replace send; the two coexist in a stacked relationship. In color terms, send uses `accent` blue while stop uses red (carrying interrupt/destructive-operation semantics).
+- While the AI is running: the send button is **always kept** (consistent with established product logic — new messages can still be appended directly while a task runs, with no need to manually terminate the preceding task), and it stays fixed in the **bottom slot** of the right-side vertical stack. stop is shown as an **additional** action button **above** send (same-size solid rounded square, arranged vertically in a VStack with stop on top and send below), and it hides automatically when the AI task ends. Note that stop does not replace send; the two coexist in a stacked relationship. In color terms, send uses `accent` terracotta while stop uses red (carrying interrupt/destructive-operation semantics).
 - Voice input: the mic is always fixed in the **bottom slot** of the left-side vertical stack. While recording, only a red mic is shown, and tapping it ends recording normally and proceeds to transcription; during transcription the mic shows a loading state and the right side simultaneously shows `Stop transcription wait` for forcing an interrupt; after an explicit interrupt, the bottom slot on the left switches to a retry icon button while the right shows `Discard audio`. retry is the single primary recovery action and discard is the lightweight action for leaving the recovery state; the two responsibilities are distinct and must not be defined as two separate retry entry points. No transient voice state may change the fixed position of the send button.
 
 ## QT-MOTION · Motion (Highest Return on Investment)
@@ -285,7 +288,7 @@ The original design uses a `NavigationSplitView` three-column architecture (file
 - No third-party fonts: the system-level SF Pro and SF Mono fully meet the need and deliver the best system consistency and lightness.
 - No splash launch animation.
 - No information architecture rework: keep the validated bottom tab and three-column layout system.
-- Regular content stays on the gray scale and the brand blue; the single-indicator triage in the Session list/composer follows the explicit exception described above.
+- Regular content stays on the warm neutral scale and the brand terracotta; the single-indicator triage in the Session list/composer follows the explicit exception described above.
 
 ## QT-BOUNDARY · Feature Boundaries (This Is the Implementation Draft — Three Categories Strictly Separated)
 
@@ -293,7 +296,7 @@ As an implementation spec meant to directly guide delivery, every visual element
 
 **Capabilities that exist today (this design only adjusts the visual presentation and does not change existing functionality)**: 3 tab navigation items (Chat/Files/Settings); the Session list sheet on iPhone; the iPad three-column layout; 10 kinds of message rendering in the Chat area (user message, AI text, tool card, patch card, permission card, question card, todo, turn activity, streaming reasoning, where step is not rendered); Markdown and zoomable image preview; file tree (supporting expand/collapse and git status coloring); composer (including mic/send/stop and the VoiceFlowKit voice integration); toolbar interactions (session/rename/create/model-agent picker/context ring/settings); Settings options (Server/Project/SSH Tunnel/AI Builder/Appearance/About); the Session tree nesting hierarchy and swipe-to-delete; light/dark dual-mode theme switching.
 
-**The regular visual baseline of this specification**: content such as cards, patches, and tools is organized with the brand blue and neutral colors; three card shapes distinguish content types; user messages keep the leading stripe. The Session triage light follows the explicit exception on this page and must not reuse the legacy golden working light.
+**The regular visual baseline of this specification**: content such as cards, patches, and tools is organized with the brand terracotta and warm neutral colors; three card shapes distinguish content types; user messages keep the leading stripe. The Session triage light follows the explicit exception on this page and must not reuse the legacy golden working light.
 
 **Explicitly excluded from this design (deferred to future planning and not reflected in the mockup)**:
 - **Code syntax highlighting**: the current implementation is a monochrome plain-text rendering with line numbers (`Text(line)`) and **does not include** syntax highlighting. The mockup images are uniformly drawn as plain text. Syntax highlighting is planned as a future enhancement — given that it involves tokenizer / highlighting-parser library selection and must account for large-file performance and rendering overhead, this iteration does not implement it, and the design is not pre-packaged with it either.
@@ -309,13 +312,13 @@ The mockups under `docs/design_images/` were generated by the GPT image generati
 
 ### Small Screen (iPhone, single column)
 
-The Chat view occupies 90% of the user's interaction time. The core design concerns include: the blue leading accent bar on user messages, the container-free design of AI replies, information cards with no stroke and only a dark fill, action cards with a leading stripe paired with text action buttons, the mic icon built into the left of the composer, the solid blue send button hugging the bottom-right corner, and at most one blue accent color on the entire screen.
+The Chat view occupies 90% of the user's interaction time. The core design concerns include: the accent leading bar on user messages, the container-free design of AI replies, information cards with no stroke and only a dark fill, action cards with a leading stripe paired with text action buttons, the mic icon built into the left of the composer, the solid blue send button hugging the bottom-right corner, and at most one blue accent color on the entire screen.
 
 ![iPhone — Chat](design_images/iphone_chat_v.png)
 
 Session list: divided into two major groups, Active and Archived. Active is the default workspace, while Archived is a collapsed panel on the same screen with no need to navigate to a separate page. Search is explicitly labeled **Search loaded sessions**: it filters loaded titles for the current host/project, retains ancestors of matching children, and reveals matches in both groups. It does not imply a cloud-side history search; its scope explanation and Load More action remain visible while filtering.
 
-The Active and Archived headers use a lightweight 44pt-tall control bar: Title Case naming, 13pt medium weight with a lightweight chevron icon on the right, no count labels, no decorative dividers, and no uppercase tracking, to avoid wrapping in the narrow sidebar. Each list row shows a title, a gray summary preview, and a timestamp; the selected item is marked only with a very light blue fill plus a blue leading stripe, without an extra checkmark. Selection and expansion are separate accessible buttons. Child sessions express the parent-child hierarchy through indentation. Entries in Archived remain tappable, but their titles and times use a lighter gray and no blue indicator bar.
+The Active and Archived headers use a lightweight 44pt-tall control bar: Title Case naming, 13pt medium weight with a lightweight chevron icon on the right, no count labels, no decorative dividers, and no uppercase tracking, to avoid wrapping in the narrow sidebar. Each list row shows a title, a gray summary preview, and a timestamp; the selected item is marked only with a very light accent fill plus an accent leading stripe, without an extra checkmark. Selection and expansion are separate accessible buttons. Child sessions express the parent-child hierarchy through indentation. Entries in Archived remain tappable, but their titles and times use a lighter gray and no blue indicator bar.
 
 Delete sits at the trailing edge and is red; Archive and Restore sit at the leading edge in a restrained blue-gray tone. Full-swipe quick triggers stay disabled. **Irreversible server deletion requires a confirmation naming the session and explaining that it cannot be undone.** This HIG remediation supersedes the earlier no-confirmation rule; there is no server-side trash/undo capability to promise.
 
@@ -357,7 +360,7 @@ The early UI exhibited typical engineer thinking: flat information hierarchy (fo
 
 **Pixel style is explicitly out of scope.** This chapter's design is entirely grounded in the Quiet Tech design language described above and introduces no extra visual texture — it strictly maintains the existing minimal modern icons, hairline dividers, and neutral card fills. This refactor focuses on optimizing the **information organization structure** rather than swapping the visual skin: the main goals are to separate the speaking roles and to present tool call results efficiently.
 
-The current pain points concentrate on two aspects: (a) AI replies and user messages have insufficient visual difference, making it hard to quickly identify the speaker; (b) all tool calls uniformly use a "generic expandable DisclosureGroup + wrench icon", while patch is separately handled as a full blue navigation card — the tool cards lack semantic differentiation from each other, and the overall visual presents a large amount of homogeneous gray cards.
+The current pain points concentrate on two aspects: (a) AI replies and user messages have insufficient visual difference, making it hard to quickly identify the speaker; (b) all tool calls uniformly use a "generic expandable DisclosureGroup + wrench icon", while patch is separately handled as a full accent navigation card — the tool cards lack semantic differentiation from each other, and the overall visual presents a large amount of homogeneous gray cards.
 
 This design contains three concrete adjustments: (1) clearly distinguish the speaking roles of the user and of OpenCode; (2) uniformly render file-type operations as file cards (using a 2-column grid layout); (3) converge all remaining generic tool calls into an expandable "N tool calls".
 
@@ -390,7 +393,7 @@ file cards **enter a two-column (iPhone) / three-column (iPad) grid**, with the 
 
 text and attachment blocks do not enter the grid and are **rendered full width after the grid** (reading order: the grid first, the full-width text after; users accept this). There is no extra grouping overall, and no category headings like "Files updated" or "Actions" are added.
 
-File cards follow the Quiet Tech neutral card spec (neutral `surface` fill, no border stroke, 12pt corner radius); the thinking / tool rows keep the lightweight process row form (no heavy card surface), with color accents restricted to the file icon, the header, and the chevron area — ensuring at most one blue emphasis remains on screen.
+File cards follow the Warm Editorial neutral card spec (neutral `surface` fill, no border stroke, 12pt corner radius); the thinking / tool rows keep the lightweight process row form (no heavy card surface), with color accents restricted to the file icon, the header, and the chevron area — ensuring at most one accent emphasis remains on screen.
 
 ![Tool cards: speaker differentiation + 2-column file cards + N tool calls](design_images/tool_cards_chronological.png)
 

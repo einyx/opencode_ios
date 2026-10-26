@@ -38,8 +38,22 @@ struct DesignTokenTests {
 
     // MARK: Brand colour (POL-COLOR-05, QT-PALETTE)
 
-    @Test func brandPrimaryIsTheSingleElectricBlue() {
-        #expect(hex(DesignColors.Brand.primary) == "#3B82F6")
+    /// 2026-10-26: the app adopts the Warm Editorial palette — the single
+    /// accent is terracotta, not blue (supersedes the Quiet Tech value and
+    /// the 2026-10-25 A1 decision).
+    @Test func brandPrimaryIsTheSingleTerracotta() {
+        #expect(hex(DesignColors.Brand.primary) == "#C96442")
+    }
+
+    /// The accent step for small text: darkened on light surfaces, lifted on
+    /// dark ones (terracotta on ivory is ≈3.3:1 — fine for icons, tight for
+    /// body-size text).
+    @Test func brandPrimaryTextAdaptsToColorScheme() {
+        let ui = UIColor(DesignColors.Brand.primaryText)
+        let light = UIColor(DesignColors.Brand.primaryText).resolvedColor(with: UITraitCollection(userInterfaceStyle: .light))
+        let dark = ui.resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark))
+        #expect(hex(Color(uiColor: light)) == "#B4573A")
+        #expect(hex(Color(uiColor: dark)) == "#D2704C")
     }
 
     @Test func brandGoldIsTheSessionPendingGold() {
@@ -49,16 +63,25 @@ struct DesignTokenTests {
     // The light brand variant (#2563EB) has no token yet (audit POL-COLOR-05
     // PARTIAL); it is asserted here the day P2 adds `Brand.primaryLight`.
 
+    // MARK: Page (QT-PALETTE, Warm Editorial)
+
+    @Test func pageTokensAreTheWarmIvoryAndWarmNearBlack() {
+        #expect(hex(DesignColors.Page.background(for: .light)) == "#FAF9F5")
+        #expect(hex(DesignColors.Page.background(for: .dark)) == "#242422")
+        #expect(hex(DesignColors.Page.foreground(for: .light)) == "#292823")
+        #expect(hex(DesignColors.Page.foreground(for: .dark)) == "#EFEEE8")
+    }
+
     // MARK: Neutral surfaces (POL-COLOR-02/03, QT-PALETTE)
 
     @Test func darkSurfaceTokensMatchTheSpecHexes() {
-        #expect(hex(DesignColors.Neutral.surfaceDark) == "#1A1D21")
-        #expect(hex(DesignColors.Neutral.composerDark) == "#141619")
+        #expect(hex(DesignColors.Neutral.surfaceDark) == "#1E1D1B")
+        #expect(hex(DesignColors.Neutral.composerDark) == "#191816")
     }
 
     @Test func lightSurfaceTokensMatchTheirDocumentedValues() {
-        #expect(hex(DesignColors.Neutral.surfaceLight) == "#F0F1F3")
-        #expect(hex(DesignColors.Neutral.composerLight) == "#F4F5F6")
+        #expect(hex(DesignColors.Neutral.surfaceLight) == "#F4F1EC")
+        #expect(hex(DesignColors.Neutral.composerLight) == "#F1EDE6")
     }
 
     // MARK: Text tokens (POL-COLOR-04, QT-PALETTE)

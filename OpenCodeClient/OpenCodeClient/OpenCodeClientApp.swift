@@ -32,6 +32,9 @@ struct OpenCodeClientApp: App {
         #else
         WindowGroup {
             ContentView()
+                // The single accent, app-wide: every control that relies on the
+                // environment tint (toggles, pickers, links) reads terracotta.
+                .tint(DesignColors.Brand.primary)
         }
         #endif
     }

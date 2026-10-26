@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenCodex — Warm Editorial Adoption (Design Preview 03)</title>
+<style>
+  :root {
+    /* AFTER palette — Warm Editorial */
+    --terra: #C96442;          /* the single accent (replaces #3B82F6) */
+    --terra-dark: #B4573A;     /* small-text accent on light surfaces */
+    --gold: #D9A621;           /* unchanged — pending / needs-you */
+    --sage: #7A9B76;           /* connected / ok */
+    /* Warm surfaces */
+    --page-light: #FAF9F5;     /* ivory page */
+    --card-light: #FFFFFF;
+    --page-dark: #242422;      /* warm near-black */
+    --card-dark: #2B2A27;
+    --ink-light: #292823;
+    --ink-2-light: #73716A;
+    --ink-3-light: #9B958B;
+    --hair-light: rgba(41,40,35,.10);
+    /* BEFORE palette — Quiet Tech, for the before frames */
+    --qt-blue: #3B82F6;
+    --qt-surface: #F0F1F3;
+    --qt-page: #FFFFFF;
+
+    --page: var(--page-light);
+    --card: var(--card-light);
+    --ink: var(--ink-light);
+    --ink-2: var(--ink-2-light);
+    --ink-3: var(--ink-3-light);
+    --hair: var(--hair-light);
+    --shadow: 0 22px 55px rgba(31,30,29,.10);
+    --sans: -apple-system, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  html[data-theme="dark"], html[data-theme="auto"] {}
+  @media (prefers-color-scheme: dark) {
+    html[data-theme="auto"] {
+      color-scheme: dark;
+      --page: var(--page-dark); --card: var(--card-dark);
+      --ink: #EFEEE8; --ink-2: #AAA79E; --ink-3: #6E6B62;
+      --hair: rgba(239,238,232,.12);
+      --shadow: 0 22px 55px rgba(0,0,0,.5);
+      --terra: #D2704C; --terra-dark: #D2704C;
+    }
+  }
+  html[data-theme="dark"] {
+    color-scheme: dark;
+    --page: var(--page-dark); --card: var(--card-dark);
+    --ink: #EFEEE8; --ink-2: #AAA79E; --ink-3: #6E6B62;
+    --hair: rgba(239,238,232,.12);
+    --shadow: 0 22px 55px rgba(0,0,0,.5);
+    --terra: #D2704C; --terra-dark: #D2704C;
+  }
+  html[data-theme="qt"] {
+    /* forced BEFORE mode for the before-frames */
+    --page: #FFFFFF; --card: #F0F1F3;
+    --ink: #111214; --ink-2: #6B7076; --ink-3: #9AA0A6;
+    --hair: rgba(17,18,20,.12);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--page); color: var(--ink); font-family: var(--sans); padding: 40px 24px 96px; -webkit-font-smoothing: antialiased; }
+  .page { max-width: 1400px; margin: 0 auto; }
+  .kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--terra); margin-bottom: 10px; }
+  h1 { font-size: 30px; font-weight: 600; letter-spacing: -.015em; }
+  .lede { margin-top: 10px; max-width: 760px; font-size: 15px; line-height: 1.6; color: var(--ink-2); }
+  .masthead { display: flex; gap: 28px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 30px; }
+  .theme-toggle { margin-left: auto; font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); background: none; border: 1px solid var(--hair); border-radius: 999px; padding: 8px 14px; cursor: pointer; }
+
+  .row { display: flex; gap: 30px; flex-wrap: wrap; align-items: flex-start; margin-bottom: 40px; }
+  .frame { flex: 0 0 auto; }
+  .caption { margin-top: 12px; max-width: 400px; }
+  .caption .n { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 5px; }
+  .caption h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .caption p { font-size: 12.5px; line-height: 1.55; color: var(--ink-2); }
+
+  .phone { width: 375px; background: var(--page); border: 1px solid var(--hair); border-radius: 44px; padding: 10px; box-shadow: var(--shadow); }
+  .screen { border-radius: 35px; overflow: hidden; background: var(--page); height: 720px; display: flex; flex-direction: column; }
+  .statusbar { display: flex; justify-content: space-between; padding: 13px 22px 4px; font-size: 12.5px; font-weight: 600; }
+  .navbar { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px 10px; border-bottom: 1px solid var(--hair); }
+  .navbar .title { font-size: 15px; font-weight: 600; }
+  .navbar .sub { font-size: 11px; color: var(--ink-3); margin-top: 2px; }
+  .navbar .right { color: var(--terra); font-size: 13px; }
+  .scroll { flex: 1; overflow: hidden; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+  .tabbar { display: flex; border-top: 1px solid var(--hair); padding: 8px 0 10px; justify-content: space-around; font-size: 10px; color: var(--ink-3); }
+  .tabbar .on { color: var(--terra); font-weight: 600; }
+
+  .user-bubble { align-self: flex-end; max-width: 300px; background: var(--card); border-left: 3px solid var(--terra); border-radius: 16px; padding: 10px 13px; font-size: 15px; line-height: 1.45; }
+  .qt .user-bubble { border-left-color: var(--qt-blue); }
+  .agent-line { font-size: 15px; line-height: 1.5; }
+  .turn-meta { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .filecard { border-radius: 12px; padding: 10px 11px; background: var(--card); border: 1px solid var(--hair); display: flex; gap: 8px; }
+  .filecard .ic { font-size: 13px; }
+  .filecard.write .ic { color: var(--terra); }
+  .qt .filecard.write .ic { color: var(--qt-blue); }
+  .filecard .name { font-family: var(--mono); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
+  .filecard .kind { font-size: 10px; color: var(--ink-3); margin-top: 2px; }
+  .toolrow { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-2); border-radius: 12px; padding: 9px 11px; background: var(--card); border: 1px solid var(--hair); }
+  .toolrow .chev { margin-left: auto; color: var(--ink-3); }
+
+  .changes-card { border-radius: 12px; padding: 12px; display: flex; gap: 10px; align-items: center; background: color-mix(in srgb, var(--terra) 8%, transparent); border: 1px solid color-mix(in srgb, var(--terra) 30%, transparent); }
+  .qt .changes-card { background: color-mix(in srgb, var(--qt-blue) 7%, transparent); border-color: color-mix(in srgb, var(--qt-blue) 28%, transparent); }
+  .changes-card .ic { color: var(--terra); }
+  .qt .changes-card .ic { color: var(--qt-blue); }
+  .changes-card .label { font-size: 14px; font-weight: 600; color: var(--terra); }
+  .qt .changes-card .label { color: var(--qt-blue); }
+  .changes-card .counts { font-family: var(--mono); font-size: 11px; color: var(--ink-2); margin-top: 3px; }
+  .changes-card .counts .add { color: var(--terra); }
+  .qt .changes-card .counts .add { color: var(--qt-blue); }
+  .changes-card .chev { margin-left: auto; color: var(--terra); }
+  .qt .changes-card .chev { color: var(--qt-blue); }
+
+  .composer { display: flex; align-items: center; gap: 10px; padding: 10px 14px 14px; }
+  .composer .field { flex: 1; background: var(--card); border: 1px solid var(--hair); border-radius: 14px; padding: 9px 12px; font-size: 13px; color: var(--ink-3); }
+  .send { width: 32px; height: 32px; border-radius: 50%; background: var(--terra); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+  .qt .send { background: var(--qt-blue); }
+
+  .settings-group { border-radius: 14px; background: var(--card); border: 1px solid var(--hair); overflow: hidden; }
+  .srow { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--hair); font-size: 13.5px; }
+  .srow:last-child { border-bottom: none; }
+  .srow .sic { color: var(--ink-3); font-size: 13px; }
+  .srow .val { margin-left: auto; color: var(--ink-3); font-size: 12px; }
+  .switch { width: 40px; height: 24px; border-radius: 999px; background: var(--terra); position: relative; }
+  .switch::after { content: ""; position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff; }
+  .qt .switch { background: var(--qt-blue); }
+  .settings-title { font-size: 26px; font-weight: 700; letter-spacing: -.02em; padding: 8px 14px 12px; }
+  .conn { display: flex; align-items: center; gap: 6px; color: var(--sage); font-size: 11px; }
+
+  .diff { border-radius: 10px; overflow: hidden; background: color-mix(in srgb, var(--ink) 4%, transparent); font-family: var(--mono); font-size: 10.5px; line-height: 1.55; }
+  .qt .diff { background: rgba(17,18,20,.035); }
+  .diff .hunk { padding: 4px 10px; color: var(--ink-3); background: color-mix(in srgb, var(--ink) 5%, transparent); border-bottom: 1px solid var(--hair); }
+  .diff .ln { display: flex; }
+  .diff .ln .g { width: 18px; text-align: right; padding-right: 6px; color: var(--ink-3); }
+  .diff .ln .t { padding-right: 8px; white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+  .diff .ln.add { color: var(--terra); background: color-mix(in srgb, var(--terra) 9%, transparent); }
+  .qt .diff .ln.add { color: #1F7A3D; background: rgba(51,153,83,.10); }
+  .diff .ln.del { color: var(--ink-2); background: color-mix(in srgb, var(--ink) 6%, transparent); }
+  .qt .diff .ln.del { color: #B42318; background: rgba(220,38,38,.10); }
+  .diff .ln.ctx { color: var(--ink); }
+
+  .tokens { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 6px 0 34px; }
+  .token { border: 1px solid var(--hair); border-radius: 12px; overflow: hidden; background: var(--card); }
+  .token .sw { height: 54px; }
+  .token .m { padding: 8px 10px; font-family: var(--mono); font-size: 10.5px; color: var(--ink-2); line-height: 1.5; }
+  .token .m b { color: var(--ink); font-weight: 600; display: block; }
+
+  .notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 20px; }
+  .note { border: 1px solid var(--hair); border-radius: 14px; padding: 16px 18px; background: var(--card); }
+  .note h4 { font-size: 13px; font-weight: 600; margin-bottom: 9px; }
+  .note ul { list-style: none; }
+  .note li { position: relative; padding-left: 15px; font-size: 12.5px; line-height: 1.6; color: var(--ink-2); margin-bottom: 8px; }
+  .note li::before { content: "—"; position: absolute; left: 0; color: var(--ink-3); }
+  .note li b { color: var(--ink); font-weight: 600; }
+  .tag { display: inline-block; font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--terra); border: 1px solid color-mix(in srgb, var(--terra) 35%, transparent); border-radius: 4px; padding: 2px 6px; margin-bottom: 9px; }
+  table.mig { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 11px; color: var(--ink-2); }
+  table.mig td { padding: 5px 6px; border-bottom: 1px solid var(--hair); }
+  table.mig td:first-child { color: var(--ink); font-weight: 600; }
+  .arrow { color: var(--terra); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="masthead">
+    <div>
+      <div class="kicker">OpenCodex / design preview 03 / warm editorial adoption</div>
+      <h1>One design system, warm, no blue</h1>
+      <p class="lede">
+        Your call, combined: <b>A</b> — one design system for the whole app (Settings stops being its own country), and
+        <b>C</b> — the system is <b>Warm Editorial</b>, not Quiet Tech. The single accent becomes
+        <b>terracotta&nbsp;#C96442</b>; gold stays for “needs you”; sage stays for “connected”. Everything that reads
+        <code>DesignColors</code> flips automatically — that is the point of the token layer.
+      </p>
+    </div>
+    <button class="theme-toggle" onclick="toggleTheme()">light / dark</button>
+  </header>
+
+  <div class="tokens">
+    <div class="token"><div class="sw" style="background:#C96442"></div><div class="m"><b>accent / Brand.primary</b>#C96442 (was #3B82F6)</div></div>
+    <div class="token"><div class="sw" style="background:#FAF9F5; border-bottom:1px solid #ddd"></div><div class="m"><b>page light</b>#FAF9F5 ivory (was system white)</div></div>
+    <div class="token"><div class="sw" style="background:#242422"></div><div class="m"><b>page dark</b>#242422 warm near-black</div></div>
+    <div class="token"><div class="sw" style="background:#F4F1EC; border-bottom:1px solid #ddd"></div><div class="m"><b>surface light</b>#F4F1EC (was #F0F1F3 cool)</div></div>
+    <div class="token"><div class="sw" style="background:#1E1D1B"></div><div class="m"><b>surface dark</b>#1E1D1B (was #1A1D21 cool)</div></div>
+    <div class="token"><div class="sw" style="background:#D9A621"></div><div class="m"><b>gold (unchanged)</b>pending / needs-you</div></div>
+    <div class="token"><div class="sw" style="background:#7A9B76"></div><div class="m"><b>sage (unchanged)</b>connected / ok</div></div>
+    <div class="token"><div class="sw" style="background:#292823"></div><div class="m"><b>ink</b>#292823 / #EFEEE8 dark</div></div>
+  </div>
+
+  <!-- ================= CHAT BEFORE / AFTER ================= -->
+  <div class="row">
+    <div class="frame qt">
+      <div class="phone" style="background:#fff">
+        <div class="screen" style="background:#fff">
+          <div class="statusbar"><span>9:41</span><span>◉ ◔ ▮</span></div>
+          <div class="navbar"><div><div class="title">refactor parser</div><div class="sub">knowledge_working</div></div><div class="right">◧</div></div>
+          <div class="scroll">
+            <div class="user-bubble" style="border-left:3px solid var(--qt-blue)">Split the parser into its own file and add tests.</div>
+            <div class="turn-meta">Turn 2</div>
+            <div class="agent-line" style="color:#111214">I extracted the grammar rules into Parser.swift.</div>
+            <div class="grid2">
+              <div class="filecard" style="background:#F0F1F3; border-color:rgba(17,18,20,.08)"><span class="ic" style="color:#9AA0A6">○</span><div><div class="name" style="color:#111214">model/Parser.swift</div><div class="kind">write</div></div></div>
+            </div>
+            <div class="changes-card"><span class="ic">▤</span><div><div class="label">3 files changed</div><div class="counts"><span class="add">+48</span> <span style="color:#6B7076">−12</span> · this turn</div></div><span class="chev">›</span></div>
+            <div class="toolrow" style="background:#F0F1F3; border-color:rgba(17,18,20,.08)"><span>⚙</span><span>3 tool calls</span><span class="chev">›</span></div>
+          </div>
+          <div class="composer"><div class="field" style="background:#F4F5F6; border-color:rgba(17,18,20,.08); color:#9AA0A6">Message</div><div class="send">↑</div></div>
+          <div class="tabbar" style="border-color:rgba(17,18,20,.08)"><span class="on">Chat</span><span>Files</span><span>Sessions</span><span>Settings</span></div>
+        </div>
+      </div>
+      <div class="caption">
+        <div class="n">01 · Before — Quiet Tech (today)</div>
+        <h3>Electric blue on cool gray</h3>
+        <p>Today's home page. Blue bubble bar, blue send, blue changes card, cool #F0F1F3 cards on a system-white page.</p>
+      </div>
+    </div>
+
+    <div class="frame">
+      <div class="phone">
+        <div class="screen">
+          <div class="statusbar"><span>9:41</span><span>◉ ◔ ▮</span></div>
+          <div class="navbar"><div><div class="title">refactor parser</div><div class="sub">knowledge_working</div></div><div class="right">◧</div></div>
+          <div class="scroll">
+            <div class="user-bubble">Split the parser into its own file and add tests.</div>
+            <div class="turn-meta">Turn 2</div>
+            <div class="agent-line">I extracted the grammar rules into Parser.swift.</div>
+            <div class="grid2">
+              <div class="filecard"><span class="ic" style="color:var(--ink-3)">○</span><div><div class="name">model/Parser.swift</div><div class="kind">write</div></div></div>
+            </div>
+            <div class="changes-card"><span class="ic">▤</span><div><div class="label">3 files changed</div><div class="counts"><span class="add">+48</span> <span style="color:var(--ink-2)">−12</span> · this turn</div></div><span class="chev">›</span></div>
+            <div class="toolrow"><span>⚙</span><span>3 tool calls</span><span class="chev">›</span></div>
+          </div>
+          <div class="composer"><div class="field">Message</div><div class="send">↑</div></div>
+          <div class="tabbar"><span class="on">Chat</span><span>Files</span><span>Sessions</span><span>Settings</span></div>
+        </div>
+      </div>
+      <div class="caption">
+        <div class="n">02 · After — Warm Editorial (home)</div>
+        <h3>Same layout, warm identity</h3>
+        <p>Ivory page, warm cards, terracotta as the one accent. Structure, spacing and type are untouched — only the token values move.</p>
+      </div>
+    </div>
+
+    <div class="frame">
+      <div class="phone">
+        <div class="screen">
+          <div class="statusbar"><span>9:41</span><span>◉ ◔ ▮</span></div>
+          <div class="navbar"><div><div class="title">Settings</div><div class="sub">&nbsp;</div></div><div class="right">&nbsp;</div></div>
+          <div class="scroll" style="gap:10px">
+            <div class="settings-title">OpenCodex</div>
+            <div class="conn"><span>●</span> knowledge_working — connected</div>
+            <div class="settings-group">
+              <div class="srow"><span class="sic">▤</span> Workspace <span class="val">knowledge_working ›</span></div>
+              <div class="srow"><span class="sic">⌘</span> Manage Hosts <span class="val">1 ›</span></div>
+            </div>
+            <div class="settings-group">
+              <div class="srow"><span class="sic">✎</span> Input &amp; Voice <span class="val">›</span></div>
+              <div class="srow"><span class="sic">◐</span> Appearance <span class="val">System ›</span></div>
+              <div class="srow"><span class="sic">🔔</span> Notifications <span class="switch"></span></div>
+            </div>
+            <div class="settings-group">
+              <div class="srow"><span class="sic">ⓘ</span> About <span class="val">OpenCodex 1.0 ›</span></div>
+            </div>
+          </div>
+          <div class="tabbar"><span>Chat</span><span>Files</span><span>Sessions</span><span class="on">Settings</span></div>
+        </div>
+      </div>
+      <div class="caption">
+        <div class="n">03 · After — Settings (already warm)</div>
+        <h3>Settings stops being the exception</h3>
+        <p>Settings keeps its look — but now from the shared tokens, not a private palette. This is what the rest of the app is joining.</p>
+      </div>
+    </div>
+
+    <div class="frame">
+      <div class="phone">
+        <div class="screen">
+          <div class="statusbar"><span>9:41</span><span>◉ ◔ ▮</span></div>
+          <div class="navbar"><div><div class="title">Files</div><div class="sub">knowledge_working</div></div><div class="right">⌕</div></div>
+          <div class="scroll" style="gap:10px">
+            <div class="changes-card"><span class="ic">▤</span><div><div class="label">3 files changed</div><div class="counts"><span class="add">+48</span> <span style="color:var(--ink-2)">−12</span> · <span style="color:var(--ink-2)">in this session</span></div></div><span class="chev">›</span></div>
+            <div class="settings-group">
+              <div class="srow" style="font-family:var(--mono); font-size:11.5px">▾ docs/</div>
+              <div class="srow" style="font-family:var(--mono); font-size:11.5px">· parsing.md <span class="val" style="color:var(--ink-3)">deleted</span></div>
+              <div class="srow" style="font-family:var(--mono); font-size:11.5px">▾ model/</div>
+              <div class="srow" style="font-family:var(--mono); font-size:11.5px">· Parser.swift <span class="val" style="color:var(--terra)">modified</span></div>
+            </div>
+            <div class="diff">
+              <div class="hunk">@@ -18,9 +18,24 @@</div>
+              <div class="ln ctx"><span class="g">18</span><span class="t">  func parse(_ input: String) {</span></div>
+              <div class="ln del"><span class="g">19</span><span class="t">-   let tokens = scan(input)</span></div>
+              <div class="ln add"><span class="g">19</span><span class="t">+   let tokens = try scan(input)</span></div>
+            </div>
+          </div>
+          <div class="tabbar"><span>Chat</span><span class="on">Files</span><span>Sessions</span><span>Settings</span></div>
+        </div>
+      </div>
+      <div class="caption">
+        <div class="n">04 · After — Files &amp; diff</div>
+        <h3>Additions read as accent, not green</h3>
+        <p>The changes surface joins the palette: accent-tinted additions, secondary removals. Deletions were never red in the shipped code — that part of the preview was aspirational.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= NOTES ================= -->
+  <div class="row" style="margin-bottom:0">
+    <div class="frame" style="width:100%">
+      <div class="notes">
+        <div class="note">
+          <span class="tag">Token migration</span>
+          <h4>What actually changes in code</h4>
+          <ul>
+            <li><b>Everything flows through DesignTokens.</b> Views reference <code>Brand.primary</code>, <code>Neutral.surface…</code> — changing the values re-skins the app with a ~4-file diff.</li>
+            <li><b>Manual cleanups:</b> <code>QuestionCardView</code> has 7 hardcoded <code>.blue</code> sites (a latent second blue — becomes accent); <code>SettingsStyle</code> folds into the shared tokens.</li>
+            <li><b>Stays as-is:</b> session triage lights (gold/red/green/blue per their own spec), gold = pending, sage = connected.</li>
+          </ul>
+        </div>
+        <div class="note">
+          <span class="tag">Contrast</span>
+          <h4>One caveat to watch</h4>
+          <ul>
+            <li><b>Terracotta on ivory ≈ 3.3:1</b> — fine for icons, borders and ≥15pt semibold, tight for small body text.</li>
+            <li><b>Small accent text</b> (kickers, counts) uses a darkened step <b>#B4573A</b> on light surfaces; dark mode lifts to <b>#D2704C</b>.</li>
+            <li><b>Accent never carries meaning alone</b> — counts stay text, statuses keep icons/labels.</li>
+          </ul>
+        </div>
+        <div class="note">
+          <span class="tag">Docs &amp; lint</span>
+          <h4>The authority moves with it</h4>
+          <ul>
+            <li><b>design.md §QT-PALETTE</b> is updated: accent #C96442, warm page/surface values, “no blue accent” replaces “no second blue”.</li>
+            <li><b>Supersedes the 2026-10-25 A1 decision</b> (“design.md as-is is the authority”): the authority is still design.md — its palette section changes.</li>
+            <li><b>Lint unaffected:</b> POL-COLOR-11/14/15 still hold; the “second blue” rule becomes trivially true.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script>
+  function toggleTheme() {
+    var root = document.documentElement;
+    var order = ['auto', 'light', 'dark'];
+    var cur = root.getAttribute('data-theme') || 'auto';
+    var next = order[(order.indexOf(cur) + 1) % order.length];
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('oc-theme-3', next); } catch (e) {}
+  }
+  try { var s = localStorage.getItem('oc-theme-3'); if (s) document.documentElement.setAttribute('data-theme', s); } catch (e) {}
+</script>
+</body>
+</html>

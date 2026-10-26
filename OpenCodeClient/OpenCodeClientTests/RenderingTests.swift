@@ -834,14 +834,15 @@ struct DesignTokensTests {
         #expect(DesignCorners.large > DesignCorners.medium)
     }
 
-    @Test func brandPrimaryIsElectricBlueTone() {
+    @Test func brandPrimaryIsTerracottaTone() {
         let brand = DesignColors.Brand.primary
         let uiColor = UIColor(brand)
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         uiColor.getRed(&r, green: &g, blue: &b, alpha: &a)
-        #expect(r > 0.2 && r < 0.3)
-        #expect(g > 0.3 && g < 0.6)
-        #expect(b > 0.8)
+        // Warm Editorial: the single accent is terracotta #C96442.
+        #expect(r > 0.7 && r < 0.85)
+        #expect(g > 0.3 && g < 0.5)
+        #expect(b > 0.2 && b < 0.35)
     }
 
     @Test func brandGoldIsWarmTone() {

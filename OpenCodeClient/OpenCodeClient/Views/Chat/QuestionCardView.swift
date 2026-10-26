@@ -19,7 +19,7 @@ struct QuestionCardView: View {
     @State private var isCustomEditing: Bool = false
     @State private var isSending: Bool = false
 
-    private let accent = DesignColors.Semantic.info
+    private let accent = DesignColors.Brand.primary
 
     init(
         request: QuestionRequest,
@@ -134,7 +134,7 @@ struct QuestionCardView: View {
                 .padding(.horizontal, 10)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .frame(minHeight: 44)
-                .background(isCustomActive ? Color.blue.opacity(0.08) : Color.clear)
+                .background(isCustomActive ? DesignColors.Brand.selection(for: colorScheme) : Color.clear)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .contentShape(Rectangle())
             }
@@ -186,7 +186,7 @@ struct QuestionCardView: View {
                             .frame(minHeight: 44)
                     }
                     .buttonStyle(.bordered)
-                    .tint(.blue)
+                    .tint(DesignColors.Brand.primary)
                 }
 
                 Button {
@@ -198,7 +198,7 @@ struct QuestionCardView: View {
                         .frame(minHeight: 44)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.blue)
+                .tint(DesignColors.Brand.primary)
                 .disabled(!canProceed || isSending)
                 .accessibilityIdentifier("question-submit-\(request.id)")
             }
@@ -238,7 +238,7 @@ struct QuestionCardView: View {
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: selected ? (multiple ? "checkmark.square.fill" : "largecircle.fill.circle") : (multiple ? "square" : "circle"))
-                    .foregroundStyle(selected ? .blue : .secondary)
+                    .foregroundStyle(selected ? DesignColors.Brand.primary : .secondary)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(option.label)
@@ -252,7 +252,7 @@ struct QuestionCardView: View {
             .padding(.horizontal, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(minHeight: 44)
-            .background(selected ? Color.blue.opacity(0.08) : Color.clear)
+            .background(selected ? DesignColors.Brand.selection(for: colorScheme) : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .contentShape(Rectangle())
         }
@@ -383,8 +383,8 @@ struct QuestionCardView: View {
 
     private func dotColor(for index: Int) -> Color {
         if index == currentTab {
-            return .blue
+            return DesignColors.Brand.primary
         }
-        return hasAnswer(at: index) ? .blue.opacity(0.5) : .gray.opacity(0.3)
+        return hasAnswer(at: index) ? DesignColors.Brand.primaryMuted : DesignColors.Neutral.textTertiary
     }
 }

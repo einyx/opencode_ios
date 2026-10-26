@@ -18,10 +18,20 @@ enum DesignColors {
     // MARK: Brand
 
     enum Brand {
-        /// Primary brand — the single identity color of the "Quiet Tech" design
-        /// language. Electric blue #3B82F6, used for every interactive/branded
-        /// element (send, selection, links, the user-message left bar).
-        static let primary = Color(red: 0.231, green: 0.510, blue: 0.965)
+        /// Primary brand — the single identity color of the app. Terracotta
+        /// #C96442 since the 2026-10-26 Warm Editorial adoption (it replaced
+        /// electric blue #3B82F6); used for every interactive/branded element
+        /// (send, selection, links, the user-message bar).
+        static let primary = Color(red: 0.788, green: 0.392, blue: 0.259)
+        /// The accent step for small text. Terracotta on ivory is ≈3.3:1 —
+        /// fine for icons, borders and semibold labels, tight for body-size
+        /// text — so small accent text darkens on light surfaces and lifts on
+        /// dark ones.
+        static let primaryText = Color(uiColor: UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor(red: 0.824, green: 0.439, blue: 0.298, alpha: 1)   // #D2704C
+                : UIColor(red: 0.706, green: 0.341, blue: 0.227, alpha: 1)   // #B4573A
+        })
         /// Gold accent #D9A621. Session triage uses gold for pending user requests;
         /// execution uses the dedicated SessionIndicator.running token.
         static let gold = Color(red: 0.851, green: 0.651, blue: 0.129)
@@ -40,6 +50,44 @@ enum DesignColors {
         @MainActor
         static func selection(for scheme: ColorScheme) -> Color {
             primary.opacity(DesignColors.Opacity.selectionFill)
+        }
+
+        /// The accent at dot strength — small indicators that must stay
+        /// visible but quiet.
+        static let primaryMuted = primary.opacity(0.5)
+    }
+
+    /// The warm page the app sits on. Before the Warm Editorial adoption the
+    /// app inherited the system background; the audit tracked that absence as
+    /// POL-COLOR-01 (no `bg.primary` token).
+    enum Page {
+        /// Warm ivory #FAF9F5 / warm near-black #242422 — the values the
+        /// approved Settings refresh introduced, now shared.
+        nonisolated static func background(for scheme: ColorScheme) -> Color {
+            scheme == .dark
+                ? Color(red: 36 / 255, green: 36 / 255, blue: 34 / 255)
+                : Color(red: 250 / 255, green: 249 / 255, blue: 245 / 255)
+        }
+
+        /// Warm ink #292823 / #EFEEE8.
+        nonisolated static func foreground(for scheme: ColorScheme) -> Color {
+            scheme == .dark
+                ? Color(red: 239 / 255, green: 238 / 255, blue: 232 / 255)
+                : Color(red: 41 / 255, green: 40 / 255, blue: 35 / 255)
+        }
+
+        /// Secondary warm text #73716A / #AAA79E.
+        nonisolated static func secondary(for scheme: ColorScheme) -> Color {
+            scheme == .dark
+                ? Color(red: 170 / 255, green: 167 / 255, blue: 158 / 255)
+                : Color(red: 115 / 255, green: 113 / 255, blue: 106 / 255)
+        }
+
+        /// Sage #7A9B76 / #94B59C — "connected / ok".
+        nonisolated static func connected(for scheme: ColorScheme) -> Color {
+            scheme == .dark
+                ? Color(red: 148 / 255, green: 181 / 255, blue: 156 / 255)
+                : Color(red: 67 / 255, green: 116 / 255, blue: 90 / 255)
         }
     }
 
@@ -80,14 +128,14 @@ enum DesignColors {
         static let textTertiary = Color.gray.opacity(0.4)
         #endif
 
-        /// Subtle card / info surface background — light mode (#F0F1F3)
-        static let surfaceLight = Color(red: 0.941, green: 0.945, blue: 0.953)
-        /// Subtle card / info surface background — dark mode (#1A1D21)
-        static let surfaceDark = Color(red: 0.102, green: 0.114, blue: 0.129)
-        /// Composer input background — light mode (#F4F5F6, the secondary bg)
-        static let composerLight = Color(red: 0.957, green: 0.961, blue: 0.965)
-        /// Composer input background — dark mode (#141619, the secondary bg)
-        static let composerDark = Color(red: 0.078, green: 0.086, blue: 0.098)
+        /// Subtle card / info surface background — light mode, warm stone (#F4F1EC)
+        static let surfaceLight = Color(red: 0.957, green: 0.945, blue: 0.925)
+        /// Subtle card / info surface background — dark mode, warm (#1E1D1B)
+        static let surfaceDark = Color(red: 0.118, green: 0.114, blue: 0.106)
+        /// Composer input background — light mode (#F1EDE6, the secondary bg)
+        static let composerLight = Color(red: 0.945, green: 0.929, blue: 0.902)
+        /// Composer input background — dark mode (#191816, the secondary bg)
+        static let composerDark = Color(red: 0.098, green: 0.094, blue: 0.086)
 
         /// A barely-there neutral fill — diff rows, quiet containers.
         ///

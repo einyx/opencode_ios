@@ -12,6 +12,11 @@ struct SettingsTabView: View {
         isCheckingConnection || state.connectionDiagnostic?.phase.isChecking == true
     }
 
+    /// Check runs only with a host to test and no check already in flight.
+    private var canCheckConnection: Bool {
+        !checking && state.currentHostProfile != nil
+    }
+
     /// The host is unreachable: the connection failed, or the app is left
     /// disconnected with an error to explain. This mirrors the two branches
     /// that render the failure copy, so the drawing never appears without the
@@ -119,11 +124,19 @@ struct SettingsTabView: View {
                     }
                 } label: {
                     Text(L10n.t(.settingsCheck))
+                        // HIG Buttons: on this ink-tinted screen a plain borderless
+                        // label is indistinguishable from body text, so the one
+                        // actionable control takes the house interactive accent.
+                        .fontWeight(.medium)
                         .frame(minHeight: ComposerHitTarget.minimum)
                 }
                 .buttonStyle(.borderless)
+                // HIG: an inactive control must look inactive. The dim strength
+                // comes from the shared disabled token (POL-COLOR-09).
+                .tint(canCheckConnection ? DesignColors.Brand.primary
+                                         : DesignColors.dimmedFill(DesignColors.Brand.primary))
                 .accessibilityIdentifier("settings-test-connection")
-                .disabled(checking || state.currentHostProfile == nil)
+                .disabled(!canCheckConnection)
             }
 
             // Host unreachable: the unplugged-plug scene states the condition
