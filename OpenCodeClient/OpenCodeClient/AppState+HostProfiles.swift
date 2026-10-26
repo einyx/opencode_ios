@@ -499,9 +499,23 @@ extension AppState {
         return json
     }
 
-    func updateConnectionDiagnostic(phase: ConnectionPhase, message: String, recoveryHint: String? = nil) {
+    /// Publishes the state of a connection check.
+    ///
+    /// The diagnostic is shared state, so a check that was superseded (the
+    /// user switched hosts while it ran) must not write: its phase belongs
+    /// to a host that is no longer current, and publishing it would leave
+    /// the new host showing a check that can never finish. The write is
+    /// stamped with the host the check was made for, not with whichever
+    /// host happens to be current when it lands.
+    func updateConnectionDiagnostic(
+        phase: ConnectionPhase,
+        message: String,
+        recoveryHint: String? = nil,
+        for request: HostRequestSnapshot? = nil
+    ) {
+        if let request, !isCurrentHostRequest(request) { return }
         connectionDiagnostic = ConnectionDiagnostic(
-            hostProfileID: currentHostProfileID,
+            hostProfileID: request?.hostProfileID ?? currentHostProfileID,
             phase: phase,
             message: message,
             recoveryHint: recoveryHint,

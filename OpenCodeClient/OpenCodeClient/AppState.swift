@@ -521,6 +521,37 @@ final class AppState {
     var deepLinkError: String?
     var deepLinkRouteID = UUID()
 
+    /// How many connection checks are running right now.
+    private var connectionCheckDepth = 0
+
+    /// True while a connection check is running.
+    ///
+    /// The status row follows this, not the refresh that follows the check:
+    /// a refresh also reloads sessions, messages, diffs, todos and the file
+    /// tree, and on a large project that takes far longer than the health
+    /// check. Reporting "Checking…" for the whole refresh left the row
+    /// spinning long after the connection was already proven.
+    var isConnectionCheckInFlight: Bool { connectionCheckDepth > 0 }
+
+    /// The diagnostic that belongs to the host that is current now. A
+    /// diagnostic left behind by another host says nothing about this one,
+    /// so it must not drive this host's status.
+    var currentHostConnectionDiagnostic: ConnectionDiagnostic? {
+        guard let diagnostic = connectionDiagnostic else { return nil }
+        return diagnostic.hostProfileID == currentHostProfileID ? diagnostic : nil
+    }
+
+    /// Marks the start of a connection check.
+    func beginConnectionCheck() {
+        connectionCheckDepth += 1
+    }
+
+    /// Marks the end of a connection check. Every exit of a check runs
+    /// this, so the flag cannot outlive the work it describes.
+    func endConnectionCheck() {
+        connectionCheckDepth = max(0, connectionCheckDepth - 1)
+    }
+
     var sessionActivities: [String: SessionActivity] {
         get { sessionScope.activities }
         set { sessionScope.activities = newValue }

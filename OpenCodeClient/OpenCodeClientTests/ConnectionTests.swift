@@ -354,6 +354,17 @@ struct APIConstantsTests {
         #expect(APIConstants.Timeout.connection > 0)
         #expect(APIConstants.Timeout.request > APIConstants.Timeout.connection)
     }
+
+    /// A request to a host that cannot be reached must fail and be
+    /// reported. Waiting for connectivity instead left a connection check
+    /// in "Checking…" for as long as the device had no route to the
+    /// server.
+    @Test func defaultSessionDoesNotWaitForConnectivity() {
+        let configuration = APIClient.makeDefaultSession().configuration
+        #expect(configuration.waitsForConnectivity == false)
+        #expect(configuration.timeoutIntervalForRequest > 0)
+        #expect(configuration.timeoutIntervalForResource > 0)
+    }
 }
 
 // MARK: - SSH Tunnel Tests

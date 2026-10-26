@@ -46,7 +46,7 @@ actor APIClient {
         baseURL: String = APIClient.defaultServer,
         username: String? = nil,
         password: String? = nil,
-        session: URLSession = .shared,
+        session: URLSession = APIClient.makeDefaultSession(),
         generation: ServerGeneration = .auto
     ) {
         self.baseURL = Self.normalizeBaseURL(baseURL)
@@ -54,6 +54,25 @@ actor APIClient {
         self.password = password
         self.session = session
         self.generation = generation
+    }
+
+    /// The session the app's own requests use.
+    ///
+    /// `waitsForConnectivity` is off on purpose. A request to a host that
+    /// cannot be reached has to fail and be reported, not sit in the
+    /// background waiting for a network that may never come: with it on, a
+    /// connection check to an unreachable server stayed in "Checking…"
+    /// for as long as the device had no route to it, while the status row
+    /// still showed the version of the last good connection.
+    ///
+    /// The resource timeout bounds a response that keeps trickling bytes
+    /// without ever finishing.
+    nonisolated static func makeDefaultSession() -> URLSession {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 60
+        config.timeoutIntervalForResource = 300
+        config.waitsForConnectivity = false
+        return URLSession(configuration: config)
     }
 
     func configure(baseURL: String, username: String? = nil, password: String? = nil) {

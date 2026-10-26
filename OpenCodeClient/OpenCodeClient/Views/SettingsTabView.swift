@@ -5,11 +5,23 @@ struct SettingsTabView: View {
     @Binding var isCarModeEnabled: Bool
     @Environment(\.colorScheme) private var scheme
     @Environment(\.dynamicTypeSize) private var typeSize
-    @State private var isCheckingConnection = false
     @State private var highlightModelShortlist = false
 
+    /// A connection check is running.
+    ///
+    /// The status follows the check, not the refresh that follows it: a
+    /// refresh also reloads sessions, messages, diffs, todos and the file
+    /// tree, and on a large project that takes far longer than the health
+    /// check. Reporting "Checking…" for the whole refresh left this row
+    /// spinning long after the connection was already proven.
     private var checking: Bool {
-        isCheckingConnection || state.connectionDiagnostic?.phase.isChecking == true
+        state.isConnectionCheckInFlight
+    }
+
+    /// The diagnostic that belongs to the host that is current now. One
+    /// left behind by another host says nothing about this host.
+    private var currentHostDiagnostic: ConnectionDiagnostic? {
+        state.currentHostConnectionDiagnostic
     }
 
     /// Check runs only with a host to test and no check already in flight.
@@ -23,8 +35,8 @@ struct SettingsTabView: View {
     /// message that says why.
     private var showsOfflineArt: Bool {
         if checking { return false }
-        if state.connectionDiagnostic?.phase == .failed { return true }
-        return state.connectionError != nil && !state.isConnected && state.connectionDiagnostic == nil
+        if currentHostDiagnostic?.phase == .failed { return true }
+        return state.connectionError != nil && !state.isConnected && currentHostDiagnostic == nil
     }
 
     var body: some View {
@@ -117,9 +129,7 @@ struct SettingsTabView: View {
                 Spacer(minLength: DesignSpacing.sm)
                 Button {
                     guard !checking else { return }
-                    isCheckingConnection = true
                     Task { @MainActor in
-                        defer { isCheckingConnection = false }
                         await state.refresh()
                     }
                 } label: {
@@ -154,7 +164,7 @@ struct SettingsTabView: View {
                     .accessibilityIdentifier("settings-offline-art")
             }
 
-            if let diagnostic = state.connectionDiagnostic, diagnostic.phase == .failed, !checking {
+            if let diagnostic = currentHostDiagnostic, diagnostic.phase == .failed, !checking {
                 VStack(alignment: .leading, spacing: DesignSpacing.xs) {
                     Text(diagnostic.message)
                         .foregroundStyle(DesignColors.Semantic.error)
@@ -165,7 +175,7 @@ struct SettingsTabView: View {
                 }
                 .font(.caption)
             } else if let error = state.connectionError, !checking,
-                      !state.isConnected, state.connectionDiagnostic == nil {
+                      !state.isConnected, currentHostDiagnostic == nil {
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(DesignColors.Semantic.error)
@@ -185,7 +195,7 @@ struct SettingsTabView: View {
     }
 
     private var connectionStatus: some View {
-        let failed = state.connectionDiagnostic?.phase == .failed
+        let failed = currentHostDiagnostic?.phase == .failed
         let label = checking ? L10n.t(.settingsChecking)
             : L10n.t(failed ? .connectionPhaseFailed : (state.isConnected ? .settingsConnected : .settingsDisconnected))
         let layout = typeSize.isAccessibilitySize

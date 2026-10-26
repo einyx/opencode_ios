@@ -26,6 +26,35 @@ on 2026-10-26 (status: Waiting for Review).
 - [ ] Provide a dedicated, externally reachable demo server with safe credentials. The review notes explain how to run one, but the reviewer needs a reachable instance if they cannot start their own.
 - [ ] After approval, release manually and verify the listing on the App Store.
 
+### Open after the submission: the Settings "Checking…" spinner could get stuck
+
+Reported from the device after build 33 was submitted. The Settings connection
+row said "Checking…" next to a server version it already knew, and never
+resolved. Three defects, all fixed after the submission:
+
+1. The row's spinner was bound to the whole `state.refresh()` — health check
+   plus the workspace reload behind it (sessions, messages, diffs, todos, file
+   tree, status poll). The connection had been proven in the first few hundred
+   milliseconds, but the row kept claiming otherwise for the entire reload, and
+   forever when one load stalled.
+2. A connection check that was superseded (the user switched hosts mid-check)
+   published its "checking health" phase without the host-request guard the
+   rest of the function used, so it could strand the *new* host on a phase that
+   never finishes.
+3. The app's API client used `URLSession.shared`, whose `waitsForConnectivity`
+   is on: a request to an unreachable host waited for a network that may never
+   come instead of failing, so a check could hang outright.
+
+The status now follows the check itself (`AppState.isConnectionCheckInFlight`),
+diagnostic writes are scoped to the request that produced them, and the client's
+session fails fast instead of waiting for connectivity. Covered by three new
+unit tests; the native unit suite is at 1,180 tests passing with the six
+pre-existing known design-token issues.
+
+**Build 33 still carries the bug.** Shipping the fix needs a new build (34),
+uploaded and attached to version 1.0. Decide whether to withdraw the current
+submission first or to upload build 34 while it is still waiting for review.
+
 Optional cloud speech sends audio to the configured speech service, rather than
 necessarily through the OpenCode server. The Health export action can launch
 the separate Health Quantification app to export to its configured server;

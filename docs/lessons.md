@@ -253,3 +253,15 @@ You can confirm on the spot that the actual output is `data: {"payload":{"type":
 **Approach**: select a **clean session** (that is, one that does not involve the specific discussion topic at all and has a sufficient sample size, for example a regular session containing 219 text parts) as the baseline control group, and compare statistical indicators item by item with the problematic session (such as extra leading and trailing newlines, whitespace-only chunks, the proportion of chunks containing a specific tag, etc.). If the anomaly statistics in the baseline session are 0 while the current session is significantly higher, then it is purely a session-specific phenomenon; only when the control group also shows high-frequency anomalies can it be classified as a systemic problem.
 
 **Lesson**: before classifying an issue as a "systemic defect", a baseline control sample that contains no interfering factors must be introduced for quantitative statistics; without a rigorous comparison, the mere impression that "there are a lot of samples" cannot directly lead to the conclusion of a "global systemic" problem.
+
+---
+
+## 21. A Progress Label Must Be Owned by the Operation It Names
+
+**Scenario**: the Settings connection row kept reading "Checking…" next to an already known server version ("OpenCode 2.1.3"). The Check action set a view-local flag and cleared it only after the whole `state.refresh()` returned, but `refresh()` awaits the health check **and then** a dozen workspace loads (sessions, messages, diffs, todos, file tree, file status, status poll). The connection had been proven in the first few hundred milliseconds; the spinner kept asserting the opposite for the whole reload, and forever when one load stalled on a large project over a slow link.
+
+**Anti-pattern**: deriving "is this still working?" from a flag that wraps a *larger* pipeline than the thing the label talks about, and letting a shared phase string double as a live signal that any late writer can strand in a "checking" value. `testConnection()` also published its "checking health" phase *after* awaiting the server, without the host-request guard the rest of the function used, so a check that was superseded mid-flight could leave the *new* host on a phase that never finishes.
+
+**Correct approach**: give the state an explicit in-flight flag owned by the operation itself — raised before the first await and released on every exit path, including early returns — so the label follows the check and not the reload behind it. Scope every shared diagnostic write to the request that produced it, so a superseded check publishes nothing and stamps its phase with the host it was made for. Have the row read only the current host's diagnostic.
+
+**Lesson**: a progress label must be scoped to the operation it names and must have a guaranteed terminal state. The tell-tale sign is a progress label sitting next to a value that only a *completed* operation could have produced — when those two disagree, the label's owner is wrong, not the value.

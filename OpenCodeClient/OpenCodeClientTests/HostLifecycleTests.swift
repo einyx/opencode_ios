@@ -233,6 +233,53 @@ struct HostLifecycleTests {
         #expect(state.isConnected == false)
     }
 
+    /// The status row must stop saying "Checking…" once the connection
+    /// check has resolved. The workspace reload that follows it (sessions,
+    /// messages, diffs, file tree) can take far longer than the check, and
+    /// on a big project it is the reload that was still spinning while the
+    /// row claimed the connection was undetermined.
+    @Test @MainActor func connectionCheckResolvesBeforeTheWorkspaceReloadFinishes() async {
+        let api = HostRaceAPI()
+        await api.arm(["sessions"])
+        let harness = LifecycleHarness(api: api)
+        defer { harness.cleanup() }
+        let state = harness.state
+        state.sshTunnelManager.config.isEnabled = false
+
+        let refresh = Task { await state.refresh() }
+        await api.waitUntilPaused("sessions")
+
+        // The health check already answered; only the reload is pending.
+        #expect(state.isConnected == true)
+        #expect(state.connectionDiagnostic?.phase == .connected)
+        #expect(state.isConnectionCheckInFlight == false)
+
+        await api.releaseAll()
+        await refresh.value
+    }
+
+    /// A check that was superseded (the user switched hosts while it ran)
+    /// must not leave the new host on a phase that never finishes.
+    @Test @MainActor func supersededConnectionCheckDoesNotStrandTheNewHost() async throws {
+        let api = HostRaceAPI()
+        await api.arm(["generation"])
+        let harness = LifecycleHarness(api: api)
+        defer { harness.cleanup() }
+        let state = harness.state
+        state.sshTunnelManager.config.isEnabled = false
+
+        let check = Task { await state.testConnection() }
+        await api.waitUntilPaused("generation")
+
+        let other = directProfile(name: "B", url: "http://127.0.0.1:4020")
+        try state.saveHostProfile(other, makeCurrent: true)
+        await api.releaseAll()
+        await check.value
+
+        #expect(state.connectionDiagnostic?.phase.isChecking != true)
+        #expect(state.currentHostConnectionDiagnostic?.phase.isChecking != true)
+    }
+
     @Test @MainActor func malformedProfileBlobIsKeptAndMissingDataStillMigrates() throws {
         let previousSSHConfig = UserDefaults.standard.object(forKey: "sshTunnelConfig")
         defer { restoreSSHConfig(previousSSHConfig) }
@@ -1347,6 +1394,15 @@ private actor HostRaceAPI: APIClientProtocol {
     }
 
     func configure(baseURL: String, username: String?, password: String?) {}
+
+    /// The generation probe is the first await of a connection check. A
+    /// gate here lets a test hold a check open before it publishes its
+    /// health phase, which is where a superseded check used to strand the
+    /// new host on a "checking" phase.
+    func detectGeneration() async throws -> ServerGeneration {
+        try await pause("generation")
+        return .auto
+    }
 
     func health() async throws -> HealthResponse {
         try await pause("health")

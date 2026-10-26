@@ -56,14 +56,19 @@ extension AppState {
         let snapshot = captureHostRequestSnapshot()
         connectionError = nil
         pendingSSHHostKeyMismatch = nil
-        updateConnectionDiagnostic(phase: .health, message: L10n.t(.hostDiagnosticCheckingHealth))
+        beginConnectionCheck()
+        // Every exit of the check runs this, so the status can never keep
+        // claiming a check is running after it has finished.
+        defer { endConnectionCheck() }
+        updateConnectionDiagnostic(phase: .health, message: L10n.t(.hostDiagnosticCheckingHealth), for: snapshot)
 
         #if !os(visionOS)
         if currentHostProfile?.transport == .sshTunnel || sshTunnelManager.config.isEnabled {
             updateConnectionDiagnostic(
                 phase: .sshGateway,
                 message: L10n.t(.hostDiagnosticConnectingSSHGateway),
-                recoveryHint: L10n.t(.hostDiagnosticHintConfirmGateway)
+                recoveryHint: L10n.t(.hostDiagnosticHintConfirmGateway),
+                for: snapshot
             )
             if sshTunnelManager.status != .connected {
                 await sshTunnelManager.connect()
@@ -76,13 +81,15 @@ extension AppState {
                 updateConnectionDiagnostic(
                     phase: .failed,
                     message: connectionError ?? message,
-                    recoveryHint: L10n.t(.hostDiagnosticHintCopyDeviceKeyAgain)
+                    recoveryHint: L10n.t(.hostDiagnosticHintCopyDeviceKeyAgain),
+                    for: snapshot
                 )
                 return
             }
             updateConnectionDiagnostic(
                 phase: .localTunnel,
-                message: L10n.t(.hostDiagnosticTunnelReadyCheckingHealth)
+                message: L10n.t(.hostDiagnosticTunnelReadyCheckingHealth),
+                for: snapshot
             )
         }
         #endif
@@ -94,7 +101,8 @@ extension AppState {
             updateConnectionDiagnostic(
                 phase: .failed,
                 message: connectionError ?? L10n.t(.errorInvalidBaseURL),
-                recoveryHint: L10n.t(.hostDiagnosticHintURLFormat)
+                recoveryHint: L10n.t(.hostDiagnosticHintURLFormat),
+                for: snapshot
             )
             return
         }
@@ -116,7 +124,8 @@ extension AppState {
                 updateConnectionDiagnostic(
                     phase: .failed,
                     message: connectionError ?? L10n.t(.hostDiagnosticHealthUnhealthy),
-                    recoveryHint: L10n.t(.hostDiagnosticHintBasicAuth)
+                    recoveryHint: L10n.t(.hostDiagnosticHintBasicAuth),
+                    for: snapshot
                 )
                 return
             case .unsupportedServer:
@@ -126,7 +135,8 @@ extension AppState {
                 updateConnectionDiagnostic(
                     phase: .failed,
                     message: connectionError ?? L10n.t(.hostDiagnosticHealthUnhealthy),
-                    recoveryHint: L10n.t(.hostDiagnosticHintVerifyHostConfig)
+                    recoveryHint: L10n.t(.hostDiagnosticHintVerifyHostConfig),
+                    for: snapshot
                 )
                 return
             default:
@@ -138,7 +148,7 @@ extension AppState {
         }
 
         do {
-            updateConnectionDiagnostic(phase: .health, message: L10n.t(.hostDiagnosticCheckingHealthURL, baseURL))
+            updateConnectionDiagnostic(phase: .health, message: L10n.t(.hostDiagnosticCheckingHealthURL, baseURL), for: snapshot)
             let health = try await apiClient.health()
             guard isCurrentHostRequest(snapshot) else { return }
             isConnected = health.healthy
@@ -146,7 +156,8 @@ extension AppState {
             if isConnected {
                 updateConnectionDiagnostic(
                     phase: .connected,
-                    message: L10n.t(.hostDiagnosticConnectedToOpenCode, health.version.map { " \($0)" } ?? "")
+                    message: L10n.t(.hostDiagnosticConnectedToOpenCode, health.version.map { " \($0)" } ?? ""),
+                    for: snapshot
                 )
                 connectSSE()
             } else {
@@ -154,7 +165,8 @@ extension AppState {
                 updateConnectionDiagnostic(
                     phase: .failed,
                     message: connectionError ?? L10n.t(.hostDiagnosticHealthUnhealthy),
-                    recoveryHint: L10n.t(.hostDiagnosticHintCheckServerLogs)
+                    recoveryHint: L10n.t(.hostDiagnosticHintCheckServerLogs),
+                    for: snapshot
                 )
             }
         } catch {
@@ -165,7 +177,8 @@ extension AppState {
             updateConnectionDiagnostic(
                 phase: .failed,
                 message: message,
-                recoveryHint: L10n.t(.hostDiagnosticHintVerifyHostConfig)
+                recoveryHint: L10n.t(.hostDiagnosticHintVerifyHostConfig),
+                for: snapshot
             )
         }
     }
