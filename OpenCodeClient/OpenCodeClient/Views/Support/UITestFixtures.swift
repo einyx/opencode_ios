@@ -325,6 +325,9 @@ enum UITestFixtures {
 
         if hasUITestToolCardsFixture {
             applyToolCardsFixture(to: state)
+            #if DEBUG
+            AppStoreScreenshotFixture.apply(to: state)
+            #endif
             return state
         }
 
