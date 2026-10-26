@@ -48,7 +48,7 @@ resolved. Three defects, all fixed after the submission:
 The status now follows the check itself (`AppState.isConnectionCheckInFlight`),
 diagnostic writes are scoped to the request that produced them, and the client's
 session fails fast instead of waiting for connectivity. Covered by three new
-unit tests; the native unit suite is at 1,183 tests passing with the six
+unit tests; the native unit suite is at 1,023 tests passing with the six
 pre-existing known design-token issues.
 
 **Build 33 still carries the bug.** Shipping the fix needs a new build (34),

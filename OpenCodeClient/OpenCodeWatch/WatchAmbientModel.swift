@@ -182,19 +182,25 @@ final class WatchAmbientModel: NSObject, WCSessionDelegate {
     /// dropped message is a hole in the audio the phone has to recognise.
     private func forwardAudio(_ handle: CarLiveCaptureHandle) async {
         var chunk = Data()
-        chunk.reserveCapacity(WatchBridgeWire.chunkBytes)
+        chunk.reserveCapacity(WatchBridgeWire.chunkBytes * 2)
+        var offset = 0
         for await pcm in handle.frames {
             guard !run.isEmpty, !Task.isCancelled else { return }
             if muted { continue }
             chunk.append(pcm)
-            while chunk.count >= WatchBridgeWire.chunkBytes {
-                let head = chunk.prefix(WatchBridgeWire.chunkBytes)
-                chunk.removeFirst(WatchBridgeWire.chunkBytes)
-                sendAudio(Data(head))
+            // Cut out whole chunks; the remainder waits for the next frame.
+            while chunk.count - offset >= WatchBridgeWire.chunkBytes {
+                let end = offset + WatchBridgeWire.chunkBytes
+                sendAudio(chunk.subdata(in: offset..<end))
+                offset = end
+            }
+            if offset > 0 {
+                chunk.removeFirst(offset)
+                offset = 0
             }
         }
-        if !chunk.isEmpty {
-            sendAudio(chunk)
+        if offset < chunk.count {
+            sendAudio(chunk.subdata(in: offset..<chunk.count))
         }
     }
 

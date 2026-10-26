@@ -290,7 +290,7 @@ enum Tier4DriverSupport {
         // Typing into a field that has not taken the keyboard yet fails with
         // "Neither element nor any descendant has keyboard focus".
         XCTAssertTrue(
-            UITestFieldFocus.focus(element),
+            UITestFieldFocus.focus(element, in: XCUIApplication()),
             "the field should take the keyboard focus before typing"
         )
         element.typeText(text.isEmpty ? XCUIKeyboardKey.delete.rawValue : text)

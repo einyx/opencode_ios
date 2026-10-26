@@ -53,7 +53,8 @@ final class HIGPatternsUITests: XCTestCase {
         let field = app.textFields["host-name"]
         for _ in 0..<4 where !field.isHittable { app.swipeUp() }
         XCTAssertTrue(field.waitForExistence(timeout: 4))
-        UITestFieldFocus.type("Unsaved host", into: field)
+        UITestFieldFocus.type("Unsaved host", into: field, in: app)
+        XCTAssertEqual(field.value as? String, "Unsaved host", "the typed name should land in the field")
         app.navigationBars.buttons["Cancel"].tap()
         let keep = app.buttons["Keep Editing"]
         XCTAssertTrue(keep.waitForExistence(timeout: 4))

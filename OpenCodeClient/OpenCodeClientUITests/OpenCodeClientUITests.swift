@@ -223,8 +223,8 @@ final class OpenCodeClientUITests: XCTestCase {
         app.staticTexts["Add Host"].tap()
 
         XCTAssertTrue(app.navigationBars["Add Host"].waitForExistence(timeout: 8))
-        UITestFieldFocus.type("Tailscale Mac", into: app.textFields["host-name"])
-        UITestFieldFocus.type("https://tailnet.example.invalid:4096", into: app.textFields["host-server-url"])
+        UITestFieldFocus.type("Tailscale Mac", into: app.textFields["host-name"], in: app)
+        UITestFieldFocus.type("https://tailnet.example.invalid:4096", into: app.textFields["host-server-url"], in: app)
         app.buttons["host-save"].tap()
 
         XCTAssertTrue(app.navigationBars["Hosts"].waitForExistence(timeout: 8))
@@ -426,14 +426,21 @@ final class HostEditorCredentialUITests: XCTestCase {
         }
         XCTAssertTrue(app.buttons["settings-current-host"].waitForExistence(timeout: 8), dump(app, "settings-missing"))
         app.buttons["settings-current-host"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["host-password"].waitForExistence(timeout: 8), dump(app, "editor-missing"))
+        // The password field sits below the fold, and a list only
+        // materializes the rows it has scrolled to, so it has to be brought
+        // into view before it exists.
+        let password = app.descendants(matching: .any)["host-password"]
+        for _ in 0..<6 where !password.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(password.waitForExistence(timeout: 8), dump(app, "editor-missing"))
         XCTAssertTrue(app.buttons["host-save"].waitForExistence(timeout: 4), dump(app, "save-missing"))
         return app
     }
 
     @MainActor
     private func typeSecret(_ app: XCUIApplication) throws {
-        UITestFieldFocus.type(secret, into: app.descendants(matching: .any)["host-password"])
+        UITestFieldFocus.type(secret, into: app.descendants(matching: .any)["host-password"], in: app)
     }
 
     @MainActor
