@@ -1014,6 +1014,16 @@ struct ChatTabView: View {
                 .accessibilityLabel(isRecording ? L10n.t(.chatStopRecording) : L10n.t(.chatSpeechTapToSpeak))
             }
 
+            // Paste needs a home that does not depend on the system edit
+            // menu appearing over the text view: when the long-press menu did
+            // not show, there was no way to paste at all.
+            ComposerPasteControl(
+                beginPaste: beginOwnedPaste,
+                accessibilityLabel: L10n.t(.chatPaste)
+            )
+            .frame(width: composerActionSlotWidth, height: max(ComposerHitTarget.minimum, DesignControls.composerPrimaryActionButtonSize))
+            .accessibilityIdentifier("chat-paste")
+
             Button(action: sendCurrentInput) {
                 ZStack {
                     if isSending {

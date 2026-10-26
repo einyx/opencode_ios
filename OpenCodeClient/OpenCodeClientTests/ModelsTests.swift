@@ -815,6 +815,18 @@ struct AgentInfoTests {
         #expect(AgentInfo.effectiveSelectedAgent(selection: "plan", agents: agents) == "plan")
     }
 
+    /// A saved selection must resolve to the server's casing: "Build" (as the
+    /// picker once stored it) has to send "build", or every prompt fails with
+    /// `Agent not found: "Build"`.
+    @Test func effectiveSelectedAgentResolvesCaseDifference() {
+        let agents = [
+            AgentInfo(name: "build", description: nil, mode: "primary", hidden: false, native: nil),
+            AgentInfo(name: "plan", description: nil, mode: "primary", hidden: false, native: nil),
+        ]
+        #expect(AgentInfo.effectiveSelectedAgent(selection: "Build", agents: agents) == "build")
+        #expect(AgentInfo.effectiveSelectedAgent(selection: "BUILD", agents: agents) == "build")
+    }
+
     @Test func effectiveSelectedAgentFallsBackWhenUnknown() {
         let agents = [
             AgentInfo(name: "explore", description: nil, mode: "subagent", hidden: false, native: nil),

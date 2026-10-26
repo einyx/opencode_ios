@@ -1578,14 +1578,16 @@ final class AppState {
         // The status poll covers only the sessions of the effective project
         // directory. A session outside it is never confirmed — that is "not
         // tracked", not "awaiting sync": claiming the latter left the row
-        // stuck on "Status awaiting sync" forever.
+        // stuck on "Status awaiting sync" forever. An uninterpretable status
+        // type still defers the unread, so latent reminders are not swallowed.
         let polledDirectory = effectiveProjectDirectory ?? serverCurrentProjectWorktree
         for session in sessions {
             let inPolledDirectory = polledDirectory == nil || session.directory == polledDirectory
-            let fresh = statusStreamConnected && isConnected && inPolledDirectory
-                && statusConfirmedAt[session.id].map { now.timeIntervalSince($0) < 60 } == true
+            let confirmed = statusConfirmedAt[session.id].map { now.timeIntervalSince($0) < 60 } == true
+            let fresh = statusStreamConnected && isConnected && inPolledDirectory && confirmed
             let type = sessionStatuses[session.id]?.type
-            if !fresh && inPolledDirectory {
+            let unknownType = type != nil && type != "idle" && type != "busy" && type != "retry"
+            if unknownType || (inPolledDirectory && (!fresh || !confirmed)) {
                 unknownIDs.append(session.id)
             } else if let status = sessionStatuses[session.id], isBusySession(status) {
                 active[session.id] = status

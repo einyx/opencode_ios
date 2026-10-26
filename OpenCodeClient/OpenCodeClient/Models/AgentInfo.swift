@@ -40,10 +40,15 @@ nonisolated struct AgentInfo: Codable, Identifiable, Hashable {
 
     /// Keep `selection` when the server catalog is empty or contains it.
     /// Otherwise use the first visible agent, then `fallbackAgentName`.
+    ///
+    /// The match is case-insensitive on purpose: a selection saved as
+    /// "Build" must resolve to the server's "build" — a case-sensitive
+    /// comparison left the saved name unresolved and every prompt failed
+    /// with `Agent not found: "Build"`.
     static func effectiveSelectedAgent(selection: String, agents: [AgentInfo]) -> String {
         guard !agents.isEmpty else { return selection }
-        if agents.contains(where: { $0.name == selection }) {
-            return selection
+        if let match = agents.first(where: { $0.name.caseInsensitiveCompare(selection) == .orderedSame }) {
+            return match.name
         }
         return agents.first(where: { $0.isVisible })?.name ?? fallbackAgentName
     }
