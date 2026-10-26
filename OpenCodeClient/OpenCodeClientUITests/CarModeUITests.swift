@@ -83,13 +83,32 @@ final class CarModeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Experimental Features"].exists)
         XCTAssertTrue(app.staticTexts["AI Usage Dashboard"].exists)
 
-        toggle.tap()
+        // Tap the knob, not the middle of the row. A Form toggle's label area
+        // is not a hit target for the switch, so a tap on it is swallowed and
+        // the switch never flips.
+        waitUntilStable(toggle)
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
         // Enabling car mode adds the 4th tab; the TabView re-layout scrolls the
         // settings list back toward the top, so the switch cell un-materializes
         // right after the tap. The 4th tab itself is gated on carModeEnabled,
         // so it is the authoritative assertion of the toggle state.
         XCTAssertTrue(app.tabBars.buttons.element(boundBy: 3).waitForExistence(timeout: 4))
         XCTAssertEqual(app.tabBars.buttons.count, 4)
+    }
+
+    /// Waits until the element stops moving.
+    ///
+    /// A tap that lands while the list is still decelerating is swallowed by
+    /// the scroll gesture, so the control never receives it.
+    @MainActor
+    private func waitUntilStable(_ element: XCUIElement, attempts: Int = 10) {
+        var previous = element.frame
+        for _ in 0..<attempts {
+            Thread.sleep(forTimeInterval: 0.4)
+            let current = element.frame
+            if current == previous { return }
+            previous = current
+        }
     }
 
     @MainActor

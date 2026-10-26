@@ -4,10 +4,8 @@
 //
 
 import Foundation
-import CryptoKit
 import Observation
 import os
-import VoiceFlowKit
 #if os(iOS)
 import UIKit
 #endif
@@ -196,13 +194,7 @@ final class AppState {
     static let serverURLKey = "serverURL"
     static let usernameKey = "username"
     static let passwordKeychainKey = "password"
-    static let aiBuilderBaseURLKey = "aiBuilderBaseURL"
-    static let aiBuilderTokenKeychainKey = "aiBuilderToken"
-    static let aiBuilderCustomPromptKey = "aiBuilderCustomPrompt"
-    static let aiBuilderTerminologyKey = "aiBuilderTerminology"
-    static let aiBuilderRecordingStrategyKey = "aiBuilderRecordingStrategy"
-    static let aiBuilderLastOKSignatureKey = "aiBuilderLastOKSignature"
-    static let aiBuilderLastOKTestedAtKey = "aiBuilderLastOKTestedAt"
+    static let speechRecognitionEngineKey = "speechRecognitionEngine"
     nonisolated static let draftInputsBySessionKey = "draftInputsBySession"
     static let selectedModelBySessionKey = "selectedModelBySession"
     nonisolated static let draftInputsByHostKey = "draftInputsByHost.v1"
@@ -219,7 +211,6 @@ final class AppState {
     static let showImageAttachmentButtonKey = "showImageAttachmentButton"
     static let languagePreferenceKey = L10n.languagePreferenceUserDefaultsKey
     static let carSessionsByContextKey = "carSessionsByContext.v1"
-    static let carLiveBindingsByContextKey = "carLiveBindingsByContext.v1"
     static let healthExportPermissionKey = "clientCapability.healthExportAll.permission.v1"
     /// The host-configuration signature captured when the user chose "Always
     /// Allow". The automatic grant is only honored for the exact host it was
@@ -234,6 +225,7 @@ final class AppState {
         sshTunnelManager: SSHTunnelManager? = nil,
         aiUsageQuotaClient: AIUsageQuotaClientProtocol? = nil,
         carSpeechOutput: CarSpeechOutputProviding? = nil,
+        deviceVoice: DeviceVoiceEngine? = nil,
         deepLinkSessionResolver: ((String) async throws -> Session)? = nil,
         deepLinkHydratesSelection: Bool = true,
         clientCapabilityStore: ClientCapabilityCallbackStore = .applicationSupport(),
@@ -253,7 +245,7 @@ final class AppState {
         self.sshTunnelManager = sshTunnelManager ?? SSHTunnelManager()
         self.aiUsageQuotaClient = aiUsageQuotaClient ?? AIUsageQuotaClient()
         self.carSpeechOutput = carSpeechOutput ?? CarSpeechOutputService()
-        self.deviceVoice = DeviceVoiceEngine()
+        self.deviceVoice = deviceVoice ?? DeviceVoiceEngine()
         self.deepLinkSessionResolver = deepLinkSessionResolver
         self.deepLinkHydratesSelection = deepLinkHydratesSelection
         self.clientCapabilityStore = clientCapabilityStore
@@ -288,12 +280,8 @@ final class AppState {
         loadHostProfilesFromStorageOrLegacy(allowLegacyPersist: !legacyPasswordLoadFailed)
         applyCurrentHostProfileToRuntime(persistLegacy: false)
 
-        _aiBuilderBaseURL = defaults.string(forKey: Self.aiBuilderBaseURLKey) ?? "https://space.ai-builders.com/backend"
-        _aiBuilderToken = (try? hostCredentialAccess.load(Self.aiBuilderTokenKeychainKey)) ?? ""
-        _aiBuilderCustomPrompt = defaults.string(forKey: Self.aiBuilderCustomPromptKey) ?? Self.defaultAIBuilderCustomPrompt
-        _aiBuilderTerminology = defaults.string(forKey: Self.aiBuilderTerminologyKey) ?? Self.defaultAIBuilderTerminology
         _speechRecognitionEngine = SpeechRecognitionEngine.resolved(
-            fromRaw: defaults.string(forKey: Self.aiBuilderRecordingStrategyKey)
+            fromRaw: defaults.string(forKey: Self.speechRecognitionEngineKey)
         )
         _selectedProjectWorktree = defaults.string(forKey: Self.selectedProjectWorktreeKey)
         _customProjectPath = defaults.string(forKey: Self.customProjectPathKey) ?? ""
@@ -309,25 +297,11 @@ final class AppState {
         ) ?? .ask
         healthExportAllowAlwaysSignature = defaults.string(forKey: Self.healthExportAllowAlwaysSignatureKey)
 
-        // Restore last known-good AI Builder connection state if token/baseURL unchanged.
-        let storedSig = defaults.string(forKey: Self.aiBuilderLastOKSignatureKey)
-        let currentSig = Self.aiBuilderSignature(baseURL: _aiBuilderBaseURL, token: _aiBuilderToken)
-        if let storedSig, storedSig == currentSig, !currentSig.isEmpty {
-            aiBuilderConnectionOK = true
-            if let ts = defaults.object(forKey: Self.aiBuilderLastOKTestedAtKey) as? Double {
-                aiBuilderLastTestedAt = Date(timeIntervalSince1970: ts)
-            }
-        }
-
         loadHostScopedPreferences()
 
         if let data = defaults.data(forKey: Self.carSessionsByContextKey),
            let decoded = try? JSONDecoder().decode([String: CarSessionRecord].self, from: data) {
             carSessionsByContext = decoded
-        }
-        if let data = defaults.data(forKey: Self.carLiveBindingsByContextKey),
-           let decoded = try? JSONDecoder().decode([String: CarLiveBinding].self, from: data) {
-            carLiveBindingsByContext = decoded
         }
 
         if let data = defaults.data(forKey: Self.modelShortlistKey),
@@ -337,7 +311,7 @@ final class AppState {
 
         // The voice engine asks the state to run turns and to speak, so it
         // can only be given its host once the state is fully built.
-        deviceVoice.host = self
+        self.deviceVoice.host = self
     }
 
     var sessionScope = SessionScopedState()
@@ -379,71 +353,6 @@ final class AppState {
         hostProfiles.first { $0.id == currentHostProfileID }
     }
 
-    static func aiBuilderSignature(baseURL: String, token: String) -> String {
-        let base = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        let tok = token.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !base.isEmpty, !tok.isEmpty else { return "" }
-        let input = "\(base)|\(tok)"
-        let digest = SHA256.hash(data: Data(input.utf8))
-        return digest.map { String(format: "%02x", $0) }.joined()
-    }
-
-    var _aiBuilderBaseURL: String = "https://space.ai-builders.com/backend"
-    var aiBuilderBaseURL: String {
-        get { _aiBuilderBaseURL }
-        set {
-            _aiBuilderBaseURL = newValue
-            defaults.set(newValue, forKey: Self.aiBuilderBaseURLKey)
-            aiBuilderConnectionOK = false
-            aiBuilderConnectionError = nil
-            aiBuilderLastTestedAt = nil
-            defaults.removeObject(forKey: Self.aiBuilderLastOKSignatureKey)
-            defaults.removeObject(forKey: Self.aiBuilderLastOKTestedAtKey)
-        }
-    }
-
-    var _aiBuilderToken: String = ""
-    var aiBuilderToken: String {
-        get { _aiBuilderToken }
-        set {
-            _aiBuilderToken = newValue
-            if newValue.isEmpty {
-                try? hostCredentialAccess.delete(Self.aiBuilderTokenKeychainKey)
-            } else {
-                try? hostCredentialAccess.save(newValue, Self.aiBuilderTokenKeychainKey)
-            }
-            aiBuilderConnectionOK = false
-            aiBuilderConnectionError = nil
-            aiBuilderLastTestedAt = nil
-            defaults.removeObject(forKey: Self.aiBuilderLastOKSignatureKey)
-            defaults.removeObject(forKey: Self.aiBuilderLastOKTestedAtKey)
-        }
-    }
-
-    /// Default custom prompt for speech recognition. Instructs engine on filename style.
-    static let defaultAIBuilderCustomPrompt = "All file and directory names should use snake_case (lowercase with underscores)."
-
-    /// Default terminology (comma-separated) from workspace routing.
-    static let defaultAIBuilderTerminology = "adhoc_jobs, life_consulting, survey_sessions, thought_review"
-
-    var _aiBuilderCustomPrompt: String = ""
-    var aiBuilderCustomPrompt: String {
-        get { _aiBuilderCustomPrompt }
-        set {
-            _aiBuilderCustomPrompt = newValue
-            defaults.set(newValue, forKey: Self.aiBuilderCustomPromptKey)
-        }
-    }
-
-    var _aiBuilderTerminology: String = ""
-    var aiBuilderTerminology: String {
-        get { _aiBuilderTerminology }
-        set {
-            _aiBuilderTerminology = newValue
-            defaults.set(newValue, forKey: Self.aiBuilderTerminologyKey)
-        }
-    }
-
     var _speechRecognitionEngine: SpeechRecognitionEngine = .appleOnDevice
     /// The on-device recognizer used by the `.appleOnDevice` engine.
     /// Injectable so tests can stub authorization and recognition.
@@ -452,30 +361,12 @@ final class AppState {
         get { _speechRecognitionEngine }
         set {
             _speechRecognitionEngine = newValue
-            defaults.set(newValue.rawValue, forKey: Self.aiBuilderRecordingStrategyKey)
+            defaults.set(newValue.rawValue, forKey: Self.speechRecognitionEngineKey)
         }
     }
-    /// Legacy binding surface for the pre-engine strategy picker. Maps the
-    /// kit's capture strategies onto the engine; reading it for the Apple
-    /// engine yields its capture strategy. Remove together with the old
-    /// settings UI that still binds it.
-    var aiBuilderRecordingStrategy: VoiceFlowRecordingStrategy {
-        get { speechRecognitionEngine.captureStrategy }
-        set {
-            speechRecognitionEngine = SpeechRecognitionEngine.resolved(fromRaw: newValue.rawValue)
-        }
-    }
-    /// Voice input is configured when the selected engine can actually run:
-    /// Apple on-device needs nothing, the VoiceFlow strategies need a token.
-    var isChatSpeechConfigured: Bool {
-        if !_speechRecognitionEngine.usesVoiceFlowService { return true }
-        return !aiBuilderToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    var aiBuilderConnectionError: String? = nil
-    var aiBuilderConnectionOK: Bool = false
-    var aiBuilderLastTestedAt: Date? = nil
-    var isTestingAIBuilderConnection: Bool = false
+    /// Voice input is always ready: the on-device recognizer needs no
+    /// account, no token and no network.
+    var isChatSpeechConfigured: Bool { true }
     var _aiUsageDashboardURL: String = ""
     var aiUsageDashboardURL: String {
         get { _aiUsageDashboardURL }
@@ -495,7 +386,6 @@ final class AppState {
         didSet {
             defaults.set(isCarModeEnabled, forKey: Self.carModeEnabledKey)
             guard oldValue, !isCarModeEnabled else { return }
-            closeCarLiveNow()
         }
     }
     var layoutPreference: LayoutPreference = .automatic {
@@ -513,7 +403,6 @@ final class AppState {
     var isConnected: Bool = false {
         didSet {
             guard oldValue, !isConnected else { return }
-            closeCarLiveNow()
         }
     }
     var serverVersion: String?
@@ -1302,12 +1191,6 @@ final class AppState {
     nonisolated static let sseSilenceThreshold: TimeInterval = 20
 
     var carSessionsByContext: [String: CarSessionRecord] = [:]
-    var carLive: CarLiveController?
-    var carLiveEpoch: UInt64 = 0
-    var carLiveLease: CarLiveLease?
-    var carLiveReplies = CarLiveReplyBridge()
-    var carLiveConnectTask: Task<Void, Never>?
-    var carLiveConnectRun: CarLiveConnectRun?
 
     /// True while the chat composer holds the device microphone open.
     ///
@@ -1326,7 +1209,7 @@ final class AppState {
     /// `permission.asked` event is a designed step of that flow and is expected
     /// to arrive while the microphone is open.
     var isMicrophoneCaptureActive: Bool {
-        chatSpeechCaptureActive || carLive?.isMicrophoneCaptureActiveForPolicy == true
+        chatSpeechCaptureActive || deviceVoice.isListening
     }
 
     /// Permission and question requests that have already been announced
@@ -1361,8 +1244,6 @@ final class AppState {
     var foregroundHoldRestoreConsumed = false
     var backgroundCleanupApplied = false
     var applyingBackgroundCleanup = false
-    var carLiveBeforeLease: (@MainActor () async -> Void)?
-    var carLiveBindingsByContext: [String: CarLiveBinding] = [:]
     var carPhase: CarModePhase = .idle
     var carLastTranscript = ""
     var carLastResponse: CarResponseEnvelope?

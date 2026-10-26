@@ -373,6 +373,9 @@ enum L10n {
         case carVoiceStart
         case carVoiceStop
         case carVoiceEnd
+        case carVoicePermissionAsk
+        case carVoicePermissionAllowed
+        case carVoicePermissionRefused
         case carLiveModeMenuTitle
         case carLiveModeRealtime
         case carLiveModeTurnByTurn
@@ -726,7 +729,7 @@ enum L10n {
         Key.settingsOpenSourceLicencesMissing.rawValue: "The licence notices are missing from this build.",
         Key.settingsExperimentalFeatures.rawValue: "Experimental Features",
         Key.settingsCarMode.rawValue: "Ambient Mode",
-        Key.settingsAppleOnDevice.rawValue: "Apple On-Device (private, no setup)",
+        Key.settingsAppleOnDevice.rawValue: "Apple On-Device",
         Key.settingsAppleOnDeviceFooter.rawValue: "Transcription runs entirely on this device with Apple's speech recognizer. Nothing is uploaded and no account is needed.",
         Key.settingsVoiceCloudDisclosure.rawValue: "Audio is captured on this device and uploaded to the speech service for transcription.",
         Key.settingsModelShortlist.rawValue: "Models",
@@ -974,6 +977,9 @@ enum L10n {
         Key.carVoiceStart.rawValue: "Start listening",
         Key.carVoiceStop.rawValue: "Stop listening",
         Key.carVoiceEnd.rawValue: "End the conversation",
+        Key.carVoicePermissionAsk.rawValue: "The agent needs permission to run %@. Say yes to allow it once, or no to refuse.",
+        Key.carVoicePermissionAllowed.rawValue: "Allowed.",
+        Key.carVoicePermissionRefused.rawValue: "Refused.",
         Key.carLiveModeMenuTitle.rawValue: "Voice Mode",
         Key.carLiveModeRealtime.rawValue: "Live Voice",
         Key.carLiveModeTurnByTurn.rawValue: "Sentence by sentence",
@@ -1328,7 +1334,7 @@ enum L10n {
         Key.settingsOpenSourceLicencesMissing.rawValue: "此构建缺少许可证声明。",
         Key.settingsExperimentalFeatures.rawValue: "实验性功能",
         Key.settingsCarMode.rawValue: "Ambient Mode",
-        Key.settingsAppleOnDevice.rawValue: "Apple 设备端识别（私密，无需配置）",
+        Key.settingsAppleOnDevice.rawValue: "Apple 设备端识别",
         Key.settingsAppleOnDeviceFooter.rawValue: "转写完全在这台设备上用 Apple 语音识别完成，不上传任何数据，也无需账号。",
         Key.settingsVoiceCloudDisclosure.rawValue: "录音在这台设备上采集，并上传到语音服务进行转写。",
         Key.settingsModelShortlist.rawValue: "模型",
@@ -1571,6 +1577,9 @@ enum L10n {
         Key.carVoiceStart.rawValue: "开始聆听",
         Key.carVoiceStop.rawValue: "停止聆听",
         Key.carVoiceEnd.rawValue: "结束对话",
+        Key.carVoicePermissionAsk.rawValue: "助手需要运行 %@ 的权限。说是允许一次，说不拒绝。",
+        Key.carVoicePermissionAllowed.rawValue: "已允许。",
+        Key.carVoicePermissionRefused.rawValue: "已拒绝。",
         Key.carLiveModeMenuTitle.rawValue: "语音模式",
         Key.carLiveModeRealtime.rawValue: "实时语音",
         Key.carLiveModeTurnByTurn.rawValue: "逐句语音",

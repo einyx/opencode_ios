@@ -109,7 +109,6 @@ extension AppState {
     }
 
     func startNewCarSession() async {
-        closeCarLiveNow()
         await cancelCarInteraction()
         carSessionsByContext.removeValue(forKey: carContextKey)
         persistCarSessions()
@@ -276,7 +275,6 @@ extension AppState {
 
     func invalidateCarTurnForRealProjectChange() {
         invalidateBackgroundVoicePolicy()
-        closeCarLiveNow()
         guard carActiveTurnID != nil
             || carPhase == .waitingReply
             || carPhase == .speaking

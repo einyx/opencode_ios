@@ -1,8 +1,11 @@
 # Device-only Voice — Implementation Plan
 
-> Status: **in progress** (2026-10-26) — stages 1 and 2 landed (the iPhone
-> Ambient tab now runs on the device). Spec: `design.md` (read it first — it
-> carries the wire facts). Plan: this file. Design: `design.md`.
+> Status: **stages 1–6 landed** (2026-10-26) — the app has no hosted voice path
+> left. The iPhone and the Apple Watch both recognise on the device and speak on the
+> device, and the only thing that leaves the device is text to the user's own
+> server. Still to do: the App Store copy, the published privacy policy and a new
+> build. Spec: `design.md` (read it first — it carries the wire facts). Plan: this
+> file. Design: `design.md`.
 
 **Goal:** Make every voice surface in the app work with no third-party account, no
 pasted token and no audio leaving the device — Ambient Mode, the dictation engines and

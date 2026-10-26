@@ -1,17 +1,5 @@
 import SwiftUI
-import VoiceFlowKit
 
-enum PendingCarAudio {
-    case file(URL, strategy: VoiceFlowRecordingStrategy)
-    case preserved(VoiceFlowPreservedAudio)
-
-    var strategy: VoiceFlowRecordingStrategy {
-        switch self {
-        case .file(_, let strategy): strategy
-        case .preserved(let audio): audio.strategy
-        }
-    }
-}
 
 enum CarSpeechAttemptGate {
     static func accepts(

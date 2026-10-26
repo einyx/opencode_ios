@@ -338,7 +338,6 @@ extension AppState {
         watchPhoneBridge?.invalidate()
         #endif
         invalidateBackgroundVoicePolicy()
-        closeCarLiveNow()
         markCurrentSessionViewed()
         invalidateLocalCarTurn()
         clearCarLastKnownServerWorktree()

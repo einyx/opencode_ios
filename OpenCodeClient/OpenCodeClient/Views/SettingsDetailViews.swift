@@ -1,12 +1,10 @@
 import SwiftUI
-import VoiceFlowKit
 #if canImport(UIKit)
 import UIKit
 #endif
 
 struct SettingsInputVoiceView: View {
     @Bindable var state: AppState
-    @State private var showStrategyHelp = false
 
     var body: some View {
         Form {
@@ -21,7 +19,7 @@ struct SettingsInputVoiceView: View {
                 Toggle(L10n.t(.settingsVoiceFirst), isOn: $state.voiceFirstInput)
                     .accessibilityIdentifier("settings-voice-first")
             } footer: {
-                Text(L10n.t(state.isChatSpeechConfigured ? .settingsVoiceFirstFooter : .settingsVoiceFirstNeedsToken))
+                Text(L10n.t(.settingsVoiceFirstFooter))
             }
 
             Section {
@@ -37,73 +35,16 @@ struct SettingsInputVoiceView: View {
                         .scaledToFit()
                         .frame(width: 32, height: 32)
                         .accessibilityHidden(true)
-                    Picker(L10n.t(.settingsRecordingStrategy), selection: $state.speechRecognitionEngine) {
-                        Text(L10n.t(.settingsAppleOnDevice)).tag(SpeechRecognitionEngine.appleOnDevice)
-                        Text(L10n.t(.settingsGPTLiveTranscribe)).tag(SpeechRecognitionEngine.gptLiveTranscribe)
-                        Text(L10n.t(.settingsOpenAIRealtime)).tag(SpeechRecognitionEngine.openAIRealtime)
-                        Text(L10n.t(.settingsGrokBatch)).tag(SpeechRecognitionEngine.grokBatch)
-                    }
-                    .pickerStyle(.menu)
-                    .accessibilityIdentifier("settings-recording-strategy")
+                    Text(L10n.t(.settingsAppleOnDevice))
+                        .font(DesignTypography.body)
                 }
                 // Apple's generative-AI guidance: people must know when their
-                // input leaves the device. The cloud engines upload audio; the
-                // on-device engine does not.
-                Text(L10n.t(state.speechRecognitionEngine.usesVoiceFlowService
-                            ? .settingsVoiceCloudDisclosure : .settingsAppleOnDeviceFooter))
+                // input leaves the device. Here it never does.
+                Text(L10n.t(.settingsAppleOnDeviceFooter))
                     .font(DesignTypography.micro)
                     .foregroundStyle(.secondary)
-                if state.speechRecognitionEngine.usesVoiceFlowService {
-                    Button {
-                        showStrategyHelp = true
-                    } label: {
-                        Label(L10n.t(.settingsStrategyHelp), systemImage: "info.circle")
-                    }
-                    .alert(Text(L10n.t(.settingsStrategyDialogTitle)), isPresented: $showStrategyHelp) {
-                        Button(L10n.t(.commonOk), role: .cancel) {}
-                    } message: {
-                        Text(L10n.t(.settingsStrategyDialogBody))
-                    }
-                    TextField(L10n.t(.settingsAiBuilderBaseURL), text: $state.aiBuilderBaseURL)
-                        .textContentType(.URL)
-                        .autocapitalization(.none)
-                    SecureField(L10n.t(.settingsAiBuilderToken), text: $state.aiBuilderToken)
-                        .textContentType(.password)
-                    if state.speechRecognitionEngine == .gptLiveTranscribe {
-                        TextField(L10n.t(.settingsCustomPrompt), text: $state.aiBuilderCustomPrompt, axis: .vertical)
-                            .lineLimit(3...6)
-                            .accessibilityIdentifier("settings-custom-prompt")
-                    }
-                    TextField(L10n.t(.settingsTerminology), text: $state.aiBuilderTerminology)
-                        .textContentType(.none)
-                        .autocapitalization(.none)
-                    HStack {
-                        Button {
-                            Task { await state.testAIBuilderConnection() }
-                        } label: {
-                            if state.isTestingAIBuilderConnection {
-                                ProgressView(L10n.t(.settingsTesting))
-                            } else {
-                                Text(L10n.t(.settingsTestConnection))
-                            }
-                        }
-                        .disabled(state.aiBuilderToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                  || state.isTestingAIBuilderConnection)
-                        Spacer()
-                        if state.aiBuilderConnectionOK {
-                            Label(L10n.t(.commonOk), systemImage: "checkmark.circle")
-                        }
-                    }
-                    if let error = state.aiBuilderConnectionError {
-                        Text(error).font(DesignTypography.micro).foregroundStyle(DesignColors.Semantic.error)
-                    }
-                }
             } header: {
                 Text(L10n.t(.settingsSpeechRecognition))
-            } footer: {
-                if state.speechRecognitionEngine.usesVoiceFlowService {
-                    Text(L10n.t(.settingsTestConnectionScope))
-                }
             }
         }
         .modifier(SettingsPageStyle())
@@ -143,7 +84,7 @@ struct SettingsAdvancedView: View {
                         .accessibilityIdentifier("settings-car-mode-toggle")
                 }
                 Text(L10n.t(.settingsAIUsageDashboard))
-                    .font(.subheadline.weight(.semibold))
+                    .font(DesignTypography.headline)
                 TextField(L10n.t(.settingsAIUsageDashboardURL), text: $state.aiUsageDashboardURL)
                     .textContentType(.URL)
                     .autocapitalization(.none)

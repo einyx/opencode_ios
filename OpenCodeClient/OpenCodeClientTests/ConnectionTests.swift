@@ -109,9 +109,7 @@ struct HostProfileTests {
         #expect(recorder.deletes.isEmpty)
         #expect(recorder.loads == [
             AppState.passwordKeychainKey,
-            AppState.aiBuilderTokenKeychainKey,
             AppState.passwordKeychainKey,
-            AppState.aiBuilderTokenKeychainKey,
         ])
 
         #expect(UserDefaults.standard.data(forKey: "sshTunnelConfig") == enabledData)

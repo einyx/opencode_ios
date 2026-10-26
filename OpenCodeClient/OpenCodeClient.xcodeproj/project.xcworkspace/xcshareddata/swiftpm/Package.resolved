@@ -1,5 +1,5 @@
 {
-  "originHash" : "6f9b808f3f8a87b369dca17e1e3a2306915a56965afe3ae63665ee174b163b34",
+  "originHash" : "e404f14687732a62487672cefd880096d6cf7e58155aa6c3544c677e282f751d",
   "pins" : [
     {
       "identity" : "bigint",
@@ -116,15 +116,6 @@
       "state" : {
         "revision" : "7c6ad0fc39d0763e0b699210e4124afd5041c5df",
         "version" : "1.6.4"
-      }
-    },
-    {
-      "identity" : "voiceflow",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/einyx/voiceflow.git",
-      "state" : {
-        "revision" : "cfc915d14075ec722ac39786001bd2f2db859372",
-        "version" : "0.4.4"
       }
     }
   ],

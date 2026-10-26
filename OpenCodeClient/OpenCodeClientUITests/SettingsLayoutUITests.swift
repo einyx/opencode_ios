@@ -65,7 +65,7 @@ final class SettingsLayoutUITests: XCTestCase {
         XCTAssertTrue(voice.waitForExistence(timeout: 4))
         voice.tap()
         XCTAssertTrue(app.switches["settings-voice-first"].waitForExistence(timeout: 4))
-        XCTAssertTrue(app.descendants(matching: .any)["settings-recording-strategy"].exists)
+        XCTAssertTrue(app.staticTexts["Apple On-Device"].exists)
 
         app.navigationBars.buttons.element(boundBy: 0).tap()
         let advanced = app.buttons["settings-advanced"]

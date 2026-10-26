@@ -37,8 +37,10 @@ final class OpenCodeClientUITests: XCTestCase {
         XCTAssertTrue(askField.waitForExistence(timeout: 8), "Chat 输入框应可见")
     }
 
+    /// Voice input needs no credential: the settings say so, and there is
+    /// nowhere to type a token.
     @MainActor
-    func testSettingsShowsThreeSpeechStrategiesAndRealtimePrompt() throws {
+    func testVoiceSettingsNeedNoCredential() throws {
         let app = XCUIApplication()
         app.launch()
 
@@ -51,18 +53,13 @@ final class OpenCodeClientUITests: XCTestCase {
         for _ in 0..<3 where !inputVoice.isHittable { app.swipeUp() }
         XCTAssertTrue(inputVoice.waitForExistence(timeout: 4))
         inputVoice.tap()
-        let picker = app.descendants(matching: .any)["settings-recording-strategy"]
-        for _ in 0..<5 where !picker.exists {
-            app.swipeUp()
-        }
-        XCTAssertTrue(picker.waitForExistence(timeout: 4))
-        picker.tap()
-        XCTAssertTrue(app.buttons["GPT Realtime"].exists)
-        XCTAssertTrue(app.buttons["GPT Live Transcribe"].exists)
-        XCTAssertTrue(app.buttons["Grok STT"].exists)
 
-        app.buttons["GPT Live Transcribe"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["settings-custom-prompt"].exists)
+        XCTAssertTrue(app.staticTexts["Apple On-Device"].waitForExistence(timeout: 4))
+        // The hosted strategy picker, its token field and its prompt field
+        // are gone: there is nothing to configure.
+        XCTAssertFalse(app.descendants(matching: .any)["settings-recording-strategy"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["settings-custom-prompt"].exists)
+        XCTAssertFalse(app.secureTextFields.firstMatch.exists)
     }
 
     @MainActor

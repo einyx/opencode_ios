@@ -68,6 +68,10 @@ protocol DeviceVoiceHost: AnyObject {
     func speakDeviceVoiceReply(_ text: String) async
     /// Stops the current utterance.
     func stopDeviceVoiceReply()
+    /// Answers a permission the agent asked for during a voice turn.
+    func answerDeviceVoicePermission(_ permission: PendingPermission, allow: Bool) async
+    /// Hands an answer to the watch, which speaks it on the wrist.
+    func deliverDeviceVoiceReplyToWatch(_ text: String) async
 }
 
 /// One line of the voice conversation.
@@ -121,8 +125,29 @@ final class DeviceVoiceEngine {
     private(set) var reply: String = ""
     /// The conversation so far, newest last.
     private(set) var entries: [AmbientVoiceEntry] = []
+    /// A permission the agent asked for, waiting for a spoken yes or no.
+    private var pendingPermission: PendingPermission?
     /// The microphone level, 0...1, for the meter.
     private(set) var inputLevel: Double = 0
+
+    /// Where an answer goes.
+    enum Delivery {
+        /// The phone speaks it.
+        case local
+        /// The watch speaks it; the phone only carries the text.
+        case watch
+    }
+
+    /// Where answers go. The watch drives the phone's engine, so its answers
+    /// are spoken on the wrist.
+    var delivery: Delivery = .local
+
+    /// True while the engine is opening the microphone.
+    private(set) var isStarting = false
+
+    /// Called when the audio route is lost — headphones removed, a system
+    /// interruption. The voice cannot continue on a route that is gone.
+    var onAudioRouteLost: (() -> Void)?
 
     /// The app the engine asks to run turns and to speak the answer.
     ///
@@ -170,26 +195,47 @@ final class DeviceVoiceEngine {
     }
 
     /// Starts listening.
-    func start() async {
+    ///
+    /// `capturesLocally` is false for the watch: the phone does not open its
+    /// own microphone when the frames arrive from the watch instead.
+    func start(capturesLocally: Bool = true) async {
         guard !isListening else { return }
         await stop()
+        isStarting = true
+        defer { isStarting = false }
 
+        guard capturesLocally else {
+            await startRecognising()
+            return
+        }
         guard await audioEngine.requestRecordPermission() else {
             phase = .failed(L10n.t(.carVoiceMicrophoneDenied))
             return
         }
         do {
-            let session = try await makeSession()
             let handle = try await audioEngine.startCapture()
-            self.session = session
-            self.capture = handle
-            self.converter = SpeechAudioConverter()
+            capture = handle
             audioEngine.setLevelHandler { [weak self] input, _ in
                 Task { @MainActor in self?.inputLevel = input }
+            }
+            audioEngine.setFailureHandler { [weak self] _ in
+                Task { @MainActor in self?.onAudioRouteLost?() }
             }
             frameTask = Task { [weak self] in
                 await self?.consumeFrames(handle)
             }
+            try await startRecognising()
+        } catch {
+            phase = .failed(error.localizedDescription)
+        }
+    }
+
+    /// Starts the recogniser without opening the microphone.
+    private func startRecognising() async {
+        do {
+            let session = try await makeSession()
+            self.session = session
+            self.converter = SpeechAudioConverter()
             eventTask = Task { [weak self] in
                 await self?.consumeEvents(session)
             }
@@ -197,6 +243,16 @@ final class DeviceVoiceEngine {
         } catch {
             phase = .failed(error.localizedDescription)
         }
+    }
+
+    /// Feeds one captured frame into the recogniser.
+    ///
+    /// The watch's microphone arrives over WatchConnectivity, so the engine
+    /// has to accept audio it did not capture itself.
+    func ingest(_ pcm: Data) {
+        guard let session, let converter else { return }
+        guard let buffer = converter.buffer(from: pcm) else { return }
+        session.append(buffer)
     }
 
     /// Stops listening and cancels the turn in flight.
@@ -232,11 +288,16 @@ final class DeviceVoiceEngine {
 
     /// Speaks the answer on this device.
     private func speakAnswer(_ text: String) async {
-        if let speaker {
-            await speaker(text)
-            return
+        switch delivery {
+        case .local:
+            if let speaker {
+                await speaker(text)
+                return
+            }
+            await host?.speakDeviceVoiceReply(text)
+        case .watch:
+            await host?.deliverDeviceVoiceReplyToWatch(text)
         }
-        await host?.speakDeviceVoiceReply(text)
     }
 
     /// Stops the current utterance.
@@ -277,6 +338,31 @@ final class DeviceVoiceEngine {
     /// This never waits: the turn and the answer run in their own task, so a
     /// word spoken over the answer still reaches the engine while the answer
     /// is being spoken.
+    /// Asks a permission out loud and waits for the answer.
+    ///
+    /// The next utterance is the answer, not a new turn: the agent is waiting
+    /// for a decision, not for another question.
+    func askPermission(_ permission: PendingPermission) {
+        pendingPermission = permission
+        let subject = permission.permission ?? permission.permissionID
+        let prompt = L10n.t(.carVoicePermissionAsk, subject)
+        Task { [weak self] in
+            await self?.speakAnswer(prompt)
+        }
+    }
+
+    /// Recognises a spoken yes or no.
+    ///
+    /// Whole words only: "know" contains "no", and a stray word in a longer
+    /// sentence must not decide a permission.
+    nonisolated static func isAffirmative(_ text: String) -> Bool {
+        let words = Set(text.lowercased().split(whereSeparator: { !$0.isLetter }).map(String.init))
+        let refusals = ["no", "nope", "deny", "denied", "refuse", "refused", "reject", "rejected", "stop"]
+        if words.contains(where: refusals.contains) { return false }
+        let agreements = ["yes", "yeah", "yep", "yup", "ok", "okay", "allow", "allowed", "sure", "confirm", "do", "go", "continue"]
+        return words.contains(where: agreements.contains)
+    }
+
     private func note(_ update: SpeechTranscriptUpdate) {
         let text = update.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
@@ -288,6 +374,15 @@ final class DeviceVoiceEngine {
             speaking = false
             turnTask?.cancel()
             phase = .listening
+        }
+        if let permission = pendingPermission, update.isFinal {
+            pendingPermission = nil
+            let allow = Self.isAffirmative(text)
+            let host = host
+            Task {
+                await host?.answerDeviceVoicePermission(permission, allow: allow)
+            }
+            return
         }
         transcript = text
         if update.isFinal {

@@ -7,7 +7,6 @@ import SwiftUI
 import os
 import os.lock
 import PhotosUI
-import VoiceFlowKit
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -206,9 +205,7 @@ struct ChatTabView: View {
     @State private var isSending = false
     @State private var isSyncingDraft = false
     @State private var showSessionList = false
-    @State var microphone = VoiceFlowMicrophone()
-    @State var speechSession: VoiceFlowSession?
-    @State var speechAudioSender: OrderedSpeechAudioSender?
+    @State var microphone = DeviceMicrophone()
     @State var speechStartID: UUID?
     @State var speechOriginSessionID: String?
     @State var speechOriginHost: HostRequestSnapshot?
@@ -216,8 +213,6 @@ struct ChatTabView: View {
     @State var speechFinalizationID: UUID?
     @State var speechRetryID: UUID?
     @State var speechRetrySessionID: String?
-    @State var speechHeartbeatTask: Task<Void, Never>?
-    @State var speechEventTask: Task<Void, Never>?
     @State var recordingInputPrefix = ""
     @State var pendingSpeechAudioByOwner: [ChatSpeechOwner: PendingChatSpeechAudio] = [:]
     @State var completedSpeechDraftByOwner: [ChatSpeechOwner: String] = [:]
@@ -226,7 +221,6 @@ struct ChatTabView: View {
     @State var isTranscribing = false
     @State var isRetryingSpeech = false
     @State var speechError: String?
-    @State var speechRecoveryActive = false
     @State var speechAudioLevel: Float = 0
     @State var speechAudioLevelTask: Task<Void, Never>?
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
@@ -555,7 +549,6 @@ struct ChatTabView: View {
     }
 
     private var voiceStatusText: String? {
-        if speechRecoveryActive { return L10n.t(.chatSpeechRecovering) }
         if isRecording { return L10n.t(.chatSpeechListening) }
         if isShowingTranscribingUI { return L10n.t(.chatSpeechTranscribing) }
         if isRetryingSpeech { return L10n.t(.chatSpeechRetrySegment) }

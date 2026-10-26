@@ -21,8 +21,24 @@ extension AppState: DeviceVoiceHost {
         await carSpeechOutput.speak(text)
     }
 
+    /// Answers a permission the agent asked for during a voice turn.
+    ///
+    /// "Yes" allows it once and "no" refuses it — the same two answers the
+    /// permission card offers.
+    func answerDeviceVoicePermission(_ permission: PendingPermission, allow: Bool) async {
+        await respondPermission(permission, response: allow ? .once : .reject)
+        await carSpeechOutput.speak(L10n.t(allow ? .carVoicePermissionAllowed : .carVoicePermissionRefused))
+    }
+
     /// Stops the current utterance.
     func stopDeviceVoiceReply() {
         carSpeechOutput.stop()
+    }
+
+    /// Hands an answer to the watch, which speaks it on the wrist.
+    func deliverDeviceVoiceReplyToWatch(_ text: String) async {
+        #if os(iOS)
+        watchPhoneBridge?.deliverVoiceReply(text)
+        #endif
     }
 }

@@ -188,9 +188,6 @@ enum UITestFixtures {
     }
 
     static func makeInitialState() -> AppState {
-        if ProcessInfo.processInfo.arguments.contains("UITEST_CAR_STORED_TURN_BY_TURN") {
-            UserDefaults.standard.set(CarVoiceMode.turnByTurn, forKey: CarVoiceMode.storageKey)
-        }
         if isUITestLaunch {
             L10n.useEphemeralLanguage(.en)
         }
@@ -340,10 +337,6 @@ enum UITestFixtures {
         seedSessionTreePasteboardIfRequested()
 
         #if DEBUG
-        if ProcessInfo.processInfo.environment["UITEST_COMPOSER_SPEECH_CONFIGURED"] == "1" {
-            state._aiBuilderToken = "fixture-token"
-            state._aiBuilderBaseURL = "https://voice.example.invalid"
-        }
         if let side = ProcessInfo.processInfo.environment["UITEST_COMPOSER_SIDE"] {
             state.composerActionSide = ComposerActionSide.resolved(from: side)
         }

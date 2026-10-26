@@ -93,13 +93,5 @@
     "copyright": "The Swift System project authors",
     "url": "https://github.com/apple/swift-system",
     "licenseFile": "Apache-2.0.txt"
-  },
-  "voiceflow": {
-    "name": "VoiceFlowKit",
-    "spdx": "Apache-2.0",
-    "copyright": "Copyright 2026 grapeot and the VoiceFlow contributors",
-    "url": "https://github.com/einyx/voiceflow",
-    "licenseFile": "Apache-2.0.txt",
-    "notice": "Fork of https://github.com/grapeot/voiceflow, which shipped no licence file. The fork adds the Apache License 2.0 and keeps the upstream authorship; the full upstream history is preserved."
   }
 }

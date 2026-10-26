@@ -10,17 +10,10 @@
 		3B4F459A2F3FB16A00A4CD74 /* Citadel in Frameworks */ = {isa = PBXBuildFile; platformFilter = ios; productRef = 3B4F45992F3FB16A00A4CD74 /* Citadel */; };
 		AA000001AAAAAAAA00000001 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = AA000002AAAAAAAA00000002 /* MarkdownUI */; };
 		AA000004AAAAAAAA00000004 /* NetworkImage in Frameworks */ = {isa = PBXBuildFile; productRef = AA000005AAAAAAAA00000005 /* NetworkImage */; };
-		BB000001BBBBBBBB00000001 /* VoiceFlowKit in Frameworks */ = {isa = PBXBuildFile; productRef = BB000002BBBBBBBB00000002 /* VoiceFlowKit */; };
 		CC1000000000000000000001 /* OpenCodeWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = CC2000000000000000000001 /* OpenCodeWatch.app */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		CC1000000000000000000011 /* OpenCodeClient/Models/CarLiveProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC2000000000000000000011 /* OpenCodeClient/Models/CarLiveProtocol.swift */; };
-		CC1000000000000000000012 /* OpenCodeClient/Models/CarLiveModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC2000000000000000000012 /* OpenCodeClient/Models/CarLiveModels.swift */; };
 		CC1000000000000000000013 /* OpenCodeClient/Models/WatchBridgeWire.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC2000000000000000000013 /* OpenCodeClient/Models/WatchBridgeWire.swift */; };
-		CC1000000000000000000014 /* OpenCodeClient/Controllers/CarLiveController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC2000000000000000000014 /* OpenCodeClient/Controllers/CarLiveController.swift */; };
-		CC1000000000000000000015 /* OpenCodeClient/Services/CarLiveTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC2000000000000000000015 /* OpenCodeClient/Services/CarLiveTransport.swift */; };
 		CC1000000000000000000016 /* OpenCodeClient/Services/CarLiveAudioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC2000000000000000000016 /* OpenCodeClient/Services/CarLiveAudioEngine.swift */; };
-		CC1000000000000000000017 /* OpenCodeClient/Services/CarLiveDeadline.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC2000000000000000000017 /* OpenCodeClient/Services/CarLiveDeadline.swift */; };
 		CC1000000000000000000018 /* OpenCodeClient/Services/CarLiveLifecycleLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC2000000000000000000018 /* OpenCodeClient/Services/CarLiveLifecycleLog.swift */; };
-		CC1000000000000000000019 /* OpenCodeClient/Services/CarLiveDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC2000000000000000000019 /* OpenCodeClient/Services/CarLiveDiagnostics.swift */; };
 		CC100000000000000000001A /* OpenCodeClient/Services/BackgroundVoicePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC200000000000000000001A /* OpenCodeClient/Services/BackgroundVoicePolicy.swift */; };
 /* End PBXBuildFile section */
 
@@ -110,7 +103,6 @@
 				AA000001AAAAAAAA00000001 /* MarkdownUI in Frameworks */,
 				AA000004AAAAAAAA00000004 /* NetworkImage in Frameworks */,
 				3B4F459A2F3FB16A00A4CD74 /* Citadel in Frameworks */,
-				BB000001BBBBBBBB00000001 /* VoiceFlowKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -202,7 +194,6 @@
 			packageProductDependencies = (
 				AA000002AAAAAAAA00000002 /* MarkdownUI */,
 				AA000005AAAAAAAA00000005 /* NetworkImage */,
-				BB000002BBBBBBBB00000002 /* VoiceFlowKit */,
 			);
 			productName = OpenCodeClient;
 			productReference = 3B4F44022F3E642500A4CD74 /* OpenCodeClient.app */;
@@ -313,7 +304,6 @@
 				AA000003AAAAAAAA00000003 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
 				AA000006AAAAAAAA00000006 /* XCRemoteSwiftPackageReference "NetworkImage" */,
 				3B4F45982F3FB16A00A4CD74 /* XCRemoteSwiftPackageReference "Citadel" */,
-				BB000003BBBBBBBB00000003 /* XCRemoteSwiftPackageReference "voiceflow" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 3B4F44032F3E642500A4CD74 /* Products */;
@@ -385,15 +375,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				CC1000000000000000000011 /* OpenCodeClient/Models/CarLiveProtocol.swift in Sources */,
-				CC1000000000000000000012 /* OpenCodeClient/Models/CarLiveModels.swift in Sources */,
 				CC1000000000000000000013 /* OpenCodeClient/Models/WatchBridgeWire.swift in Sources */,
-				CC1000000000000000000014 /* OpenCodeClient/Controllers/CarLiveController.swift in Sources */,
-				CC1000000000000000000015 /* OpenCodeClient/Services/CarLiveTransport.swift in Sources */,
 				CC1000000000000000000016 /* OpenCodeClient/Services/CarLiveAudioEngine.swift in Sources */,
-				CC1000000000000000000017 /* OpenCodeClient/Services/CarLiveDeadline.swift in Sources */,
 				CC1000000000000000000018 /* OpenCodeClient/Services/CarLiveLifecycleLog.swift in Sources */,
-				CC1000000000000000000019 /* OpenCodeClient/Services/CarLiveDiagnostics.swift in Sources */,
 				CC100000000000000000001A /* OpenCodeClient/Services/BackgroundVoicePolicy.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -858,14 +842,6 @@
 				version = "6.0.1-visionos.1";
 			};
 		};
-		BB000003BBBBBBBB00000003 /* XCRemoteSwiftPackageReference "voiceflow" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/einyx/voiceflow.git";
-			requirement = {
-				kind = exactVersion;
-				version = 0.4.4;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -883,11 +859,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AA000006AAAAAAAA00000006 /* XCRemoteSwiftPackageReference "NetworkImage" */;
 			productName = NetworkImage;
-		};
-		BB000002BBBBBBBB00000002 /* VoiceFlowKit */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = BB000003BBBBBBBB00000003 /* XCRemoteSwiftPackageReference "voiceflow" */;
-			productName = VoiceFlowKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

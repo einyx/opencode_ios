@@ -44,15 +44,18 @@ involved, no analytics and no advertising.
 * Background audio — Ambient mode can keep the microphone open while the app is
   in the background so a conversation is not cut short.
 
-**AMBIENT MODE.** An experimental hands-free surface for the car: the app reads
-the conversation aloud, takes voice input and shows the live state of the
-session. It is behind a switch in Settings → About → Ambient Mode, and it is
-off by default.
+**AMBIENT MODE.** An experimental hands-free surface for the car: the app
+listens, asks your server, and reads the answer aloud. It is behind a switch in
+Settings → About → Ambient Mode, and it is off by default. Speech recognition
+and speech output both run on the device; there is no cloud speech service, no
+access token and no account to set up.
 
 **APPLE WATCH.** The app ships a watch app that shows the current session and
-lets you ask a question. The watch does not run tools itself: it forwards the
-request to the phone, which runs the tool against your server and sends the
-result back. The watch needs the phone to be reachable.
+lets you talk to it. The watch has no speech-recognition framework of its own,
+so your watch's microphone audio travels over the private Apple-to-iPhone
+connection to the paired iPhone, which recognises it on the device, asks your
+server, and sends the answer back for the watch to speak. The watch needs the
+phone to be reachable.
 
 **APPLE VISION PRO.** The app runs on visionOS with the iPad-style three
 column layout.

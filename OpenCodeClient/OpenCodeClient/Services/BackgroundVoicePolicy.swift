@@ -38,18 +38,17 @@ nonisolated enum BackgroundVoicePolicy {
     static let appDeactivationSource = 1
 
     static func liveKind(
-        phase: CarLivePhase,
-        captureGeneration: UInt64,
+        isVoiceRunning: Bool,
         connectInFlight: Bool,
         closing: Bool
     ) -> BackgroundVoiceLiveKind {
-        if closing || phase == .closing {
+        if closing {
             return .closing
         }
-        if (phase == .listening || phase == .speaking) && captureGeneration != 0 {
+        if isVoiceRunning {
             return .captureRunning
         }
-        if phase == .connecting || connectInFlight {
+        if connectInFlight {
             return .connecting
         }
         return .none

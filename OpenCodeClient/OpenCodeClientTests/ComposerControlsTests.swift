@@ -48,21 +48,4 @@ struct ComposerControlsTests {
         #expect(!state.showImageAttachmentButton)
     }
 
-    @Test func speechConfigurationUsesTokenWithoutRequiringConnectionTest() {
-        let defaults = UserDefaults(suiteName: "composer-controls.\(UUID())")!
-        let state = makeState(defaults)
-        // Cloud engines require the AI Builder token; the connection test is
-        // not involved in the configured check.
-        state.speechRecognitionEngine = .gptLiveTranscribe
-        state._aiBuilderToken = " \n "
-        #expect(!state.isChatSpeechConfigured)
-        state._aiBuilderToken = "fixture-token"
-        #expect(!state.aiBuilderConnectionOK)
-        #expect(state.isChatSpeechConfigured)
-        state._aiBuilderToken = ""
-        #expect(!state.isChatSpeechConfigured)
-        // A missing token does not discard the user's preference.
-        state.voiceFirstInput = true
-        #expect(state.voiceFirstInput)
-    }
 }

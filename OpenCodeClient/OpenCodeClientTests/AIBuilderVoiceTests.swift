@@ -5,7 +5,6 @@
 
 import Foundation
 import Testing
-import VoiceFlowKit
 @testable import OpenCodeClient
 
 @MainActor
@@ -23,64 +22,15 @@ private final class FakeChatSpeechMicrophone: ChatSpeechMicrophoneControlling {
     }
 }
 
-private actor SpeechSenderTestLatch {
-    private var isOpen = false
-    private var waiters: [CheckedContinuation<Void, Never>] = []
-
-    func wait() async {
-        guard !isOpen else { return }
-        await withCheckedContinuation { continuation in
-            waiters.append(continuation)
-        }
-    }
-
-    func open() {
-        guard !isOpen else { return }
-        isOpen = true
-        let pendingWaiters = waiters
-        waiters.removeAll()
-        for waiter in pendingWaiters {
-            waiter.resume()
-        }
-    }
-}
-
-private actor SpeechSenderTestRecorder {
-    private(set) var values: [UInt8] = []
-
-    func append(_ value: UInt8) {
-        values.append(value)
-    }
-}
-
 // MARK: - Speech Recognition Defaults
 
 @Suite(.serialized)
 struct SpeechRecognitionDefaultsTests {
 
-    @Test @MainActor func speechRecognitionDefaultPromptAndTerminology() async {
-        let state = makeIsolatedAppState()
-        #expect(state.aiBuilderCustomPrompt.contains("snake_case"))
-        #expect(state.aiBuilderCustomPrompt.contains("lowercase"))
-        #expect(state.aiBuilderTerminology == "adhoc_jobs, life_consulting, survey_sessions, thought_review")
-    }
 
-    @Test @MainActor func speechRecognitionPersistence() async {
-        let promptBefore = UserDefaults.standard.string(forKey: AppState.aiBuilderCustomPromptKey)
-        let terminologyBefore = UserDefaults.standard.string(forKey: AppState.aiBuilderTerminologyKey)
-        let defaults = makeIsolatedUserDefaults()
-        let state = makeIsolatedAppState(userDefaults: defaults)
-        state.aiBuilderCustomPrompt = "test prompt"
-        state.aiBuilderTerminology = "foo, bar"
-        let reloaded = makeIsolatedAppState(userDefaults: defaults)
-        #expect(reloaded.aiBuilderCustomPrompt == "test prompt")
-        #expect(reloaded.aiBuilderTerminology == "foo, bar")
-        #expect(UserDefaults.standard.string(forKey: AppState.aiBuilderCustomPromptKey) == promptBefore)
-        #expect(UserDefaults.standard.string(forKey: AppState.aiBuilderTerminologyKey) == terminologyBefore)
-    }
 
     @Test @MainActor func speechEnginePersistsAndDefaultsToAppleOnDevice() async {
-        let key = AppState.aiBuilderRecordingStrategyKey
+        let key = AppState.speechRecognitionEngineKey
         let standardBefore = UserDefaults.standard.string(forKey: key)
         let defaults = makeIsolatedUserDefaults()
         let defaultState = makeIsolatedAppState(userDefaults: defaults)
@@ -93,14 +43,6 @@ struct SpeechRecognitionDefaultsTests {
         #expect(UserDefaults.standard.string(forKey: key) == standardBefore)
     }
 
-    @Test func strategyRawValuesAndRealtimeCapabilityRemainStable() {
-        #expect(VoiceFlowRecordingStrategy.openAIRealtime.rawValue == "openAIRealtime")
-        #expect(VoiceFlowRecordingStrategy.gptLiveTranscribe.rawValue == "gptLiveTranscribe")
-        #expect(VoiceFlowRecordingStrategy.grokBatch.rawValue == "grokBatch")
-        #expect(VoiceFlowRecordingStrategy.openAIRealtime.usesRealtimeTransport)
-        #expect(VoiceFlowRecordingStrategy.gptLiveTranscribe.usesRealtimeTransport)
-        #expect(!VoiceFlowRecordingStrategy.grokBatch.usesRealtimeTransport)
-    }
 }
 
 struct ChatComposerSpeechTests {
@@ -113,18 +55,6 @@ struct ChatComposerSpeechTests {
         #expect(ChatTabView.mergedSpeechInput(prefix: "Existing draft", transcript: "partial") == "Existing draft partial")
     }
 
-    @Test func liveSpeechInputOnlyRendersGPTLiveSnapshots() {
-        #expect(ChatTabView.liveSpeechInput(
-            strategy: .gptLiveTranscribe,
-            prefix: "Existing draft",
-            transcript: "live words"
-        ) == "Existing draft live words")
-        #expect(ChatTabView.liveSpeechInput(
-            strategy: .openAIRealtime,
-            prefix: "Existing draft",
-            transcript: "hidden words"
-        ) == nil)
-    }
 
     @Test func speechFailureInputPreservesLastPartialTranscript() {
         #expect(ChatTabView.speechFailureInput(prefix: "", lastPartialTranscript: "partial result") == "partial result")
@@ -336,48 +266,7 @@ struct ChatComposerSpeechTests {
         ))
     }
 
-    @Test func orderedSpeechAudioSenderPreservesOrderBoundsAndDrain() async {
-        let firstSendStarted = SpeechSenderTestLatch()
-        let releaseFirstSend = SpeechSenderTestLatch()
-        let capacityReached = SpeechSenderTestLatch()
-        let recorder = SpeechSenderTestRecorder()
-        let sender = OrderedSpeechAudioSender(capacity: 2) { chunk in
-            guard let value = chunk.first else { return }
-            await recorder.append(value)
-            if value == 0 {
-                await firstSendStarted.open()
-                await releaseFirstSend.wait()
-            }
-        }
 
-        #expect(sender.enqueue(Data([0])))
-        await firstSendStarted.wait()
-
-        let producer = Task.detached {
-            guard sender.enqueue(Data([1])), sender.enqueue(Data([2])) else { return false }
-            await capacityReached.open()
-            return sender.enqueue(Data([3]))
-        }
-        await capacityReached.wait()
-        #expect(sender.maximumBufferedCount == 2)
-
-        await releaseFirstSend.open()
-        let producerFinished = await producer.value
-        #expect(producerFinished)
-        await sender.finishAndDrain()
-
-        let sentValues = await recorder.values
-        #expect(sentValues == [0, 1, 2, 3])
-        #expect(!sender.enqueue(Data([4])))
-    }
-
-    @Test func closedPartialBufferRejectsLateCallbacks() {
-        let buffer = SpeechPartialTranscriptBuffer()
-        #expect(buffer.update("partial"))
-        buffer.close()
-        #expect(!buffer.update("stale"))
-        #expect(buffer.current() == "partial")
-    }
 
     @Test func speechTranscriptAutoScrollsOnlyDuringGeneratedUpdates() {
         #expect(ChatTabView.shouldAutoScrollSpeechTranscript(isTranscribing: true, isRetryingSpeech: false) == true)
@@ -415,27 +304,3 @@ struct ChatComposerSpeechTests {
     }
 }
 
-// MARK: - VoiceFlowKit integration tests
-
-struct VoiceFlowKitIntegrationTests {
-
-    @Test @MainActor func transcribeAudioThrowsMissingTokenWhenTokenEmpty() async {
-        let state = makeIsolatedAppState()
-        state.aiBuilderToken = "   "
-        await #expect(throws: VoiceFlowError.missingToken) {
-            _ = try await state.transcribeAudio(
-                audioFileURL: URL(fileURLWithPath: "/tmp/does-not-exist.wav"),
-                strategy: .gptLiveTranscribe,
-                surface: .chat
-            )
-        }
-    }
-
-    @Test @MainActor func startRealtimeSpeechSessionThrowsMissingTokenWhenTokenEmpty() async {
-        let state = makeIsolatedAppState()
-        state.aiBuilderToken = ""
-        await #expect(throws: VoiceFlowError.missingToken) {
-            _ = try await state.startRealtimeSpeechSession(strategy: .gptLiveTranscribe, surface: .car)
-        }
-    }
-}

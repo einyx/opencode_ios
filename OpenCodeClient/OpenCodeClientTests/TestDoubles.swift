@@ -96,6 +96,7 @@ func makeIsolatedAppState(
     sshTunnelManager: SSHTunnelManager? = nil,
     aiUsageQuotaClient: AIUsageQuotaClientProtocol? = nil,
     carSpeechOutput: CarSpeechOutputProviding? = nil,
+    deviceVoice: DeviceVoiceEngine? = nil,
     deepLinkSessionResolver: ((String) async throws -> Session)? = nil,
     deepLinkHydratesSelection: Bool = true,
     clientCapabilityStore: ClientCapabilityCallbackStore = .applicationSupport(),
@@ -114,6 +115,7 @@ func makeIsolatedAppState(
         sshTunnelManager: sshTunnelManager ?? SSHTunnelManager(defaults: defaults),
         aiUsageQuotaClient: aiUsageQuotaClient ?? AIUsageQuotaClient(),
         carSpeechOutput: carSpeechOutput,
+        deviceVoice: deviceVoice,
         deepLinkSessionResolver: deepLinkSessionResolver,
         deepLinkHydratesSelection: deepLinkHydratesSelection,
         clientCapabilityStore: clientCapabilityStore,
@@ -638,5 +640,41 @@ actor MockSSEClient: SSEClientProtocol {
 
     func connect(baseURL: String, username: String?, password: String?) -> AsyncThrowingStream<SSEEvent, Error> {
         stream
+    }
+}
+
+/// An audio engine stand-in for the voice tests.
+final class FakeAudioEngine: CarLiveAudioEngine, @unchecked Sendable {
+    var startsBeforeConnection: Bool { false }
+    var permissionGranted = true
+    private(set) var startCount = 0
+    private(set) var stopCount = 0
+    private(set) var levelHandler: (@Sendable (Double, Double) -> Void)?
+    private var continuation: AsyncStream<Data>.Continuation?
+
+    func requestRecordPermission() async -> Bool { permissionGranted }
+
+    func startCapture() async throws -> CarLiveCaptureHandle {
+        startCount += 1
+        var captured: AsyncStream<Data>.Continuation!
+        let frames = AsyncStream<Data>(bufferingPolicy: .bufferingNewest(8)) { captured = $0 }
+        continuation = captured
+        return CarLiveCaptureHandle(generation: UInt64(startCount), frames: frames, finish: {})
+    }
+
+    func stopCapture(generation: UInt64) async { stopCount += 1 }
+
+    func setMuted(_ muted: Bool) {}
+    func enqueuePlayback(_ pcm: Data) {}
+    func clearPlayback() {}
+    func setPlaybackHeld(_ held: Bool) {}
+    func setLevelHandler(_ handler: (@Sendable (Double, Double) -> Void)?) { levelHandler = handler }
+    func setPlaybackIdleHandler(_ handler: (@Sendable () -> Void)?) {}
+    func setFailureHandler(_ handler: (@Sendable (String) -> Void)?) {}
+    func setHoldHandler(_ handler: (@Sendable (BackgroundVoiceHoldKind, UInt64) -> Void)?) {}
+
+    /// Delivers one captured frame to the engine.
+    func deliver(_ pcm: Data) {
+        continuation?.yield(pcm)
     }
 }

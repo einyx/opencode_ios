@@ -1,7 +1,6 @@
 import AVFoundation
 import Speech
 import Testing
-import VoiceFlowKit
 
 @testable import OpenCodeClient
 
@@ -33,10 +32,12 @@ struct SpeechRecognitionEngineTests {
         #expect(SpeechRecognitionEngine.resolved(fromRaw: "") == .appleOnDevice)
     }
 
-    @Test func legacyStoredValuesMigrateUnchanged() {
-        #expect(SpeechRecognitionEngine.resolved(fromRaw: "gptLiveTranscribe") == .gptLiveTranscribe)
-        #expect(SpeechRecognitionEngine.resolved(fromRaw: "openAIRealtime") == .openAIRealtime)
-        #expect(SpeechRecognitionEngine.resolved(fromRaw: "grokBatch") == .grokBatch)
+    @Test func aRemovedStrategyFallsBackToTheOnDeviceOne() {
+        // The cloud strategies are gone. A device that still remembers one
+        // must land on the on-device engine, not on a broken voice input.
+        #expect(SpeechRecognitionEngine.resolved(fromRaw: "gptLiveTranscribe") == .appleOnDevice)
+        #expect(SpeechRecognitionEngine.resolved(fromRaw: "openAIRealtime") == .appleOnDevice)
+        #expect(SpeechRecognitionEngine.resolved(fromRaw: "grokBatch") == .appleOnDevice)
     }
 
     @Test func unknownStoredValueFallsBackToAppleOnDevice() {
@@ -49,39 +50,14 @@ struct SpeechRecognitionEngineTests {
         #expect(!SpeechRecognitionEngine.appleOnDevice.usesVoiceFlowService)
         #expect(!SpeechRecognitionEngine.appleOnDevice.usesRealtimeSession)
         #expect(!SpeechRecognitionEngine.appleOnDevice.showsLivePartials)
-        // Lossless local capture, same WAV format the cloud strategies record.
-        #expect(SpeechRecognitionEngine.appleOnDevice.captureStrategy == .gptLiveTranscribe)
-    }
-
-    @Test func cloudStrategiesNeedTheService() {
-        for engine in [SpeechRecognitionEngine.gptLiveTranscribe, .openAIRealtime, .grokBatch] {
-            #expect(engine.usesVoiceFlowService)
-        }
-        #expect(SpeechRecognitionEngine.gptLiveTranscribe.usesRealtimeSession)
-        #expect(SpeechRecognitionEngine.openAIRealtime.usesRealtimeSession)
-        #expect(!SpeechRecognitionEngine.grokBatch.usesRealtimeSession)
-        #expect(SpeechRecognitionEngine.grokBatch.captureStrategy == .grokBatch)
-        #expect(SpeechRecognitionEngine.openAIRealtime.captureStrategy == .openAIRealtime)
     }
 
     // MARK: AppState gating
 
-    @Test @MainActor func voiceIsConfiguredWithoutTokenWhenAppleOnDeviceSelected() {
+    @Test @MainActor func voiceIsConfiguredWithZeroSetup() {
         let state = makeIsolatedAppState()
         state.speechRecognitionEngine = .appleOnDevice
-        state._aiBuilderToken = ""
         #expect(state.isChatSpeechConfigured, "on-device speech must work with zero setup")
-    }
-
-    @Test @MainActor func voiceRequiresTokenForCloudEngines() {
-        let state = makeIsolatedAppState()
-        state._aiBuilderToken = ""
-        state.speechRecognitionEngine = .gptLiveTranscribe
-        #expect(!state.isChatSpeechConfigured)
-        state.speechRecognitionEngine = .appleOnDevice
-        #expect(state.isChatSpeechConfigured)
-        state.speechRecognitionEngine = .grokBatch
-        #expect(!state.isChatSpeechConfigured)
     }
 
     // MARK: transcription routing
@@ -89,7 +65,6 @@ struct SpeechRecognitionEngineTests {
     @Test @MainActor func transcribeWithAppleEngineSkipsTheTokenAndReturnsLocalResult() async throws {
         let state = makeIsolatedAppState()
         state.speechRecognitionEngine = .appleOnDevice
-        state._aiBuilderToken = ""
         state.appleSpeechTranscriber = AppleSpeechTranscriber(
             requestAuthorization: { .authorized },
             makeRecognizer: { _ in FakeRecognizer() },
@@ -100,22 +75,6 @@ struct SpeechRecognitionEngineTests {
         #expect(transcript == "hello from the device")
     }
 
-    @Test @MainActor func transcribeWithCloudEngineWithoutTokenStillThrows() async {
-        let state = makeIsolatedAppState()
-        state.speechRecognitionEngine = .gptLiveTranscribe
-        state._aiBuilderToken = ""
-        do {
-            _ = try await state.transcribeAudio(
-                audioFileURL: URL(fileURLWithPath: "/dev/null"),
-                engine: .gptLiveTranscribe,
-                surface: .chat
-            )
-            Issue.record("expected missingToken")
-        } catch {
-            // The kit surfaces token problems before any network traffic.
-            #expect(error is VoiceFlowError, "\(error)")
-        }
-    }
 }
 
 @Suite

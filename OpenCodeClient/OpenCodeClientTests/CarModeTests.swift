@@ -5,17 +5,10 @@
 
 import Foundation
 import Testing
-import VoiceFlowKit
 @testable import OpenCodeClient
 
 @Suite(.serialized)
 struct CarModeFlowTests {
-    @Test func pendingCarFileKeepsOriginatingStrategy() {
-        let url = URL(fileURLWithPath: "/tmp/gpt-live.wav")
-        let pending = PendingCarAudio.file(url, strategy: .gptLiveTranscribe)
-        #expect(pending.strategy == .gptLiveTranscribe)
-    }
-
     @Test @MainActor func submitCarTurnReusesScopedSessionAndSpeaksOnce() async throws {
         let api = MockAPIClient()
         let speech = MockCarSpeechOutput()

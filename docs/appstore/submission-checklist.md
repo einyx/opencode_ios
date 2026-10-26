@@ -48,15 +48,34 @@ resolved. Three defects, all fixed after the submission:
 The status now follows the check itself (`AppState.isConnectionCheckInFlight`),
 diagnostic writes are scoped to the request that produced them, and the client's
 session fails fast instead of waiting for connectivity. Covered by three new
-unit tests; the native unit suite is at 1,180 tests passing with the six
+unit tests; the native unit suite is at 1,183 tests passing with the six
 pre-existing known design-token issues.
 
 **Build 33 still carries the bug.** Shipping the fix needs a new build (34),
 uploaded and attached to version 1.0. Decide whether to withdraw the current
 submission first or to upload build 34 while it is still waiting for review.
 
-Optional cloud speech sends audio to the configured speech service, rather than
-necessarily through the OpenCode server. The Health export action can launch
+### Voice is now entirely on-device (build 34)
+
+The hosted "AI Builder Space" voice service is **gone**. Ambient Mode, the
+dictation engines and the Apple Watch all recognise speech on the device, ask
+the user's own OpenCode server, and speak the answer with the device's own
+speech synthesiser. There is no token to paste, no third-party account, and no
+audio leaving the device.
+
+- The watch has no speech-recognition framework of its own (watchOS ships no
+  `Speech.framework`), so its microphone travels over the private
+  Apple-to-iPhone connection to the phone, which recognises it on the device.
+- The app no longer links the hosted voice package, so the shipped binary
+  contains no cloud speech client at all.
+- The privacy policy and the review notes now describe the on-device flow, and
+  the privacy policy was republished.
+
+**Build 33 still carries the old voice path**, so this needs build 34 uploaded
+and attached to version 1.0 — `scripts/bump_build.sh` moves the number, and
+`scripts/archive_appstore.sh` bumps it automatically before it archives.
+
+The Health export action can launch
 the separate Health Quantification app to export to its configured server;
 the callback link does not contain health details. The questionnaire answers
 above treat these as user-operated services the developer does not receive,

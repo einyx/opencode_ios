@@ -1,53 +1,18 @@
 import SwiftUI
 import os
-import os.lock
-import VoiceFlowKit
 #if os(iOS) || os(visionOS)
 @preconcurrency import AVFoundation
 #endif
 
-/// Mic-button voice input for the chat composer. Holds the speech
-/// session, microphone, heartbeat task, and event consumer task; calls
-/// into `AppState.startRealtimeSpeechSession()` to obtain a session
-/// from `VoiceFlowKit`. UI states (`isRecording`, `isTranscribing`,
-/// `isStartingRecording`, `speechError`, `speechRecoveryActive`) and
-/// the session-bearing `@State` fields live on `ChatTabView` itself —
-/// SwiftUI requires `@State` on the containing struct — and this
-/// extension hosts the lifecycle methods.
+/// Mic-button voice input for the chat composer.
 ///
-/// GPT Live accumulated snapshots render in the composer while recording.
-/// GPT Realtime remains finalize-only.
-
-/// Thread-safe buffer for the latest partial transcript. Used to recover
-/// a salvageable string when `commitAndStop` fails after partials
-/// already streamed in.
-final class SpeechPartialTranscriptBuffer: Sendable {
-    private struct State: Sendable {
-        var transcript = ""
-        var acceptsUpdates = true
-    }
-
-    private let storage = OSAllocatedUnfairLock(initialState: State())
-
-    @discardableResult
-    nonisolated func update(_ newValue: String) -> Bool {
-        storage.withLock {
-            guard $0.acceptsUpdates else { return false }
-            $0.transcript = newValue
-            return true
-        }
-    }
-
-    nonisolated func current() -> String {
-        storage.withLock { $0.transcript }
-    }
-
-    nonisolated func close() {
-        storage.withLock { $0.acceptsUpdates = false }
-    }
-}
-
-extension VoiceFlowMicrophone: ChatSpeechMicrophoneControlling {}
+/// The composer records the microphone, transcribes the recording on the
+/// device and puts the words in the draft. There is no cloud path: the
+/// audio never leaves the device and there is no credential to configure.
+/// UI states (`isRecording`, `isTranscribing`, `isStartingRecording`,
+/// `speechError`) and the `@State` fields live on `ChatTabView` itself —
+/// SwiftUI requires `@State` on the containing struct — and this extension
+/// hosts the lifecycle methods.
 
 nonisolated enum ChatSpeechOwner: Hashable {
     case session(String)
@@ -63,34 +28,22 @@ nonisolated enum ChatSpeechOwner: Hashable {
 }
 
 enum PendingChatSpeechAudio {
-    case file(URL, engine: SpeechRecognitionEngine, prefix: String)
-    case preserved(VoiceFlowPreservedAudio, prefix: String)
+    case file(URL, prefix: String)
 
     var prefix: String {
         switch self {
-        case .file(_, _, let prefix), .preserved(_, let prefix): prefix
+        case .file(_, let prefix): prefix
         }
     }
 }
 
 extension ChatTabView {
-    static let speechHeartbeatIntervalSeconds: UInt64 = 12
-
     static func mergedSpeechInput(prefix: String, transcript: String) -> String {
         ChatSpeechRouting.mergedInput(prefix: prefix, transcript: transcript)
     }
 
     static func speechFailureInput(prefix: String, lastPartialTranscript: String) -> String {
         mergedSpeechInput(prefix: prefix, transcript: lastPartialTranscript)
-    }
-
-    static func liveSpeechInput(
-        strategy: SpeechRecognitionEngine,
-        prefix: String,
-        transcript: String
-    ) -> String? {
-        guard strategy.showsLivePartials else { return nil }
-        return mergedSpeechInput(prefix: prefix, transcript: transcript)
     }
 
     static func requestMicrophonePermissionForRecording() async -> Bool {
@@ -109,14 +62,6 @@ extension ChatTabView {
         #else
         return true
         #endif
-    }
-
-    func isCurrentSpeechSession(_ session: VoiceFlowSession) -> Bool {
-        speechSession === session && speechOriginSessionID == state.currentSessionID
-    }
-
-    func ownsSpeechSession(_ session: VoiceFlowSession, sourceSessionID: String?) -> Bool {
-        speechSession === session && speechOriginSessionID == sourceSessionID
     }
 
     func applySpeechDraft(
@@ -150,12 +95,6 @@ extension ChatTabView {
         }
     }
 
-    func finishSpeechAudioSender() async {
-        let sender = speechAudioSender
-        speechAudioSender = nil
-        await sender?.finishAndDrain()
-    }
-
     func storePendingSpeechAudio(_ pending: PendingChatSpeechAudio, owner: ChatSpeechOwner) {
         if let existing = pendingSpeechAudioByOwner.removeValue(forKey: owner) {
             discardPendingSpeechAudio(existing)
@@ -165,30 +104,9 @@ extension ChatTabView {
 
     func discardPendingSpeechAudio(_ pending: PendingChatSpeechAudio) {
         switch pending {
-        case .file(let audioURL, _, _):
+        case .file(let audioURL, _):
             try? FileManager.default.removeItem(at: audioURL)
-        case .preserved(let preserved, _):
-            state.discardPreservedAudio(preserved)
         }
-    }
-
-    func startSpeechHeartbeat(for session: VoiceFlowSession) {
-        speechHeartbeatTask?.cancel()
-        speechHeartbeatTask = Task {
-            while !Task.isCancelled {
-                do {
-                    try await Task.sleep(for: .seconds(Self.speechHeartbeatIntervalSeconds))
-                } catch {
-                    return
-                }
-                await session.ping()
-            }
-        }
-    }
-
-    func stopSpeechHeartbeat() {
-        speechHeartbeatTask?.cancel()
-        speechHeartbeatTask = nil
     }
 
     func startSpeechAudioLevelConsumer() {
@@ -211,82 +129,6 @@ extension ChatTabView {
         speechAudioLevel = 0
     }
 
-    /// Drain `session.events` so the UI sees phase transitions and recovery
-    /// state mid-recording. Otherwise a stream blip is invisible until the
-    /// user hits stop and `commitAndStop` either succeeds late or fails.
-    func startSpeechEventConsumer(for session: VoiceFlowSession) {
-        speechEventTask?.cancel()
-        speechEventTask = Task {
-            let events = await session.events
-            for await event in events {
-                guard !Task.isCancelled else { return }
-                switch event {
-                case .recoveryStarted:
-                    await MainActor.run {
-                        guard isCurrentSpeechSession(session) else { return }
-                        speechRecoveryActive = true
-                    }
-                case .recoveryFailed(let message):
-                    Self.logger.error("[SpeechProfile] realtime recovery failed message=\(message, privacy: .public)")
-                    await MainActor.run {
-                        guard isCurrentSpeechSession(session) else { return }
-                        speechRecoveryActive = false
-                        speechError = L10n.t(.chatSpeechStreamDisconnected)
-                    }
-                case .phaseChanged(let phase):
-                    if phase == .connected {
-                        await MainActor.run {
-                            guard isCurrentSpeechSession(session), speechRecoveryActive else { return }
-                            speechRecoveryActive = false
-                        }
-                    }
-                case .partialTranscript(let transcript):
-                    await MainActor.run {
-                        guard isCurrentSpeechSession(session) else { return }
-                        _ = Self.liveSpeechInput(
-                            strategy: activeSpeechStrategy,
-                            prefix: recordingInputPrefix,
-                            transcript: transcript
-                        )
-                        publishSpeechTranscript(
-                            transcript,
-                            prefix: recordingInputPrefix,
-                            origin: ComposerWriteOrigin(
-                                sessionID: speechOriginSessionID,
-                                host: speechOriginHost ?? state.captureHostRequestSnapshot()
-                            )
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    func stopSpeechEventConsumer() {
-        speechEventTask?.cancel()
-        speechEventTask = nil
-        speechRecoveryActive = false
-    }
-
-    func terminateSpeechSession(_ session: VoiceFlowSession) async {
-        do {
-            if let preserved = try await session.abortPreservingAudio() {
-                state.discardPreservedAudio(preserved)
-            }
-        } catch {
-            Self.logger.error("[SpeechProfile] realtime session termination failed error=\(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    func preserveSpeechSession(_ session: VoiceFlowSession) async -> VoiceFlowPreservedAudio? {
-        do {
-            return try await session.abortPreservingAudio()
-        } catch {
-            Self.logger.error("[SpeechProfile] realtime audio preservation failed error=\(error.localizedDescription, privacy: .public)")
-            return nil
-        }
-    }
-
     func stopSpeechForNavigation() async {
         await stopSpeechForNavigation(detachFinalizationOnSessionSwitch: true)
     }
@@ -301,8 +143,6 @@ extension ChatTabView {
         if disposition == .detachFinalization {
             speechRetryID = nil
             speechRetrySessionID = nil
-            stopSpeechHeartbeat()
-            stopSpeechEventConsumer()
             stopSpeechAudioLevelConsumer()
             isRecording = false
             isTranscribing = false
@@ -314,7 +154,6 @@ extension ChatTabView {
         let originSessionID = speechOriginSessionID
         let owner = ChatSpeechOwner(sessionID: originSessionID)
         let prefix = recordingInputPrefix
-        let engine = activeSpeechStrategy
         let cleanupPlan = ChatSpeechRouting.cleanupPlan(
             isRecording: isRecording,
             isStartingRecording: isStartingRecording,
@@ -324,16 +163,11 @@ extension ChatTabView {
         speechFinalizationID = nil
         speechRetryID = nil
         speechRetrySessionID = nil
-        stopSpeechHeartbeat()
-        stopSpeechEventConsumer()
         stopSpeechAudioLevelConsumer()
         let audioURL = await ChatSpeechCaptureCleanup.releaseOwnedMicrophone(microphone, plan: cleanupPlan)
         // The engine is closed from here on, so the capture state can clear.
         state.chatSpeechCaptureActive = false
-        await finishSpeechAudioSender()
 
-        let session = speechSession
-        speechSession = nil
         speechOriginSessionID = nil
         isRecording = false
         isTranscribing = false
@@ -344,13 +178,8 @@ extension ChatTabView {
             if let audioURL { try? FileManager.default.removeItem(at: audioURL) }
             return
         }
-        if engine.usesRealtimeSession {
-            if let audioURL { try? FileManager.default.removeItem(at: audioURL) }
-            if let session, let preserved = await preserveSpeechSession(session) {
-                storePendingSpeechAudio(.preserved(preserved, prefix: prefix), owner: owner)
-            }
-        } else if let audioURL {
-            storePendingSpeechAudio(.file(audioURL, engine: engine, prefix: prefix), owner: owner)
+        if let audioURL {
+            storePendingSpeechAudio(.file(audioURL, prefix: prefix), owner: owner)
         }
     }
 
@@ -368,21 +197,16 @@ extension ChatTabView {
             let owner = ChatSpeechOwner(sessionID: originSessionID)
             let prefix = recordingInputPrefix
             let engine = activeSpeechStrategy
-            stopSpeechHeartbeat()
-            stopSpeechEventConsumer()
             stopSpeechAudioLevelConsumer()
             let stopStart = ProcessInfo.processInfo.systemUptime
             let audioURL = try? await stoppingMicrophone.stop()
             // The engine is closed from here on, so the capture state can clear.
             state.chatSpeechCaptureActive = false
             stoppingMicrophone.discard()
-            await finishSpeechAudioSender()
             guard SpeechAttemptGate.owns(finalizationID, activeAttemptID: speechFinalizationID),
                   speechOriginSessionID == originSessionID else {
-                if let audioURL, !engine.usesRealtimeSession {
-                    storePendingSpeechAudio(.file(audioURL, engine: engine, prefix: prefix), owner: owner)
-                } else if let audioURL {
-                    try? FileManager.default.removeItem(at: audioURL)
+                if let audioURL {
+                    storePendingSpeechAudio(.file(audioURL, prefix: prefix), owner: owner)
                 }
                 await stopSpeechForNavigation(detachFinalizationOnSessionSwitch: false)
                 return
@@ -391,153 +215,56 @@ extension ChatTabView {
             // Boundary event: the microphone is closing right now, so the
             // microphone guard does not apply.
             DesignHaptics.fire(.recordingStopped, microphoneOpen: state.isMicrophoneCaptureActive)
-            Self.logger.notice("[SpeechProfile] realtime capture stopped ms=\(max(0, Int((ProcessInfo.processInfo.systemUptime - stopStart) * 1000)), privacy: .public)")
+            Self.logger.notice("[SpeechProfile] capture stopped ms=\(max(0, Int((ProcessInfo.processInfo.systemUptime - stopStart) * 1000)), privacy: .public)")
 
             isTranscribing = originSessionID == state.currentSessionID
 
-            if !engine.usesRealtimeSession {
-                guard let audioURL else {
-                    isTranscribing = false
-                    speechFinalizationID = nil
-                    speechOriginSessionID = nil
-                    if originSessionID == state.currentSessionID {
-                        speechError = L10n.t(.carTranscriptionFailed)
-                    }
-                    return
-                }
-                storePendingSpeechAudio(.file(audioURL, engine: engine, prefix: prefix), owner: owner)
-                do {
-                    let transcript = try await state.transcribeAudio(
-                        audioFileURL: audioURL,
-                        engine: engine,
-                        surface: .chat
-                    )
-                    guard SpeechAttemptGate.owns(finalizationID, activeAttemptID: speechFinalizationID),
-                          speechOriginSessionID == originSessionID else { return }
-                    applySpeechDraft(
-                    prefix: prefix,
-                    transcript: transcript,
-                    sourceSessionID: originSessionID,
-                    sourceHost: speechOriginHost ?? state.captureHostRequestSnapshot()
-                )
-                    clearPreservedSpeechAudio(for: owner)
-                } catch {
-                    guard SpeechAttemptGate.owns(finalizationID, activeAttemptID: speechFinalizationID),
-                          speechOriginSessionID == originSessionID else { return }
-                    Self.logger.error("[SpeechProfile] chat batch transcribe failed error=\(error.localizedDescription, privacy: .public)")
-                    if originSessionID == state.currentSessionID {
-                        speechError = error.localizedDescription
-                    }
-                }
-                if speechFinalizationID == finalizationID {
-                    speechFinalizationID = nil
-                    speechOriginSessionID = nil
-                    isTranscribing = false
-                }
-                return
-            }
-
-            if let audioURL {
-                try? FileManager.default.removeItem(at: audioURL)
-            }
-            guard let session = speechSession else {
+            guard let audioURL else {
                 isTranscribing = false
                 speechFinalizationID = nil
                 speechOriginSessionID = nil
-                Self.logger.error("[SpeechProfile] realtime stop failed: missing session")
                 if originSessionID == state.currentSessionID {
                     speechError = L10n.t(.carTranscriptionFailed)
                 }
                 return
             }
-            defer {
-                if speechSession === session {
-                    speechSession = nil
-                    speechFinalizationID = nil
-                    speechOriginSessionID = nil
-                    isTranscribing = false
-                }
-            }
-            let partialTranscriptBuffer = SpeechPartialTranscriptBuffer()
-            let transcribeStart = ProcessInfo.processInfo.systemUptime
+            storePendingSpeechAudio(.file(audioURL, prefix: prefix), owner: owner)
             do {
-                let transcript = try await session.commitAndStop { partial in
-                    guard partialTranscriptBuffer.update(partial) else { return }
-                    Task { @MainActor in
-                        guard SpeechAttemptGate.accepts(
-                            finalizationID,
-                            activeAttemptID: speechFinalizationID,
-                            originatingSessionID: originSessionID,
-                            currentSessionID: state.currentSessionID
-                        ), ownsSpeechSession(session, sourceSessionID: originSessionID) else { return }
-                        publishSpeechTranscript(
-                            partial,
-                            prefix: prefix,
-                            origin: ComposerWriteOrigin(
-                                sessionID: originSessionID,
-                                host: speechOriginHost ?? state.captureHostRequestSnapshot()
-                            )
-                        )
-                    }
-                }
-                let cleaned = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-                partialTranscriptBuffer.close()
+                let transcript = try await state.transcribeAudio(
+                    audioFileURL: audioURL,
+                    engine: engine,
+                    surface: .chat
+                )
                 guard SpeechAttemptGate.owns(finalizationID, activeAttemptID: speechFinalizationID),
-                      ownsSpeechSession(session, sourceSessionID: originSessionID) else { return }
-                speechFinalizationID = nil
-                Self.logger.notice("[SpeechProfile] chat realtime transcribe done ms=\(max(0, Int((ProcessInfo.processInfo.systemUptime - transcribeStart) * 1000)), privacy: .public) chars=\(cleaned.count, privacy: .public)")
+                      speechOriginSessionID == originSessionID else { return }
                 applySpeechDraft(
                     prefix: prefix,
-                    transcript: cleaned,
+                    transcript: transcript,
                     sourceSessionID: originSessionID,
                     sourceHost: speechOriginHost ?? state.captureHostRequestSnapshot()
                 )
                 clearPreservedSpeechAudio(for: owner)
-                speechSession = nil
-                speechOriginSessionID = nil
-                isTranscribing = false
-                await terminateSpeechSession(session)
             } catch {
-                partialTranscriptBuffer.close()
-                guard SpeechAttemptGate.owns(finalizationID, activeAttemptID: speechFinalizationID),
-                      ownsSpeechSession(session, sourceSessionID: originSessionID) else { return }
-                speechSession = nil
-                let preserved = await preserveSpeechSession(session)
-                if let preserved {
-                    storePendingSpeechAudio(.preserved(preserved, prefix: prefix), owner: owner)
-                }
                 guard SpeechAttemptGate.owns(finalizationID, activeAttemptID: speechFinalizationID),
                       speechOriginSessionID == originSessionID else { return }
-                speechFinalizationID = nil
-                speechOriginSessionID = nil
-                isTranscribing = false
-                Self.logger.error("[SpeechProfile] chat realtime transcribe failed ms=\(max(0, Int((ProcessInfo.processInfo.systemUptime - transcribeStart) * 1000)), privacy: .public) error=\(error.localizedDescription, privacy: .public)")
-                applySpeechDraft(
-                    prefix: prefix,
-                    transcript: partialTranscriptBuffer.current(),
-                    sourceSessionID: originSessionID,
-                    sourceHost: speechOriginHost ?? state.captureHostRequestSnapshot()
-                )
+                Self.logger.error("[SpeechProfile] chat transcribe failed error=\(error.localizedDescription, privacy: .public)")
                 if originSessionID == state.currentSessionID {
                     speechError = error.localizedDescription
                 }
             }
+            if speechFinalizationID == finalizationID {
+                speechFinalizationID = nil
+                speechOriginSessionID = nil
+                isTranscribing = false
+            }
         } else {
             guard !isStartingRecording else { return }
-            // VoiceFlowMicrophone.audioLevel is tied to the microphone instance's
-            // AsyncStream continuation. Recreate it per capture so repeated
-            // start/stop cycles keep publishing real levels for the waveform.
-            let startingMicrophone = VoiceFlowMicrophone()
+            // The level stream belongs to the microphone instance, so it is
+            // recreated per capture and repeated start/stop cycles keep
+            // publishing real levels for the waveform.
+            let startingMicrophone = DeviceMicrophone()
             microphone = startingMicrophone
             let engine = state.speechRecognitionEngine
-            if engine.usesVoiceFlowService {
-                let token = state.aiBuilderToken.trimmingCharacters(in: .whitespacesAndNewlines)
-                if token.isEmpty {
-                    speechError = L10n.t(.chatSpeechTokenMissing)
-                    return
-                }
-            }
-            let strategy = engine.captureStrategy
             let originSessionID = state.currentSessionID
             let originHost = state.captureHostRequestSnapshot()
             let startID = UUID()
@@ -568,7 +295,6 @@ extension ChatTabView {
                 currentSessionID: state.currentSessionID
             ) else { return }
             let startRecordingStart = ProcessInfo.processInfo.systemUptime
-            var startedSession: VoiceFlowSession?
             do {
                 speechRetryID = nil
                 recordingInputPrefix = inputText
@@ -583,39 +309,8 @@ extension ChatTabView {
                 DesignHaptics.fire(.recordingStarted, microphoneOpen: state.isMicrophoneCaptureActive)
                 state.chatSpeechCaptureActive = true
 
-                if engine.usesRealtimeSession {
-                    let session = try await state.startRealtimeSpeechSession(strategy: strategy, surface: .chat)
-                    startedSession = session
-                    guard SpeechAttemptGate.accepts(
-                        startID,
-                        activeAttemptID: speechStartID,
-                        originatingSessionID: originSessionID,
-                        currentSessionID: state.currentSessionID
-                    ) else {
-                        await terminateSpeechSession(session)
-                        // The microphone never opened on this path, so the capture
-                        // state must not stay set — a leaked flag would suppress
-                        // every haptic in the app.
-                        state.chatSpeechCaptureActive = false
-                        isStartingRecording = false
-                        // Close the `.recordingStarted` pair: the tap was
-                        // acknowledged, and the attempt is over.
-                        DesignHaptics.fire(.recordingStopped, microphoneOpen: state.isMicrophoneCaptureActive)
-                        return
-                    }
-                    speechSession = session
-                    startSpeechEventConsumer(for: session)
-                    let sender = OrderedSpeechAudioSender { chunk in
-                        await session.sendAudioChunk(chunk)
-                    }
-                    speechAudioSender = sender
-                    try await startingMicrophone.start(strategy: strategy) { chunk in
-                        sender.enqueue(chunk)
-                    }
-                } else {
-                    speechSession = nil
-                    try await startingMicrophone.start(strategy: strategy)
-                }
+                try await startingMicrophone.start()
+
                 guard SpeechAttemptGate.accepts(
                     startID,
                     activeAttemptID: speechStartID,
@@ -625,54 +320,32 @@ extension ChatTabView {
                     let audioURL = try? await startingMicrophone.stop()
                     // The engine is closed from here on, so the capture state can clear.
                     state.chatSpeechCaptureActive = false
-                    // Close the `.recordingStarted` pair: the tap was acknowledged
-                    // and the attempt is over. The failure itself is reported by
-                    // the error channel, not by this haptic.
+                    // Close the `.recordingStarted` pair: the tap was
+                    // acknowledged, and the attempt is over.
                     DesignHaptics.fire(.recordingStopped, microphoneOpen: state.isMicrophoneCaptureActive)
                     startingMicrophone.discard()
-                    await finishSpeechAudioSender()
                     let owner = ChatSpeechOwner(sessionID: originSessionID)
-                    if engine.usesRealtimeSession {
-                        if let audioURL { try? FileManager.default.removeItem(at: audioURL) }
-                        if let startedSession, speechSession === startedSession {
-                            speechSession = nil
-                            if let preserved = await preserveSpeechSession(startedSession) {
-                                storePendingSpeechAudio(.preserved(preserved, prefix: recordingInputPrefix), owner: owner)
-                            }
-                        }
-                    } else if let audioURL {
-                        storePendingSpeechAudio(.file(audioURL, engine: engine, prefix: recordingInputPrefix), owner: owner)
+                    if let audioURL {
+                        storePendingSpeechAudio(.file(audioURL, prefix: recordingInputPrefix), owner: owner)
                     }
                     return
-                }
-                if let startedSession {
-                    startSpeechHeartbeat(for: startedSession)
                 }
                 isRecording = true
                 speechStartID = nil
                 isStartingRecording = false
-                Self.logger.notice("[SpeechProfile] capture started strategy=\(strategy.rawValue, privacy: .public) ms=\(max(0, Int((ProcessInfo.processInfo.systemUptime - startRecordingStart) * 1000)), privacy: .public)")
+                Self.logger.notice("[SpeechProfile] capture started strategy=onDevice ms=\(max(0, Int((ProcessInfo.processInfo.systemUptime - startRecordingStart) * 1000)), privacy: .public)")
             } catch {
                 let audioURL = try? await startingMicrophone.stop()
                 // The engine is closed from here on, so the capture state can clear.
                 state.chatSpeechCaptureActive = false
                 // Close the `.recordingStarted` pair: the tap was acknowledged and
-                // the attempt is over. The failure itself is reported by the
-                // error channel, not by this haptic.
+                // the attempt is over. The failure itself is reported by
+                // the error channel, not by this haptic.
                 DesignHaptics.fire(.recordingStopped, microphoneOpen: state.isMicrophoneCaptureActive)
                 startingMicrophone.discard()
-                await finishSpeechAudioSender()
                 let owner = ChatSpeechOwner(sessionID: originSessionID)
-                if engine.usesRealtimeSession {
-                    if let audioURL { try? FileManager.default.removeItem(at: audioURL) }
-                    if let startedSession, speechSession === startedSession {
-                        speechSession = nil
-                        if let preserved = await preserveSpeechSession(startedSession) {
-                            storePendingSpeechAudio(.preserved(preserved, prefix: recordingInputPrefix), owner: owner)
-                        }
-                    }
-                } else if let audioURL {
-                    storePendingSpeechAudio(.file(audioURL, engine: engine, prefix: recordingInputPrefix), owner: owner)
+                if let audioURL {
+                    storePendingSpeechAudio(.file(audioURL, prefix: recordingInputPrefix), owner: owner)
                 }
                 let shouldReportError = SpeechAttemptGate.accepts(
                     startID,
@@ -681,15 +354,13 @@ extension ChatTabView {
                     currentSessionID: state.currentSessionID
                 )
                 if shouldReportError {
-                    stopSpeechHeartbeat()
-                    stopSpeechEventConsumer()
                     stopSpeechAudioLevelConsumer()
                     speechStartID = nil
                     speechOriginSessionID = nil
                     isStartingRecording = false
                 }
                 guard shouldReportError else { return }
-                Self.logger.error("[SpeechProfile] realtime capture start failed error=\(error.localizedDescription, privacy: .public)")
+                Self.logger.error("[SpeechProfile] capture start failed error=\(error.localizedDescription, privacy: .public)")
                 speechError = error.localizedDescription
             }
         }
@@ -705,14 +376,9 @@ extension ChatTabView {
         let originSessionID = speechOriginSessionID
         let owner = ChatSpeechOwner(sessionID: originSessionID)
         // Capture and detach before releasing the microphone: an invalidated
-        // finalization may finish during that await and clear speechSession.
-        let session = speechSession
+        // finalization may finish during that await and clear the capture.
         let prefix = recordingInputPrefix
-        let engine = activeSpeechStrategy
         let stoppingMicrophone = microphone
-        let sender = speechAudioSender
-        speechAudioSender = nil
-        speechSession = nil
         let cleanupPlan = ChatSpeechRouting.cleanupPlan(
             isRecording: isRecording,
             isStartingRecording: isStartingRecording,
@@ -722,15 +388,12 @@ extension ChatTabView {
         speechFinalizationID = nil
         speechRetryID = nil
         speechRetrySessionID = nil
-        stopSpeechHeartbeat()
-        stopSpeechEventConsumer()
         stopSpeechAudioLevelConsumer()
 
         return {
             let audioURL = await ChatSpeechCaptureCleanup.releaseOwnedMicrophone(stoppingMicrophone, plan: cleanupPlan)
             // The engine is closed from here on, so the capture state can clear.
             state.chatSpeechCaptureActive = false
-            await sender?.finishAndDrain()
 
             speechOriginSessionID = nil
             isRecording = false
@@ -738,24 +401,8 @@ extension ChatTabView {
             isStartingRecording = false
             isRetryingSpeech = false
 
-            if !engine.usesRealtimeSession {
-                if let audioURL {
-                    storePendingSpeechAudio(.file(audioURL, engine: engine, prefix: prefix), owner: owner)
-                }
-                return
-            }
             if let audioURL {
-                try? FileManager.default.removeItem(at: audioURL)
-            }
-            guard let session else { return }
-            do {
-                if let preserved = try await session.abortPreservingAudio() {
-                    storePendingSpeechAudio(.preserved(preserved, prefix: prefix), owner: owner)
-                    Self.logger.notice("[SpeechProfile] realtime speech aborted with preserved bytes=\(preserved.byteCount, privacy: .public)")
-                }
-            } catch {
-                Self.logger.error("[SpeechProfile] realtime speech abort failed error=\(error.localizedDescription, privacy: .public)")
-                speechError = error.localizedDescription
+                storePendingSpeechAudio(.file(audioURL, prefix: prefix), owner: owner)
             }
         }
     }
@@ -781,35 +428,16 @@ extension ChatTabView {
 
         let prefix = pending.prefix
         speechDraft.ensureAnchor(prefix)
-        let partialTranscriptBuffer = SpeechPartialTranscriptBuffer()
         do {
             let transcript: String
             switch pending {
-            case .file(let audioURL, let engine, _):
+            case .file(let audioURL, _):
                 transcript = try await state.transcribeAudio(
                     audioFileURL: audioURL,
-                    engine: engine,
+                    engine: activeSpeechStrategy,
                     surface: .chat
                 )
-            case .preserved(let preserved, _):
-                transcript = try await state.transcribePreservedAudio(preserved, surface: .chat) { partial in
-                    guard partialTranscriptBuffer.update(partial) else { return }
-                    Task { @MainActor in
-                        guard SpeechAttemptGate.accepts(
-                            retryID,
-                            activeAttemptID: speechRetryID,
-                            originatingSessionID: retrySessionID,
-                            currentSessionID: state.currentSessionID
-                        ), speechRetrySessionID == retrySessionID else { return }
-                        publishSpeechTranscript(
-                            partial,
-                            prefix: prefix,
-                            origin: ComposerWriteOrigin(sessionID: retrySessionID, host: retryHost)
-                        )
-                    }
-                }
             }
-            partialTranscriptBuffer.close()
             guard SpeechAttemptGate.accepts(
                 retryID,
                 activeAttemptID: speechRetryID,
@@ -826,14 +454,13 @@ extension ChatTabView {
             )
             clearPreservedSpeechAudio(for: owner)
         } catch {
-            partialTranscriptBuffer.close()
             guard SpeechAttemptGate.accepts(
                 retryID,
                 activeAttemptID: speechRetryID,
                 originatingSessionID: retrySessionID,
                 currentSessionID: state.currentSessionID
             ), speechRetrySessionID == retrySessionID else { return }
-            Self.logger.error("[SpeechProfile] preserved speech retry failed error=\(error.localizedDescription, privacy: .public)")
+            Self.logger.error("[SpeechProfile] speech retry failed error=\(error.localizedDescription, privacy: .public)")
             speechError = error.localizedDescription
         }
     }

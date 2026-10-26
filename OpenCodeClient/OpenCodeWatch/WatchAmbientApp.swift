@@ -26,14 +26,14 @@ struct WatchAmbientView: View {
                 Text(model.status).font(.caption).foregroundStyle(.secondary)
                     .accessibilityIdentifier("watch-status")
                 Button {
-                    if connected { model.live.interruptPlayback() }
+                    if connected { model.interruptPlayback() }
                     else { Task { await model.start() } }
                 } label: {
                     Image(systemName: model.phase == .speaking ? "waveform" : "mic.fill")
                         .font(.system(size: 42))
-                        .foregroundStyle(model.live.isMuted ? .secondary : .primary)
+                        .foregroundStyle(model.isMuted ? .secondary : .primary)
                         .frame(maxWidth: .infinity, minHeight: 62)
-                        .background(.blue.opacity(0.15 + min(model.live.inputLevel * 2, 0.7)), in: RoundedRectangle(cornerRadius: 22))
+                        .background(.blue.opacity(0.15 + min(model.inputLevel * 2, 0.7)), in: RoundedRectangle(cornerRadius: 22))
                 }
                 .buttonStyle(.plain)
                 .disabled(model.connecting || model.phase == .closing)
@@ -45,12 +45,12 @@ struct WatchAmbientView: View {
                     .accessibilityIdentifier("watch-caption")
                 if connected || model.connecting || model.phase == .closing {
                     HStack {
-                        Button { model.live.setMuted(!model.live.isMuted) } label: {
-                            Image(systemName: model.live.isMuted ? "mic.slash.fill" : "mic.fill")
+                        Button { model.setMuted(!model.isMuted) } label: {
+                            Image(systemName: model.isMuted ? "mic.slash.fill" : "mic.fill")
                         }
                         .disabled(!connected)
-                        .tint(model.live.isMuted ? .orange : .blue)
-                        .accessibilityLabel(model.live.isMuted ? String(localized: "Unmute") : String(localized: "Mute"))
+                        .tint(model.isMuted ? .orange : .blue)
+                        .accessibilityLabel(model.isMuted ? String(localized: "Unmute") : String(localized: "Mute"))
                         .accessibilityIdentifier("watch-mute")
                         Button(role: .destructive) { Task { await model.stop() } } label: {
                             Image(systemName: "phone.down.fill")
@@ -59,7 +59,7 @@ struct WatchAmbientView: View {
                         .accessibilityIdentifier("watch-end")
                     }
                 }
-                if let error = model.error ?? model.live.errorMessage {
+                if let error = model.error {
                     Text(error).font(.caption2).foregroundStyle(.orange)
                 }
             }

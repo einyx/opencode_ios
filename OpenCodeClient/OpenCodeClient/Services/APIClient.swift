@@ -27,7 +27,6 @@ actor APIClient {
     private var username: String?
     private var password: String?
     private let session: URLSession
-    private var liveLease = CarLiveTransportLease()
 
     /// Which OpenCode API this client speaks. `.auto` probes on the first
     /// request; the result is remembered for the life of the client.
@@ -99,7 +98,6 @@ actor APIClient {
         } else if generation != .auto {
             self.generation = generation
         }
-        liveLease = CarLiveTransportGate.invalidate(liveLease)
     }
 
     /// The generation this client currently speaks.
@@ -523,7 +521,7 @@ actor APIClient {
             knownSessionIDs.insert(session.id)
             return session
         }
-        let data = try CarLivePromptWire.sessionCreateData(title: title)
+        let data = try JSONEncoder().encode(title.map { ["title": $0] } ?? [:])
         let queryItems = directory.map { [URLQueryItem(name: "directory", value: $0)] }
         let (responseData, _) = try await makeRequest(
             path: "/session",
@@ -561,19 +559,15 @@ actor APIClient {
             }
             return try await session(sessionID: sessionID)
         }
-        let data = try CarLiveArchiveWire.body(archived: archived)
+        struct ArchiveBody: Encodable {
+            struct Time: Encodable { let archived: Int }
+            let time: Time
+        }
+        let data = try JSONEncoder().encode(ArchiveBody(time: .init(archived: archived)))
         let (responseData, _) = try await makeRequest(path: "/session/\(sessionID)", method: "PATCH", body: data)
         return try JSONDecoder().decode(Session.self, from: responseData)
     }
 
-    func updateSessionArchivedForLive(sessionID: String, archived: Int, transportToken: UInt64) async throws -> Int {
-        let generation = try await resolvedGeneration()
-        let data = generation == .v2
-            ? try V2Mapper.archiveBody(archived: archived != 0)
-            : try CarLiveArchiveWire.body(archived: archived)
-        let (_, http) = try await makeRequest(path: "/session/\(sessionID)", method: "PATCH", body: data, liveToken: transportToken)
-        return http.statusCode
-    }
 
     func deleteSession(sessionID: String) async throws {
         let generation = try await resolvedGeneration()
@@ -1307,371 +1301,25 @@ actor APIClient {
         return try JSONDecoder().decode(Session.self, from: responseData)
     }
 
-    func armLiveTransport() -> UInt64 {
-        let armed = CarLiveTransportGate.arm(liveLease)
-        liveLease = armed.lease
-        return armed.token
-    }
 
-    func retireLiveTransport(token: UInt64) {
-        liveLease = CarLiveTransportGate.retire(liveLease, token: token)
-    }
 
-    func experimentalRootSessionPage(cursor: Int?, transportToken: UInt64) async throws -> CarLiveSessionPage {
-        let generation = try await resolvedGeneration()
-        if generation == .v2 {
-            // V2 has no root session page route. The list answers with the
-            // same sessions; its cursor is an opaque string, so the page
-            // carries no next cursor.
-            var queryItems = [
-                URLQueryItem(name: "limit", value: "50"),
-                URLQueryItem(name: "archived", value: "true"),
-            ]
-            if let cursor {
-                queryItems.append(URLQueryItem(name: "cursor", value: String(cursor)))
-            }
-            let (data, http) = try await makeRequest(
-                path: "/api/session",
-                queryItems: queryItems,
-                liveToken: transportToken
-            )
-            let rows = try V2Mapper.sessions(from: data)
-            Self.logger.debug("live session page status=\(http.statusCode, privacy: .public) rows=\(rows.count, privacy: .public)")
-            return CarLiveSessionPage(rows: rows, nextCursor: nil)
-        }
-        let (data, http) = try await makeRequest(
-            path: "/experimental/session",
-            queryItems: CarLivePromptWire.sessionPageQuery(cursor: cursor),
-            liveToken: transportToken
-        )
-        let rows = try JSONDecoder().decode([Session].self, from: data)
-        let header = http.value(forHTTPHeaderField: "x-next-cursor")
-        Self.logger.debug("live session page status=\(http.statusCode, privacy: .public) rows=\(rows.count, privacy: .public)")
-        return CarLiveSessionPage(rows: rows, nextCursor: header.flatMap(Int.init))
-    }
 
-    func sessionForLive(sessionID: String, directory: String?, transportToken: UInt64) async throws -> Session {
-        let generation = try await resolvedGeneration()
-        if generation == .v2 {
-            let (data, http) = try await makeRequest(path: "/api/session/\(sessionID)", liveToken: transportToken)
-            Self.logger.debug("live session lookup status=\(http.statusCode, privacy: .public)")
-            return try V2Mapper.session(from: data)
-        }
-        let query = directory.flatMap { value -> [URLQueryItem]? in
-            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : [URLQueryItem(name: "directory", value: trimmed)]
-        }
-        let (data, http) = try await makeRequest(path: "/session/\(sessionID)", queryItems: query, liveToken: transportToken)
-        Self.logger.debug("live session lookup status=\(http.statusCode, privacy: .public)")
-        return try JSONDecoder().decode(Session.self, from: data)
-    }
 
-    func messagePageForLive(sessionID: String, limit: Int, transportToken: UInt64) async throws -> CarLiveMessagePage {
-        try await messagePageForLive(sessionID: sessionID, limit: limit, before: nil, directory: nil, transportToken: transportToken)
-    }
 
-    func messagePageForLive(
-        sessionID: String,
-        limit: Int,
-        before: String?,
-        directory: String?,
-        transportToken: UInt64
-    ) async throws -> CarLiveMessagePage {
-        let capped = min(max(limit, 1), CarLiveHistory.bound)
-        let generation = try await resolvedGeneration()
-        if generation == .v2 {
-            var queryItems = [URLQueryItem(name: "limit", value: String(capped))]
-            if let directory, !directory.isEmpty {
-                queryItems.append(URLQueryItem(name: "location[directory]", value: directory))
-            }
-            if let before, let cursor = Self.v2MessageCursor(before) {
-                // The cursor already encodes the ordering and the server
-                // rejects `cursor` combined with `order`.
-                queryItems.append(URLQueryItem(name: "cursor", value: cursor))
-            } else {
-                // Newest first: the cursor that comes back walks backwards
-                // through the transcript.
-                queryItems.append(URLQueryItem(name: "order", value: "desc"))
-            }
-            let (data, _) = try await makeRequest(
-                path: "/api/session/\(sessionID)/message",
-                queryItems: queryItems,
-                liveToken: transportToken
-            )
-            let messages = try V2Mapper.messages(from: data, sessionID: sessionID)
-            let nextCursor = Self.v2MessageNextCursor(data)
-            return CarLiveMessagePage(
-                messages: messages,
-                hasOlder: nextCursor != nil,
-                requestedLimit: capped,
-                nextCursor: nextCursor,
-                hasDecodeGaps: false
-            )
-        }
-        let (data, http) = try await makeRequest(
-            path: "/session/\(sessionID)/message",
-            queryItems: Self.liveMessageQuery(limit: capped, before: before, directory: directory),
-            liveToken: transportToken
-        )
-        return try Self.liveMessagePage(data: data, response: http, requestedLimit: capped)
-    }
 
-    func sessionChildrenForLive(sessionID: String, transportToken: UInt64) async throws -> [Session] {
-        let generation = try await resolvedGeneration()
-        if generation == .v2 {
-            // V2 has no children route: the list filters by parent.
-            let (data, http) = try await makeRequest(
-                path: "/api/session",
-                queryItems: [URLQueryItem(name: "parentID", value: sessionID)],
-                liveToken: transportToken
-            )
-            let rows = try V2Mapper.sessions(from: data)
-            Self.logger.debug("live children status=\(http.statusCode, privacy: .public) rows=\(rows.count, privacy: .public)")
-            return rows
-        }
-        let (data, http) = try await makeRequest(path: "/session/\(sessionID)/children", liveToken: transportToken)
-        let rows = try JSONDecoder().decode([Session].self, from: data)
-        Self.logger.debug("live children status=\(http.statusCode, privacy: .public) rows=\(rows.count, privacy: .public)")
-        return rows
-    }
 
-    func createSessionForLive(directory: String?, transportToken: UInt64) async throws -> Session {
-        let generation = try await resolvedGeneration()
-        if generation == .v2 {
-            let body = try V2Mapper.createSessionBody(title: nil, directory: directory)
-            let (responseData, http) = try await makeRequest(
-                path: "/api/session",
-                method: "POST",
-                body: body,
-                liveToken: transportToken
-            )
-            guard http.statusCode == 200 else {
-                throw APIError.httpError(statusCode: http.statusCode, data: responseData)
-            }
-            let session = try V2Mapper.session(from: responseData)
-            knownSessionIDs.insert(session.id)
-            return session
-        }
-        let data = try CarLivePromptWire.sessionCreateData(title: nil)
-        let queryItems = directory.map { [URLQueryItem(name: "directory", value: $0)] }
-        let (responseData, _) = try await makeRequest(
-            path: "/session",
-            method: "POST",
-            queryItems: queryItems,
-            body: data,
-            liveToken: transportToken
-        )
-        return try JSONDecoder().decode(Session.self, from: responseData)
-    }
 
-    func promptAsyncForLive(
-        sessionID: String,
-        messageID: String,
-        text: String,
-        agent: String,
-        model: Message.ModelInfo,
-        directory: String?,
-        transportToken: UInt64
-    ) async throws {
-        let generation = try await resolvedGeneration()
-        if generation == .v2 {
-            try await promptAsyncV2(
-                sessionID: sessionID,
-                messageID: messageID,
-                text: text,
-                attachments: [],
-                agent: agent,
-                model: model,
-                transportToken: transportToken
-            )
-            return
-        }
-        let body = try CarLivePromptWire.startData(messageID: messageID, text: text, agent: agent, model: model)
-        try await postLivePrompt(sessionID: sessionID, directory: directory, body: body, transportToken: transportToken)
-    }
 
-    func promptAsyncInherited(
-        sessionID: String,
-        messageID: String,
-        text: String,
-        agent: String?,
-        variant: String?,
-        directory: String?,
-        transportToken: UInt64
-    ) async throws {
-        let generation = try await resolvedGeneration()
-        if generation == .v2 {
-            // An inherited turn keeps the session's agent and model.
-            try await promptAsyncV2(
-                sessionID: sessionID,
-                messageID: messageID,
-                text: text,
-                attachments: [],
-                agent: agent ?? "",
-                model: nil,
-                transportToken: transportToken
-            )
-            return
-        }
-        let body = try CarLivePromptWire.continueData(messageID: messageID, text: text, agent: agent, variant: variant)
-        try await postLivePrompt(sessionID: sessionID, directory: directory, body: body, transportToken: transportToken)
-    }
 
-    func abortForLive(sessionID: String, transportToken: UInt64) async throws {
-        let generation = try await resolvedGeneration()
-        if generation == .v2 {
-            let (data, http) = try await makeRequest(path: "/api/session/\(sessionID)/interrupt", method: "POST", body: Data("{}".utf8), liveToken: transportToken)
-            if http.statusCode != 200 {
-                throw APIError.httpError(statusCode: http.statusCode, data: data)
-            }
-            return
-        }
-        let (data, http) = try await makeRequest(path: "/session/\(sessionID)/abort", method: "POST", liveToken: transportToken)
-        if http.statusCode != 200 {
-            throw APIError.httpError(statusCode: http.statusCode, data: data)
-        }
-    }
 
-    func sessionStatusForLive(transportToken: UInt64) async throws -> [String: SessionStatus] {
-        try await sessionStatusForLive(directory: nil, transportToken: transportToken)
-    }
 
-    func sessionStatusForLive(directory: String?, transportToken: UInt64) async throws -> [String: SessionStatus] {
-        let generation = try await resolvedGeneration()
-        if generation == .v2 {
-            let (data, _) = try await makeRequest(path: "/api/session/active", liveToken: transportToken)
-            return try V2Mapper.activeSessionStatuses(from: data)
-        }
-        let query = Self.liveDirectoryQuery(directory)
-        let (data, _) = try await makeRequest(
-            path: "/session/status",
-            queryItems: query,
-            liveToken: transportToken
-        )
-        return try JSONDecoder().decode([String: SessionStatus].self, from: data)
-    }
 
-    func providerRegistryForLive(transportToken: UInt64) async throws -> ProviderRegistryResponse {
-        let generation = try await resolvedGeneration()
-        if generation == .v2 {
-            let (providerData, _) = try await makeRequest(path: "/api/provider", liveToken: transportToken)
-            let registry = try V2Mapper.providerRegistry(from: providerData)
-            let (modelData, _) = try await makeRequest(path: "/api/model", liveToken: transportToken)
-            let models = try V2Mapper.models(from: modelData)
-            var providers = registry.providers
-            for index in providers.indices {
-                let providerID = providers[index].id
-                let owned = models.filter { $0.providerID == providerID }
-                guard !owned.isEmpty else { continue }
-                providers[index] = ConfigProvider(
-                    id: providerID,
-                    name: providers[index].name,
-                    models: Dictionary(uniqueKeysWithValues: owned.map { ($0.id, $0) })
-                )
-            }
-            return ProviderRegistryResponse(providers: providers, connectedProviderIDs: registry.connectedProviderIDs)
-        }
-        let (data, _) = try await makeRequest(path: "/provider", liveToken: transportToken)
-        return try JSONDecoder().decode(ProviderRegistryResponse.self, from: data)
-    }
 
-    func pendingPermissionsForLive(transportToken: UInt64) async throws -> [PermissionRequest] {
-        let generation = try await resolvedGeneration()
-        if generation == .v2 {
-            var requests: [PermissionRequest] = []
-            for sessionID in knownSessionIDs {
-                let (data, _) = try await makeRequest(path: "/api/session/\(sessionID)/permission", liveToken: transportToken)
-                requests.append(contentsOf: try V2Mapper.permissions(from: data))
-            }
-            return requests
-        }
-        let (data, _) = try await makeRequest(path: "/permission", liveToken: transportToken)
-        return try JSONDecoder().decode([PermissionRequest].self, from: data)
-    }
 
-    func pendingQuestionsForLive(transportToken: UInt64) async throws -> [QuestionRequest] {
-        let generation = try await resolvedGeneration()
-        if generation == .v2 {
-            var questions: [QuestionRequest] = []
-            for sessionID in knownSessionIDs {
-                let (data, _) = try await makeRequest(path: "/api/session/\(sessionID)/form", liveToken: transportToken)
-                questions.append(contentsOf: try V2Mapper.questions(from: data))
-                for (id, entry) in try V2Mapper.formReplyTable(from: data) {
-                    formReplyTable[id] = entry
-                }
-            }
-            return questions
-        }
-        let (data, _) = try await makeRequest(path: "/question", liveToken: transportToken)
-        return try JSONDecoder().decode([QuestionRequest].self, from: data)
-    }
 
-    func replyQuestionForLive(requestID: String, answers: [[String]], transportToken: UInt64) async throws {
-        let generation = try await resolvedGeneration()
-        if generation == .v2 {
-            guard let entry = formReplyTable[requestID] else {
-                throw APIError.httpError(statusCode: 404, data: Data())
-            }
-            var answer: [String: String] = [:]
-            for (index, labels) in answers.enumerated() {
-                guard index < entry.fields.count else { continue }
-                let field = entry.fields[index]
-                answer[field.key] = entry.values(for: field.key, labels: labels).first ?? ""
-            }
-            struct AnswerBody: Encodable {
-                let answer: [String: String]
-            }
-            let data = try JSONEncoder().encode(AnswerBody(answer: answer))
-            let (responseData, http) = try await makeRequest(
-                path: "/api/session/\(entry.sessionID)/form/\(requestID)/reply",
-                method: "POST",
-                body: data,
-                liveToken: transportToken
-            )
-            guard http.statusCode == 204 else {
-                throw APIError.httpError(statusCode: http.statusCode, data: responseData)
-            }
-            return
-        }
-        let data = try JSONEncoder().encode(["answers": answers])
-        let (responseData, _) = try await makeRequest(path: "/question/\(requestID)/reply", method: "POST", body: data, liveToken: transportToken)
-        try acceptEmptyOrJSONBoolean(responseData)
-    }
 
-    func respondPermissionForLive(sessionID: String, permissionID: String, response: PermissionResponse, transportToken: UInt64) async throws {
-        let generation = try await resolvedGeneration()
-        if generation == .v2 {
-            struct DecisionBody: Encodable {
-                let decision: String
-            }
-            let data = try JSONEncoder().encode(DecisionBody(decision: response.rawValue))
-            let (responseData, http) = try await makeRequest(
-                path: "/api/session/\(sessionID)/permission/\(permissionID)/reply",
-                method: "POST",
-                body: data,
-                liveToken: transportToken
-            )
-            guard http.statusCode == 204 else {
-                throw APIError.httpError(statusCode: http.statusCode, data: responseData)
-            }
-            return
-        }
-        let data = try JSONEncoder().encode(["response": response.rawValue])
-        let (responseData, http) = try await makeRequest(
-            path: "/session/\(sessionID)/permissions/\(permissionID)",
-            method: "POST",
-            body: data,
-            liveToken: transportToken
-        )
-        if http.statusCode != 200 {
-            throw APIError.httpError(statusCode: http.statusCode, data: responseData)
-        }
-    }
 
     private func ensureLiveTransport(_ token: UInt64) throws {
-        guard CarLiveTransportGate.allows(liveLease, token: token) else {
-            throw CarLiveAPIUnsupported.closed
-        }
     }
 
     private func postLivePrompt(sessionID: String, directory: String?, body: Data, transportToken: UInt64) async throws {
@@ -1713,18 +1361,6 @@ actor APIClient {
         return [URLQueryItem(name: "directory", value: directory)]
     }
 
-    private nonisolated static func liveMessagePage(data: Data, response: HTTPURLResponse, requestedLimit: Int) throws -> CarLiveMessagePage {
-        let decoded = try decodeMessageTranscript(data)
-        logMessageDecodeDiagnostics(decoded.diagnostics)
-        logger.debug("live history status=\(response.statusCode, privacy: .public) rows=\(decoded.messages.count, privacy: .public)")
-        return CarLiveMessagePage(
-            messages: decoded.messages,
-            hasOlder: historyHasOlder(response),
-            requestedLimit: requestedLimit,
-            nextCursor: historyNextCursor(response),
-            hasDecodeGaps: !decoded.diagnostics.isEmpty
-        )
-    }
 
     nonisolated static func historyNextCursor(_ response: HTTPURLResponse) -> String? {
         if let cursor = response.value(forHTTPHeaderField: "X-Next-Cursor") {
@@ -2186,7 +1822,6 @@ protocol APIClientProtocol: Actor {
     func createSession(title: String?, directory: String?) async throws -> Session
     func updateSession(sessionID: String, title: String) async throws -> Session
     func updateSessionArchived(sessionID: String, archived: Int) async throws -> Session
-    func updateSessionArchivedForLive(sessionID: String, archived: Int, transportToken: UInt64) async throws -> Int
     func deleteSession(sessionID: String) async throws
     func messages(sessionID: String, limit: Int?) async throws -> [MessageWithParts]
     func promptAsync(sessionID: String, messageID: String, text: String, attachments: [ComposerImageAttachment], agent: String, model: Message.ModelInfo?, directory: String?) async throws
@@ -2213,24 +1848,6 @@ protocol APIClientProtocol: Actor {
     func fileStatus() async throws -> [FileStatusEntry]
     func forkSession(sessionID: String, messageID: String?) async throws -> Session
     func revertSession(sessionID: String, messageID: String, partID: String?) async throws -> Session
-    func armLiveTransport() -> UInt64
-    func retireLiveTransport(token: UInt64)
-    func experimentalRootSessionPage(cursor: Int?, transportToken: UInt64) async throws -> CarLiveSessionPage
-    func sessionForLive(sessionID: String, directory: String?, transportToken: UInt64) async throws -> Session
-    func messagePageForLive(sessionID: String, limit: Int, transportToken: UInt64) async throws -> CarLiveMessagePage
-    func messagePageForLive(sessionID: String, limit: Int, before: String?, directory: String?, transportToken: UInt64) async throws -> CarLiveMessagePage
-    func sessionChildrenForLive(sessionID: String, transportToken: UInt64) async throws -> [Session]
-    func createSessionForLive(directory: String?, transportToken: UInt64) async throws -> Session
-    func promptAsyncForLive(sessionID: String, messageID: String, text: String, agent: String, model: Message.ModelInfo, directory: String?, transportToken: UInt64) async throws
-    func promptAsyncInherited(sessionID: String, messageID: String, text: String, agent: String?, variant: String?, directory: String?, transportToken: UInt64) async throws
-    func abortForLive(sessionID: String, transportToken: UInt64) async throws
-    func sessionStatusForLive(transportToken: UInt64) async throws -> [String: SessionStatus]
-    func sessionStatusForLive(directory: String?, transportToken: UInt64) async throws -> [String: SessionStatus]
-    func providerRegistryForLive(transportToken: UInt64) async throws -> ProviderRegistryResponse
-    func pendingPermissionsForLive(transportToken: UInt64) async throws -> [APIClient.PermissionRequest]
-    func pendingQuestionsForLive(transportToken: UInt64) async throws -> [QuestionRequest]
-    func replyQuestionForLive(requestID: String, answers: [[String]], transportToken: UInt64) async throws
-    func respondPermissionForLive(sessionID: String, permissionID: String, response: APIClient.PermissionResponse, transportToken: UInt64) async throws
 }
 
 extension APIClient: APIClientProtocol {}
@@ -2264,65 +1881,6 @@ extension APIClientProtocol {
     func detectGeneration() async throws -> ServerGeneration { .auto }
     func sessionStatus(directory: String?) async throws -> [String: SessionStatus] {
         try await sessionStatus()
-    }
-    func armLiveTransport() -> UInt64 { 0 }
-    func retireLiveTransport(token: UInt64) {}
-    func experimentalRootSessionPage(cursor: Int?, transportToken: UInt64) async throws -> CarLiveSessionPage {
-        throw CarLiveAPIUnsupported.experimentalSessionPage
-    }
-    func sessionForLive(sessionID: String, directory: String?, transportToken: UInt64) async throws -> Session {
-        throw CarLiveAPIUnsupported.sessionLookup
-    }
-    func messagePageForLive(sessionID: String, limit: Int, transportToken: UInt64) async throws -> CarLiveMessagePage {
-        throw CarLiveAPIUnsupported.history
-    }
-    func messagePageForLive(sessionID: String, limit: Int, before: String?, directory: String?, transportToken: UInt64) async throws -> CarLiveMessagePage {
-        if before != nil || directory != nil {
-            throw CarLiveAPIUnsupported.history
-        }
-        return try await messagePageForLive(sessionID: sessionID, limit: limit, transportToken: transportToken)
-    }
-    func sessionChildrenForLive(sessionID: String, transportToken: UInt64) async throws -> [Session] {
-        throw CarLiveAPIUnsupported.children
-    }
-    func createSessionForLive(directory: String?, transportToken: UInt64) async throws -> Session {
-        throw CarLiveAPIUnsupported.createSession
-    }
-    func promptAsyncForLive(sessionID: String, messageID: String, text: String, agent: String, model: Message.ModelInfo, directory: String?, transportToken: UInt64) async throws {
-        throw CarLiveAPIUnsupported.prompt
-    }
-    func promptAsyncInherited(sessionID: String, messageID: String, text: String, agent: String?, variant: String?, directory: String?, transportToken: UInt64) async throws {
-        throw CarLiveAPIUnsupported.prompt
-    }
-    func abortForLive(sessionID: String, transportToken: UInt64) async throws {
-        throw CarLiveAPIUnsupported.abort
-    }
-    func sessionStatusForLive(transportToken: UInt64) async throws -> [String: SessionStatus] {
-        throw CarLiveAPIUnsupported.status
-    }
-    func sessionStatusForLive(directory: String?, transportToken: UInt64) async throws -> [String: SessionStatus] {
-        if directory != nil {
-            throw CarLiveAPIUnsupported.status
-        }
-        return try await sessionStatusForLive(transportToken: transportToken)
-    }
-    func providerRegistryForLive(transportToken: UInt64) async throws -> ProviderRegistryResponse {
-        throw CarLiveAPIUnsupported.providerRegistry
-    }
-    func pendingPermissionsForLive(transportToken: UInt64) async throws -> [APIClient.PermissionRequest] {
-        throw CarLiveAPIUnsupported.pending
-    }
-    func pendingQuestionsForLive(transportToken: UInt64) async throws -> [QuestionRequest] {
-        throw CarLiveAPIUnsupported.pending
-    }
-    func replyQuestionForLive(requestID: String, answers: [[String]], transportToken: UInt64) async throws {
-        throw CarLiveAPIUnsupported.answer
-    }
-    func respondPermissionForLive(sessionID: String, permissionID: String, response: APIClient.PermissionResponse, transportToken: UInt64) async throws {
-        throw CarLiveAPIUnsupported.answer
-    }
-    func updateSessionArchivedForLive(sessionID: String, archived: Int, transportToken: UInt64) async throws -> Int {
-        throw CarLiveAPIUnsupported.archive
     }
     func promptStructured(
         sessionID: String,

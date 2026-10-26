@@ -100,31 +100,6 @@ struct CarLiveAudioTests {
         #expect(next)
     }
 
-    @Test func bargeHoldClearsOnceUntilQuietAndStopDoesNotStick() {
-        var gate = CarLiveBargeGate(sustain: 0.25, releaseAfter: 0.5, threshold: 0.08)
-        let ignored = gate.noteInput(level: 0.9, outputActive: false, now: 0)
-        let early = gate.noteInput(level: 0.4, outputActive: true, now: 1)
-        let begun = gate.noteInput(level: 0.4, outputActive: true, now: 1.25)
-        let again = gate.noteInput(level: 0.5, outputActive: true, now: 1.5)
-        let waiting = gate.noteInput(level: 0.01, outputActive: false, now: 1.75)
-        let ended = gate.noteInput(level: 0.01, outputActive: false, now: 2.25)
-        let clearsAfterRound = gate.clears
-        let manual = gate.beginManual(now: 3)
-        let repeatManual = gate.beginManual(now: 3.1)
-        gate.stop()
-        let afterStop = gate.beginManual(now: 4)
-        #expect(ignored == .none)
-        #expect(early == .none)
-        #expect(begun == .begin)
-        #expect(again == .none)
-        #expect(waiting == .none)
-        #expect(ended == .end)
-        #expect(clearsAfterRound == 1)
-        #expect(manual == .begin)
-        #expect(repeatManual == .none)
-        #expect(afterStop == .begin)
-        #expect(gate.holding)
-    }
 
     @Test func stoppedEngineDoesNotRestartPlayback() {
         let same = CarLivePlaybackRestart(

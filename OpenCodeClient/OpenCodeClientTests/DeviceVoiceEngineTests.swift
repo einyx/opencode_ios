@@ -10,40 +10,6 @@ import Testing
 
 /// An audio engine stand-in: it hands out captured frames and records the
 /// capture lifecycle.
-private final class FakeAudioEngine: CarLiveAudioEngine, @unchecked Sendable {
-    var startsBeforeConnection: Bool { false }
-    var permissionGranted = true
-    private(set) var startCount = 0
-    private(set) var stopCount = 0
-    private(set) var levelHandler: (@Sendable (Double, Double) -> Void)?
-    private var continuation: AsyncStream<Data>.Continuation?
-
-    func requestRecordPermission() async -> Bool { permissionGranted }
-
-    func startCapture() async throws -> CarLiveCaptureHandle {
-        startCount += 1
-        var captured: AsyncStream<Data>.Continuation!
-        let frames = AsyncStream<Data>(bufferingPolicy: .bufferingNewest(8)) { captured = $0 }
-        continuation = captured
-        return CarLiveCaptureHandle(generation: UInt64(startCount), frames: frames, finish: {})
-    }
-
-    func stopCapture(generation: UInt64) async { stopCount += 1 }
-
-    func setMuted(_ muted: Bool) {}
-    func enqueuePlayback(_ pcm: Data) {}
-    func clearPlayback() {}
-    func setPlaybackHeld(_ held: Bool) {}
-    func setLevelHandler(_ handler: (@Sendable (Double, Double) -> Void)?) { levelHandler = handler }
-    func setPlaybackIdleHandler(_ handler: (@Sendable () -> Void)?) {}
-    func setFailureHandler(_ handler: (@Sendable (String) -> Void)?) {}
-    func setHoldHandler(_ handler: (@Sendable (BackgroundVoiceHoldKind, UInt64) -> Void)?) {}
-
-    /// Delivers one captured frame to the engine.
-    func deliver(_ pcm: Data) {
-        continuation?.yield(pcm)
-    }
-}
 
 @MainActor
 private func waitUntil(_ condition: () -> Bool, timeout: TimeInterval = 2) async -> Bool {
@@ -53,6 +19,45 @@ private func waitUntil(_ condition: () -> Bool, timeout: TimeInterval = 2) async
         try? await Task.sleep(for: .milliseconds(5))
     }
     return condition()
+}
+
+@MainActor
+private final class FakeVoiceHost: DeviceVoiceHost {
+    var turns: [String] = []
+    var spoken: [String] = []
+    var permissionAnswers: [(permission: PendingPermission, allow: Bool)] = []
+    var turnAnswer = "ok"
+
+    func runDeviceVoiceTurn(_ transcript: String) async -> String? {
+        turns.append(transcript)
+        return turnAnswer
+    }
+
+    func speakDeviceVoiceReply(_ text: String) async {
+        spoken.append(text)
+    }
+
+    func stopDeviceVoiceReply() {}
+
+    func answerDeviceVoicePermission(_ permission: PendingPermission, allow: Bool) async {
+        permissionAnswers.append((permission, allow))
+    }
+
+    func deliverDeviceVoiceReplyToWatch(_ text: String) async {
+        spoken.append(text)
+    }
+}
+
+private func makePermission() -> PendingPermission {
+    PendingPermission(
+        sessionID: "s1",
+        permissionID: "p1",
+        permission: "bash",
+        patterns: [],
+        allowAlways: false,
+        tool: "bash",
+        description: "Run a command"
+    )
 }
 
 @Suite(.serialized)
@@ -203,5 +208,68 @@ struct DeviceVoiceEngineTests {
         await engine.start()
         audio.deliver(Data(repeating: 0, count: 4_800))
         #expect(await waitUntil { recognizer.appendedBufferCount > 0 })
+    }
+
+    @Test @MainActor func aSpokenYesAnswersAPermissionOnce() async throws {
+        let audio = FakeAudioEngine()
+        let recognizer = FakeStreamingRecognizer()
+        let host = FakeVoiceHost()
+        let engine = DeviceVoiceEngine(
+            audioEngine: audio,
+            makeSession: {
+                let session = OnDeviceSpeechSession(recognizer: recognizer)
+                try session.start()
+                return session
+            },
+            turnRunner: { text in await host.runDeviceVoiceTurn(text) },
+            speaker: { text in await host.speakDeviceVoiceReply(text) }
+        )
+        engine.host = host
+
+        await engine.start()
+        let permission = makePermission()
+        engine.askPermission(permission)
+        #expect(await waitUntil { host.spoken.contains { $0.contains("bash") } })
+
+        recognizer.emit(.transcript(SpeechTranscriptUpdate(text: "yes", isFinal: true)))
+        #expect(await waitUntil { !host.permissionAnswers.isEmpty })
+        #expect(host.permissionAnswers.first?.permission.id == permission.id)
+        #expect(host.permissionAnswers.first?.allow == true)
+        // The answer decides the permission; it is not a new turn.
+        #expect(host.turns.isEmpty)
+    }
+
+    @Test @MainActor func aSpokenNoRefusesAPermission() async throws {
+        let audio = FakeAudioEngine()
+        let recognizer = FakeStreamingRecognizer()
+        let host = FakeVoiceHost()
+        let engine = DeviceVoiceEngine(
+            audioEngine: audio,
+            makeSession: {
+                let session = OnDeviceSpeechSession(recognizer: recognizer)
+                try session.start()
+                return session
+            },
+            turnRunner: { text in await host.runDeviceVoiceTurn(text) },
+            speaker: { text in await host.speakDeviceVoiceReply(text) }
+        )
+        engine.host = host
+
+        await engine.start()
+        engine.askPermission(makePermission())
+        recognizer.emit(.transcript(SpeechTranscriptUpdate(text: "no, do not run that", isFinal: true)))
+        #expect(await waitUntil { !host.permissionAnswers.isEmpty })
+        #expect(host.permissionAnswers.first?.allow == false)
+    }
+
+    @Test func spokenAnswersAreWholeWords() {
+        #expect(DeviceVoiceEngine.isAffirmative("yes"))
+        #expect(DeviceVoiceEngine.isAffirmative("Yes, go ahead"))
+        #expect(DeviceVoiceEngine.isAffirmative("okay"))
+        #expect(DeviceVoiceEngine.isAffirmative("allow it"))
+        #expect(!DeviceVoiceEngine.isAffirmative("no"))
+        #expect(!DeviceVoiceEngine.isAffirmative("no, stop"))
+        #expect(!DeviceVoiceEngine.isAffirmative("I don't know"))
+        #expect(!DeviceVoiceEngine.isAffirmative(""))
     }
 }

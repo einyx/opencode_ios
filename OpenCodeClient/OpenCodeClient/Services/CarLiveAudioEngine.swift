@@ -809,3 +809,28 @@ nonisolated final class CarLiveIOSAudioEngine: CarLiveAudioEngine, @unchecked Se
 }
 
 #endif
+
+/// The capture format the audio engine produces: PCM16, mono, 24 kHz.
+nonisolated enum CarLivePCM {
+    static let sampleRate = 24_000
+
+    static func silence(byteCount: Int) -> Data {
+        let even = byteCount - (byteCount % 2)
+        return Data(count: max(0, even))
+    }
+
+    static func rms(_ pcm: Data) -> Double {
+        guard pcm.count >= 2 else { return 0 }
+        var sum = 0.0
+        var count = 0
+        pcm.withUnsafeBytes { raw in
+            for sample in raw.bindMemory(to: Int16.self) {
+                let value = Double(sample) / 32768
+                sum += value * value
+                count += 1
+            }
+        }
+        guard count > 0 else { return 0 }
+        return min(1, (sum / Double(count)).squareRoot())
+    }
+}
