@@ -27,8 +27,15 @@ enum UITestFieldFocus {
             }
             // The field is probably under the keyboard: scrolling the form
             // brings it up, and the keyboard stays where it is.
+            //
+            // The swipe has to land on the form's own collection view: a
+            // swipe that starts on a text field selects text instead of
+            // scrolling, and the topmost one is the sheet's form.
             if attempt < 2 {
-                app.swipeUp()
+                let forms = app.collectionViews
+                if forms.count > 0 {
+                    forms.element(boundBy: forms.count - 1).swipeUp()
+                }
             }
         }
         return false
