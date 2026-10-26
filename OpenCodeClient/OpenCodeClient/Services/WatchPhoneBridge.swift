@@ -41,9 +41,8 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
     /// An answer waiting for the watch to pick it up.
     private var pendingVoiceReply: String?
     private var beginning: String?
-    #if DEBUG
+    /// The last events the bridge saw, for a device run without a debugger.
     private var debugEvents: [[String: Any]] = []
-    #endif
 
     override init() {
         super.init()
