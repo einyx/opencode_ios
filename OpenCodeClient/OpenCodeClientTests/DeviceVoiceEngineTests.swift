@@ -237,6 +237,36 @@ struct DeviceVoiceEngineTests {
         #expect(host.permissionAnswers.first?.allow == true)
         // The answer decides the permission; it is not a new turn.
         #expect(host.turns.isEmpty)
+        // The user is told what was decided.
+        #expect(await waitUntil { host.spoken.contains { $0.contains("Allowed") } })
+    }
+
+    /// On the watch the confirmation has to go to the wrist too, not to the
+    /// phone's speaker next to the user's arm.
+    @Test @MainActor func thePermissionConfirmationFollowsTheDeliveryMode() async throws {
+        let audio = FakeAudioEngine()
+        let recognizer = FakeStreamingRecognizer()
+        let host = FakeVoiceHost()
+        let engine = DeviceVoiceEngine(
+            audioEngine: audio,
+            makeSession: {
+                let session = OnDeviceSpeechSession(recognizer: recognizer)
+                try session.start()
+                return session
+            },
+            turnRunner: { text in await host.runDeviceVoiceTurn(text) },
+            speaker: { text in await host.speakDeviceVoiceReply(text) }
+        )
+        engine.host = host
+        engine.delivery = .watch
+
+        await engine.start()
+        engine.askPermission(makePermission())
+        #expect(await waitUntil { host.spoken.contains { $0.contains("bash") } })
+
+        recognizer.emit(.transcript(SpeechTranscriptUpdate(text: "yes", isFinal: true)))
+        #expect(await waitUntil { !host.permissionAnswers.isEmpty })
+        #expect(await waitUntil { host.spoken.contains { $0.contains("Allowed") } })
     }
 
     @Test @MainActor func aSpokenNoRefusesAPermission() async throws {

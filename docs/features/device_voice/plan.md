@@ -3,9 +3,9 @@
 > Status: **stages 1–6 landed** (2026-10-26) — the app has no hosted voice path
 > left. The iPhone and the Apple Watch both recognise on the device and speak on the
 > device, and the only thing that leaves the device is text to the user's own
-> server. Still to do: the App Store copy, the published privacy policy and a new
-> build. Spec: `design.md` (read it first — it carries the wire facts). Plan: this
-> file. Design: `design.md`.
+> server. Still to do: build 34 uploaded and attached to version 1.0. Spec:
+> `design.md` (read it first — it carries the wire facts). Plan: this file. Design:
+> `design.md`.
 
 **Goal:** Make every voice surface in the app work with no third-party account, no
 pasted token and no audio leaving the device — Ambient Mode, the dictation engines and
@@ -60,33 +60,39 @@ framework (iOS only), `AVSpeechSynthesizer` (iOS + watchOS). OpenCode V1 + V2 HT
    answer text so the caller decides who speaks it. *Tests: `DeviceVoiceEngineTests` —
    final → spoken answer, partial without a turn, barge-in, missing microphone, stop
    releases the mic, frames reach the recogniser.*
-3. **Permission by voice — next.** A `permission.asked` for the ambient session is
-   spoken and answered by voice; `question.asked` uses the structured envelope's
-   `confirmation` prompt. Answered with `state.respondPermission`.
-4. **Watch: audio up, reply down.** New WatchConnectivity ops for mic frames (8 KiB
-   frames, SHA-256 digest, sequence numbers, reusing the existing chunked shape) and
-   for the transcript/reply text; local `AVSpeechSynthesizer` on the watch; the
-   `begin` reply loses `portal` and `token`.
-5. **In-app recorder.** Replace `VoiceFlowMicrophone` (VoiceFlowKit) with an
-   app-owned recorder: PCM16 / 24 kHz / mono capture, a smoothed level meter and a WAV
-   writer. It backs the composer's dictation. *Tests: level smoothing, WAV header,
-   capture-stop-resets.*
-6. **Delete the hosted path.** The AI Builder token/base URL/custom prompt/
+3. **Permission by voice — done.** A `permission.asked` for the ambient session is
+   spoken and answered by voice: the engine asks the question out loud and the next
+   utterance decides it, with whole-word matching so "know" cannot read as "no".
+   Answered with `state.respondPermission`. The confirmation follows the delivery
+   mode, so on the watch it is spoken on the wrist.
+   *Tests: a spoken yes allows once, a spoken no refuses, whole-word matching, the
+   confirmation reaches the watch.*
+4. **Watch: audio up, reply down — done.** The watch streams its microphone frames to
+   the phone over WatchConnectivity (the `audio` op) and the phone recognises them; the
+   answer comes back over the `voice` op and the watch speaks it with a local
+   `AVSpeechSynthesizer`. The `begin` reply lost `portal` and `token` — it now carries
+   the run id and nothing else.
+   *Tests: the bridge hands the audio to the engine and the answer back, and never
+   carries a credential.*
+5. **In-app recorder — done.** `DeviceMicrophone` replaces `VoiceFlowMicrophone`
+   (VoiceFlowKit): PCM16 mono capture, a smoothed level meter and a WAV writer. It
+   backs the composer's dictation.
+6. **Delete the hosted path — done.** The AI Builder token/base URL/custom prompt/
    terminology and its Settings block; the three cloud speech engines and the strategy
    picker rows for them; `CarLiveTransport` + the ticket handshake;
    `CarLiveController`'s hosted session; `CarLiveTools`' eight hosted functions;
    `CarLiveReplyBridge`'s hosted commentary path; the portal cost ledger; the
    `VoiceFlowKit` package, its licence manifest entries and the generated notices. The
-   24 polish-lint baseline entries for the deleted views go with them.
+   24 polish-lint baseline entries for the deleted views go with them, and the 55
+   strings the hosted path left behind go with them.
    *Tests: the suites for the deleted code go with it; the surviving suites must stay
    green.*
-7. **Docs + App Store.** This folder and the `docs/README.md` index row are done. Still
-   to do: the **published** privacy policy (drop the "Cloud (opt-in)" path, describe
-   Ambient Mode as on-device); `docs/appstore/review-notes.md` (the watch description is
-   inaccurate today — it says the watch does not run tools itself while it runs a
-   hosted session); `docs/appstore/app-privacy.md` (the answers stay "Data Not
-   Collected", now without the cloud-speech caveat); `docs/appstore/submission-checklist.md`;
-   new build 34 uploaded and attached to version 1.0.
+7. **Docs + App Store.** This folder and the `docs/README.md` index row are done. The
+   **published** privacy policy now describes the on-device voice and the watch→phone
+   flow; `docs/appstore/review-notes.md` describes the watch honestly;
+   `docs/appstore/app-privacy.md` keeps the "Data Not Collected" answers without the
+   cloud-speech caveat; `docs/appstore/submission-checklist.md` records the change.
+   Still to do: build 34 uploaded and attached to version 1.0.
 
 
 ## Verification

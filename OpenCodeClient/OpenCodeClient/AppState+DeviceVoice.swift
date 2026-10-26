@@ -27,7 +27,6 @@ extension AppState: DeviceVoiceHost {
     /// permission card offers.
     func answerDeviceVoicePermission(_ permission: PendingPermission, allow: Bool) async {
         await respondPermission(permission, response: allow ? .once : .reject)
-        await carSpeechOutput.speak(L10n.t(allow ? .carVoicePermissionAllowed : .carVoicePermissionRefused))
     }
 
     /// Stops the current utterance.

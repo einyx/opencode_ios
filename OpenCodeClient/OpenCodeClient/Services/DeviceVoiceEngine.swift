@@ -379,8 +379,11 @@ final class DeviceVoiceEngine {
             pendingPermission = nil
             let allow = Self.isAffirmative(text)
             let host = host
-            Task {
+            Task { [weak self] in
                 await host?.answerDeviceVoicePermission(permission, allow: allow)
+                // The confirmation follows the answer to wherever the answer
+                // goes: the phone's speaker, or the watch.
+                await self?.speakAnswer(L10n.t(allow ? .carVoicePermissionAllowed : .carVoicePermissionRefused))
             }
             return
         }

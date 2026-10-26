@@ -26,10 +26,18 @@ final class HIGPatternsUITests: XCTestCase {
         search.tap()
         search.typeText("Child")
         XCTAssertTrue(app.staticTexts["Child Session"].waitForExistence(timeout: 4))
-        XCTAssertFalse(app.staticTexts["Archived Session"].exists)
+        // The search covers the loaded sessions of both groups, and keeps the
+        // ancestors of a match so the path to it stays readable: "Archived
+        // Child" matches, so its parent "Archived Session" stays as the row
+        // that holds it.
+        XCTAssertTrue(app.staticTexts["Archived Child"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Archived Session"].exists)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Searches titles in loaded sessions")).firstMatch.exists)
         search.buttons.firstMatch.tap()
+        // With the query gone the archived group collapses again, so its rows
+        // leave the list.
         XCTAssertTrue(app.staticTexts["Root Session"].waitForExistence(timeout: 4))
+        XCTAssertFalse(app.staticTexts["Archived Child"].exists)
     }
 
     @MainActor
