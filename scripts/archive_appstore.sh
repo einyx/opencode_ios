@@ -25,8 +25,12 @@ mkdir -p "$ARCHIVE_DIR"
 
 # Every archive carries a fresh build number, so no two uploads claim the
 # same one and the version in App Store Connect always has a newer build to
-# pick up.
-"$REPO_ROOT/scripts/bump_build.sh"
+# pick up. Set OPENCODE_SKIP_BUILD_BUMP=1 to keep the current number.
+if [ "${OPENCODE_SKIP_BUILD_BUMP:-0}" != "1" ]; then
+  "$REPO_ROOT/scripts/bump_build.sh"
+else
+  echo "==> Keeping build $(./scripts/bump_build.sh --show) (OPENCODE_SKIP_BUILD_BUMP=1)"
+fi
 
 echo "==> Archiving $SCHEME (Release)"
 xcodebuild archive \

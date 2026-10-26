@@ -230,7 +230,6 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
         }
     }
 
-    #if DEBUG
     private func probeEvent(_ stage: String, message: [String: Any] = [:], response: [String: Any] = [:], elapsed: TimeInterval = 0) {
         var record: [String: Any] = ["stage": stage, "time": Date().timeIntervalSince1970, "elapsed": elapsed]
         for (key, value) in message {
@@ -269,7 +268,6 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
             try? data.write(to: url, options: .atomic)
         }
     }
-    #endif
 }
 
 extension AppState {

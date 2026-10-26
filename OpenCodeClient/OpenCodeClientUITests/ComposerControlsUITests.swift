@@ -7,11 +7,10 @@ final class ComposerControlsUITests: XCTestCase {
     }
 
     @MainActor
-    private func launch(side: String? = nil, speech: Bool = true, images: Bool = true, voiceFirst: Bool = false, draft: String? = nil) -> XCUIApplication {
+    private func launch(side: String? = nil, images: Bool = true, voiceFirst: Bool = false, draft: String? = nil) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST_SESSION_TREE_FIXTURE"]
         app.launchEnvironment["UITEST_LAYOUT_PREFERENCE"] = "focus"
-        if speech { app.launchEnvironment["UITEST_COMPOSER_SPEECH_CONFIGURED"] = "1" }
         if let side { app.launchEnvironment["UITEST_COMPOSER_SIDE"] = side }
         if !images { app.launchEnvironment["UITEST_COMPOSER_HIDE_IMAGE"] = "1" }
         if voiceFirst { app.launchEnvironment["UITEST_COMPOSER_VOICE_FIRST"] = "1" }
@@ -29,30 +28,27 @@ final class ComposerControlsUITests: XCTestCase {
         let input = app.textViews["chat-input"]
         XCTAssertTrue(mic.waitForExistence(timeout: 4), app.debugDescription)
         XCTAssertTrue(send.exists)
-        // The mic is part of the composer action cluster (photo, mic, send):
-        // one row of equal-weight glyphs at the trailing edge, with the send
-        // button the only filled one.
-        if left {
-            XCTAssertLessThan(mic.frame.maxX, send.frame.maxX)
-        } else {
-            XCTAssertGreaterThan(mic.frame.minX, send.frame.minX)
+        // The action cluster is one row of equal-weight glyphs in the Messages
+        // order — photo, mic, send — with the send button the only filled one.
+        // A left-handed composer mirrors the row.
+        var ordered = [photo, mic, send]
+        if left { ordered.reverse() }
+        let visible = ordered.filter { $0.exists }
+        for pair in zip(visible, visible.dropFirst()) {
+            XCTAssertLessThan(pair.0.frame.minX, pair.1.frame.minX)
         }
         if imageVisible {
             XCTAssertTrue(photo.exists)
+            XCTAssertTrue(photo.isHittable)
             // Photo, mic and send share one bottom-aligned row.
-            XCTAssertLessThan(photo.frame.maxX, mic.frame.minX)
-            XCTAssertLessThan(mic.frame.maxX, send.frame.minX)
             XCTAssertEqual(photo.frame.maxY, send.frame.maxY, accuracy: 1)
             XCTAssertEqual(mic.frame.maxY, send.frame.maxY, accuracy: 1)
-            XCTAssertTrue(photo.isHittable)
         } else {
             XCTAssertFalse(photo.exists)
         }
-        if left {
-            XCTAssertLessThan(send.frame.maxX, input.frame.minX)
-        } else {
-            XCTAssertGreaterThan(send.frame.minX, input.frame.maxX)
-        }
+        // The cluster sits at the trailing edge of the composer, over the
+        // input field rather than beside it.
+        XCTAssertGreaterThan(send.frame.maxX, input.frame.maxX - 160)
         XCTAssertGreaterThanOrEqual(mic.frame.width, 44)
         XCTAssertGreaterThanOrEqual(mic.frame.height, 44)
         XCTAssertTrue(mic.isHittable)
@@ -83,11 +79,12 @@ final class ComposerControlsUITests: XCTestCase {
         assertAligned(app, left: true, imageVisible: false)
     }
 
+    /// Voice input needs no credential, so the rail is always there — and the
+    /// keyboard still works beside it.
     @MainActor
-    func testNoTokenHidesEntireRailAndRestoresKeyboard() {
-        let app = launch(speech: false, voiceFirst: true)
-        XCTAssertFalse(app.buttons["speech-transport"].exists)
-        XCTAssertFalse(app.descendants(matching: .any)["speech-waveform"].exists)
+    func testVoiceRailIsAlwaysAvailableAndTheKeyboardStillWorks() {
+        let app = launch(voiceFirst: true)
+        XCTAssertTrue(app.buttons["speech-transport"].exists)
         XCTAssertFalse(app.buttons["chat-keyboard"].exists)
         let input = app.textViews["chat-input"]
         input.tap()
