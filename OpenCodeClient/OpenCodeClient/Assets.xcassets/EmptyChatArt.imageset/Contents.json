@@ -6,14 +6,47 @@
       "scale": "3x"
     },
     {
+      "filename": "EmptyChatArt@3x-dark.png",
+      "idiom": "universal",
+      "scale": "3x",
+      "appearances": [
+        {
+          "appearance": "luminosity",
+          "value": "dark"
+        }
+      ]
+    },
+    {
       "filename": "EmptyChatArt@2x.png",
       "idiom": "universal",
       "scale": "2x"
     },
     {
+      "filename": "EmptyChatArt@2x-dark.png",
+      "idiom": "universal",
+      "scale": "2x",
+      "appearances": [
+        {
+          "appearance": "luminosity",
+          "value": "dark"
+        }
+      ]
+    },
+    {
       "filename": "EmptyChatArt@1x.png",
       "idiom": "universal",
       "scale": "1x"
+    },
+    {
+      "filename": "EmptyChatArt@1x-dark.png",
+      "idiom": "universal",
+      "scale": "1x",
+      "appearances": [
+        {
+          "appearance": "luminosity",
+          "value": "dark"
+        }
+      ]
     }
   ],
   "info": {

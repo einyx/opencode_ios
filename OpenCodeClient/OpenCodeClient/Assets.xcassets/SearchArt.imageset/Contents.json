@@ -6,14 +6,47 @@
       "scale": "3x"
     },
     {
+      "filename": "SearchArt@3x-dark.png",
+      "idiom": "universal",
+      "scale": "3x",
+      "appearances": [
+        {
+          "appearance": "luminosity",
+          "value": "dark"
+        }
+      ]
+    },
+    {
       "filename": "SearchArt@2x.png",
       "idiom": "universal",
       "scale": "2x"
     },
     {
+      "filename": "SearchArt@2x-dark.png",
+      "idiom": "universal",
+      "scale": "2x",
+      "appearances": [
+        {
+          "appearance": "luminosity",
+          "value": "dark"
+        }
+      ]
+    },
+    {
       "filename": "SearchArt@1x.png",
       "idiom": "universal",
       "scale": "1x"
+    },
+    {
+      "filename": "SearchArt@1x-dark.png",
+      "idiom": "universal",
+      "scale": "1x",
+      "appearances": [
+        {
+          "appearance": "luminosity",
+          "value": "dark"
+        }
+      ]
     }
   ],
   "info": {

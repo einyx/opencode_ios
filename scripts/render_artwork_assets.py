@@ -34,6 +34,12 @@ BACKGROUND_RECT = re.compile(r'\s*<rect width="1024" height="1024" fill="#[0-9A-
 
 SIZES = (("3x", 1024), ("2x", 683), ("1x", 341))
 
+# The drawings are black ink on transparent: right on the app's light
+# surfaces, invisible on the dark ones. A dark-appearance variant with warm
+# light ink keeps them legible in both.
+INK_DARK = "#1B1A18"
+INK_LIGHT = "#EDE8DF"
+
 
 # The masters are named in lower case; the asset names are the camel-cased
 # ones the app refers to.
@@ -67,6 +73,11 @@ def asset_name(stem: str) -> str:
 def transparent(markup: str) -> str:
     """The same drawing without its background field."""
     return BACKGROUND_RECT.sub("", markup, count=1)
+
+
+def light_ink(markup: str) -> str:
+    """The same drawing with warm light ink, for the dark appearance."""
+    return markup.replace(INK_DARK, INK_LIGHT)
 
 
 def render_png(markup: str, out: pathlib.Path, size: int) -> None:
@@ -131,6 +142,17 @@ def render_imageset(name: str, markup: str) -> None:
             render_png(markup, out, px)
             ensure_exact_case(out)
             images.append({"filename": out.name, "idiom": "universal", "scale": scale})
+            # Dark appearance: warm light ink, so the drawing stays legible on
+            # the app's dark surfaces.
+            dark = folder / f"{name}@{scale}-dark.png"
+            render_png(light_ink(markup), dark, px)
+            ensure_exact_case(dark)
+            images.append({
+                "filename": dark.name,
+                "idiom": "universal",
+                "scale": scale,
+                "appearances": [{"appearance": "luminosity", "value": "dark"}],
+            })
         (folder / "Contents.json").write_text(
             json.dumps({"images": images, "info": {"author": "xcode", "version": 1}}, indent=2) + "\n"
         )
