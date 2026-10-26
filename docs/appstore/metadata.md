@@ -88,9 +88,9 @@ their tool calls, and review the changes they make.
 
 | Field | Value |
 |---|---|
-| Support URL | `https://github.com/einyx/opencode_ios/issues` |
-| Marketing URL | `https://github.com/einyx/opencode_ios` |
-| Privacy policy URL | `https://einyx.github.io/opencode_ios/appstore/privacy-policy` — published with GitHub Pages from `main` / `/docs` |
+| Support URL | `https://github.com/einyx/opencodex/issues` |
+| Marketing URL | `https://github.com/einyx/opencodex` |
+| Privacy policy URL | `https://einyx.github.io/opencodex/appstore/privacy-policy` — published with GitHub Pages from `main` / `/docs` |
 
 ## Screenshots
 

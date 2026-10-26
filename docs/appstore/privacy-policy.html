@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy — OpenCodeX</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 680px; margin: 40px auto; padding: 0 20px; color: #292823; line-height: 1.6; }
+        h1 { font-size: 1.5em; }
+        h2 { font-size: 1.15em; margin-top: 2em; }
+        ul { padding-left: 1.2em; }
+        li { margin: 0.35em 0; }
+        .meta { color: #73716a; font-size: 0.9em; }
+        footer { margin-top: 3em; padding-top: 1em; border-top: 1px solid #e6e2d9; color: #73716a; font-size: 0.85em; }
+        a { color: #b4573a; }
+    </style>
+</head>
+<body>
+    <h1>Privacy Policy for OpenCodeX</h1>
+    <p class="meta">Last updated: 2026-10-26</p>
+
+    <p>OpenCodeX is an iOS, iPadOS, watchOS and visionOS client for
+    <a href="https://github.com/anomalyco/opencode">OpenCode</a>, the open-source
+    AI coding agent. This policy explains what the app does with your data.</p>
+
+    <h2>The short version</h2>
+    <p>OpenCodeX has <strong>no accounts, no analytics, no advertising and no
+    tracking</strong>. It talks to the OpenCode server <strong>you</strong>
+    choose, and to nothing else. The developers of the app never receive your
+    prompts, your replies, your code or your credentials.</p>
+
+    <h2>What the app stores on your device</h2>
+    <p>The app stores the configuration needed to reach the servers you add:</p>
+    <ul>
+        <li>the server address, transport (direct or SSH tunnel) and SSH settings;</li>
+        <li>the username and a reference to the credential you provide;</li>
+        <li>your server password or pairing token, stored in the system keychain;</li>
+        <li>the selected model and agent per server, your draft messages, and the
+        transcripts the server has sent you, so the app can show them again;</li>
+        <li>your language preference and other interface settings.</li>
+    </ul>
+
+    <h2>What the app sends where</h2>
+    <p>Everything the app sends goes to the OpenCode server you added:</p>
+    <ul>
+        <li>your messages, the images you attach, and the agent or model you pick;</li>
+        <li>the tool calls an agent makes and their results, which the app displays;</li>
+        <li>the name of the file or folder you open in the file browser.</li>
+    </ul>
+    <p>If you use the AI Usage Dashboard integration, the app also asks that
+    dashboard for your provider's quota. It points at the dashboard you configure
+    yourself.</p>
+
+    <h2>Camera and microphone</h2>
+    <ul>
+        <li>The <strong>camera</strong> is used only when you scan a pairing QR
+        code, and only when you tap the scan button.</li>
+        <li>The <strong>microphone</strong> is used when you dictate a message, or
+        when you use Ambient mode to talk to the assistant.</li>
+    </ul>
+
+    <h2>Voice transcription</h2>
+    <p>Voice input has two paths, and they are not the same:</p>
+    <ul>
+        <li><strong>On-device (default).</strong> Speech recognition runs on the
+        device using Apple's frameworks. The recording is not uploaded anywhere.</li>
+        <li><strong>Cloud (opt-in).</strong> If you select a cloud speech strategy
+        in Settings → Input &amp; Voice, the recording is uploaded to the speech
+        service you configure there and only the transcript is returned. That
+        service is a separate provider you choose; its own privacy policy and
+        terms apply to the audio. The app does not ship a speech service of its
+        own, and the developers do not receive the audio.</li>
+    </ul>
+
+    <h2>Optional Health export</h2>
+    <p>The app can ask an agent on your server to export Health data. When you
+    approve that request, the app opens the separate Health Quantification app
+    with a one-time callback address. That app performs the export to the server
+    it is configured with. The health details themselves are not returned through
+    the callback, and they are not sent to the OpenCodeX developers.</p>
+
+    <h2>Local network</h2>
+    <p>The app asks for permission to reach devices on your local network so it
+    can connect to an OpenCode server running on your computer.</p>
+
+    <h2>Background audio</h2>
+    <p>Ambient mode can keep recording while the app is in the background so a
+    conversation is not cut off. The recording stops when you end the
+    conversation.</p>
+
+    <h2>No data collection by the developers</h2>
+    <p>The developers of OpenCodeX do not operate a server for the app, do not
+    collect analytics, and do not receive anything you type. Your data stays
+    between your device and the servers you configured.</p>
+
+    <h2>Children's privacy</h2>
+    <p>The app is not directed at children and collects no data from anyone,
+    including children.</p>
+
+    <h2>Third-party open source</h2>
+    <p>The app links open-source packages under permissive licences. Their
+    licences are listed in the app under Settings → Open source licences.</p>
+
+    <h2>Changes</h2>
+    <p>If this policy is updated, the updated version will be published at the
+    same URL and the date above will change.</p>
+
+    <h2>Contact</h2>
+    <p>Questions about this policy can go to the issue tracker of the app's
+    repository:
+    <a href="https://github.com/einyx/opencodex/issues">github.com/einyx/opencodex/issues</a>.</p>
+
+    <footer>OpenCodeX is licensed under the Apache License 2.0.</footer>
+</body>
+</html>

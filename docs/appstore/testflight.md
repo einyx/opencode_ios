@@ -125,7 +125,7 @@ install): publish the text in `docs/appstore/privacy-policy.md` and put the
 URL in App Store Connect → App Information → Privacy Policy URL. GitHub Pages
 over this repository is the quickest route, and it is done — the site publishes
 `main` / `/docs`, so the policy is live at
-`https://einyx.github.io/opencode_ios/appstore/privacy-policy`.
+`https://einyx.github.io/opencodex/appstore/privacy-policy`.
 
 ## 5. After the upload
 

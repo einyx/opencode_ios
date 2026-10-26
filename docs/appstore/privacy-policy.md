@@ -4,22 +4,27 @@ Publish this as a web page (GitHub Pages over this repository is the simplest
 option) and put its URL in App Store Connect. Apple requires the policy to be
 reachable without a login.
 
+The published URL is `https://einyx.github.io/opencodex/appstore/privacy-policy`,
+served from `main` / `/docs` on the `einyx/opencodex` repository. A standalone
+HTML copy lives at `docs/appstore/privacy-policy.html` for the plain
+`privacy-policy.html` path; keep the two in sync.
+
 ---
 
-# Privacy Policy for OpenCode Remote
+# Privacy Policy for OpenCodeX
 
-_Last updated: 2026-10-25_
+_Last updated: 2026-10-26_
 
-OpenCode Remote is an iOS, iPadOS and visionOS client for
+OpenCodeX is an iOS, iPadOS, watchOS and visionOS client for
 [OpenCode](https://github.com/anomalyco/opencode), the open-source AI coding
 agent. This policy explains what the app does with your data.
 
 ## The short version
 
-OpenCode Remote has **no accounts, no analytics, no advertising and no
-tracking**. It talks to the OpenCode server **you** choose, and to nothing else.
-The developers of the app never receive your prompts, your replies, your code or
-your credentials.
+OpenCodeX has **no accounts, no analytics, no advertising and no tracking**. It
+talks to the OpenCode server **you** choose, and to nothing else. The developers
+of the app never receive your prompts, your replies, your code or your
+credentials.
 
 ## What the app stores on your device
 
@@ -47,15 +52,28 @@ for your provider's quota. It points at the dashboard you configure yourself.
 
 - The **camera** is used only when you scan a pairing QR code, and only when
   you tap the scan button.
-- The **microphone** is used when you dictate a message, or when you use
-  Ambient mode to talk to the assistant. The recording is sent to the
-  transcription service behind your own OpenCode server.
+- The **microphone** is used when you dictate a message, or when you use Ambient
+  mode to talk to the assistant.
 
 ## Voice transcription
 
-When the app transcribes speech, the audio is sent to the transcription
-provider configured in your OpenCode server (the same one the server uses for
-its own voice input). The app has no built-in speech service of its own.
+Voice input has two paths, and they are not the same:
+
+- **On-device (default).** Speech recognition runs on the device using Apple's
+  frameworks. The recording is not uploaded anywhere.
+- **Cloud (opt-in).** If you select a cloud speech strategy in Settings → Input
+  & Voice, the recording is uploaded to the speech service you configure there
+  and only the transcript is returned. That service is a separate provider you
+  choose; its own privacy policy and terms apply to the audio. The app does not
+  ship a speech service of its own, and the developers do not receive the audio.
+
+## Optional Health export
+
+The app can ask an agent on your server to export Health data. When you approve
+that request, the app opens the separate Health Quantification app with a
+one-time callback address. That app performs the export to the server it is
+configured with. The health details themselves are not returned through the
+callback, and they are not sent to the OpenCodeX developers.
 
 ## Local network
 
@@ -69,9 +87,9 @@ conversation is not cut off. The recording stops when you end the conversation.
 
 ## No data collection by the developers
 
-The developers of OpenCode Remote do not operate a server for the app, do not
-collect analytics, and do not receive anything you type. Your data stays
-between your device and the servers you configured.
+The developers of OpenCodeX do not operate a server for the app, do not collect
+analytics, and do not receive anything you type. Your data stays between your
+device and the servers you configured.
 
 ## Children's privacy
 
@@ -81,14 +99,14 @@ including children.
 ## Third-party open source
 
 The app links open-source packages under permissive licences. Their licences
-are listed in the app under Settings → About → Open source licences.
+are listed in the app under Settings → Open source licences.
 
 ## Changes
 
-If this policy changes, the updated version will be published at the same URL
+If this policy is updated, the updated version will be published at the same URL
 and the date above will change.
 
 ## Contact
 
 Questions about this policy can go to the issue tracker of the app's
-repository: `https://github.com/einyx/opencode_ios/issues`.
+repository: `https://github.com/einyx/opencodex/issues`.

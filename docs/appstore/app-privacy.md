@@ -1,5 +1,19 @@
 # App Store Connect: App Privacy answers
 
+> **Do not submit these historical answers unchanged.** The current app has
+> configurable cloud speech and an optional companion Health export workflow.
+> The blanket “Data Not Collected” conclusion below has not been verified for
+> those services. Confirm provider roles and retention, update the public
+> privacy policy, and complete the questionnaire with the owner first. See the
+> current status in `submission-checklist.md`.
+
+Update for 2026-10-26: the questionnaire was completed as **Data Not
+Collected**, with the privacy policy URL set to
+`https://einyx.github.io/opencodex/appstore/privacy-policy`. The published
+page is reachable, but its copy still says “OpenCode Remote”, still cites the
+old issue tracker, and does not describe the optional cloud speech or Health
+export paths. Update the published page before submission.
+
 Fill these into the **App Privacy** section of the App Store Connect record.
 
 The key point: the app is a *client*. Everything it sends goes to the OpenCode
