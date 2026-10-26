@@ -949,10 +949,17 @@ struct HostProfileEditorView: View {
             }
             .confirmationDialog(L10n.t(.hostDiscardTitle), isPresented: $showDiscardConfirmation, titleVisibility: .visible) {
                 Button(L10n.t(.hostDiscardChanges), role: .destructive) { dismiss() }
-                Button(L10n.t(.hostKeepEditing), role: .cancel) {}
+                // No role on the second button: with `role: .cancel` the
+                // dialog sizes itself for one button and the second one
+                // falls off the bottom, out of reach.
+                Button(L10n.t(.hostKeepEditing)) {}
             } message: {
+                // The message is never empty: an empty one leaves the dialog
+                // a button short, and "Keep Editing" falls off the bottom.
                 if lastRedeemedCode != nil || isPairing {
                     Text(L10n.t(.hostDiscardPairingWarning))
+                } else {
+                    Text(L10n.t(.hostDiscardChangesWarning))
                 }
             }
             .alert(L10n.t(.hostPairReplaceTitle), isPresented: Binding(

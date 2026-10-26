@@ -57,7 +57,7 @@ final class HIGPatternsUITests: XCTestCase {
         XCTAssertEqual(field.value as? String, "Unsaved host", "the typed name should land in the field")
         app.navigationBars.buttons["Cancel"].tap()
         let keep = app.buttons["Keep Editing"]
-        XCTAssertTrue(keep.waitForExistence(timeout: 4))
+        XCTAssertTrue(keep.waitForExistence(timeout: 4), app.debugDescription)
         keep.tap()
         XCTAssertEqual(field.value as? String, "Unsaved host")
         app.navigationBars.buttons["Cancel"].tap()

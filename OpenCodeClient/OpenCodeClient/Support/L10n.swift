@@ -22,7 +22,7 @@ enum L10n {
     enum Key: String, CaseIterable {
         case expanded, collapsed, selected, notSelected, moveUp, moveDown
         case hostSaveAndConnect, hostConnect, hostDiscardTitle, hostDiscardChanges, hostKeepEditing
-        case hostManualImport, hostScanTitle, hostDiscardPairingWarning
+        case hostManualImport, hostScanTitle, hostDiscardPairingWarning, hostDiscardChangesWarning
         case sessionsSearchLoaded, sessionsSearchScope, sessionsNoMatches
         case sessionsDeleteConfirmation, sessionsDeleteWarning
         case fileTreeEmpty, fileStatusAdded, fileStatusDeleted, fileStatusModified, fileStatusUntracked
@@ -561,6 +561,7 @@ enum L10n {
         Key.hostDiscardChanges.rawValue: "Discard Changes",
         Key.hostKeepEditing.rawValue: "Keep Editing",
         Key.hostDiscardPairingWarning.rawValue: "Discarding also loses the paired credentials. A redeemed pairing code cannot be used again; generate a new code on the server to pair later.",
+        Key.hostDiscardChangesWarning.rawValue: "The host details you typed will not be saved.",
         Key.hostManualImport.rawValue: "Import JSON configuration",
         Key.hostScanTitle.rawValue: "Scan pairing code",
         Key.sessionsSearchLoaded.rawValue: "Search loaded sessions",
@@ -1111,6 +1112,7 @@ enum L10n {
         Key.hostDiscardChanges.rawValue: "放弃更改",
         Key.hostKeepEditing.rawValue: "继续编辑",
         Key.hostDiscardPairingWarning.rawValue: "放弃更改也会丢失配对凭据。已使用的配对码无法再次使用；如需稍后配对，请在服务器上生成新码。",
+        Key.hostDiscardChangesWarning.rawValue: "你填写的主机信息将不会被保存。",
         Key.hostManualImport.rawValue: "导入 JSON 配置",
         Key.hostScanTitle.rawValue: "扫描配对码",
         Key.sessionsSearchLoaded.rawValue: "搜索已加载的会话",
