@@ -28,6 +28,6 @@ struct CarModeView: View {
     var state: AppState
 
     var body: some View {
-        CarLiveView(state: state)
+        AmbientVoiceView(state: state)
     }
 }

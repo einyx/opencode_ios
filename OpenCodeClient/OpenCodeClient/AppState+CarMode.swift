@@ -38,9 +38,15 @@ extension AppState {
         currentCarSessionRecord?.sessionID
     }
 
-    func submitCarTurn(_ rawText: String) async {
+    /// Runs one turn and returns the text of the answer.
+    ///
+    /// `speaks` decides who says it out loud: the phone speaks the answer
+    /// locally, while the watch asks the phone for the text and speaks it on
+    /// the wrist.
+    @discardableResult
+    func submitCarTurn(_ rawText: String, speaks: Bool = true) async -> String? {
         let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+        guard !text.isEmpty else { return nil }
 
         let turnID = UUID()
         let target = CarTurnTarget(
@@ -56,11 +62,11 @@ extension AppState {
         do {
             guard let session = try await ensureCarSession(target) else {
                 abandonCarTurnIfStillOwned(target)
-                return
+                return nil
             }
             guard carTurnIsCurrent(target) else {
                 abandonCarTurnIfStillOwned(target)
-                return
+                return nil
             }
             let response = try await apiClient.promptStructured(
                 sessionID: session.id,
@@ -72,17 +78,18 @@ extension AppState {
             )
             guard carTurnIsCurrent(target) else {
                 abandonCarTurnIfStillOwned(target)
-                return
+                return nil
             }
-            try await handleCarResponse(response, sessionID: session.id, target: target)
+            return try await handleCarResponse(response, sessionID: session.id, target: target, speaks: speaks)
         } catch {
             guard carTurnIsCurrent(target) else {
                 abandonCarTurnIfStillOwned(target)
-                return
+                return nil
             }
             carError = error.localizedDescription
             carPhase = .failed
             carActiveTurnID = nil
+            return nil
         }
     }
 
@@ -164,10 +171,15 @@ extension AppState {
         return session
     }
 
-    private func handleCarResponse(_ response: MessageWithParts, sessionID: String, target: CarTurnTarget) async throws {
+    private func handleCarResponse(
+        _ response: MessageWithParts,
+        sessionID: String,
+        target: CarTurnTarget,
+        speaks: Bool
+    ) async throws -> String? {
         guard carTurnIsCurrent(target) else {
             abandonCarTurnIfStillOwned(target)
-            return
+            return nil
         }
         guard response.info.isAssistant,
               response.info.sessionID == sessionID,
@@ -179,7 +191,7 @@ extension AppState {
         guard carSessionsByContext[recordKey]?.lastHandledAssistantMessageID != response.info.id else {
             carPhase = .idle
             carActiveTurnID = nil
-            return
+            return nil
         }
         var record = carSessionsByContext[recordKey] ?? CarSessionRecord(
             sessionID: sessionID,
@@ -194,11 +206,13 @@ extension AppState {
         persistCarSessions()
 
         carLastResponse = envelope
-        carPhase = .speaking
-        await carSpeechOutput.speak(envelope.speech)
+        if speaks {
+            carPhase = .speaking
+            await carSpeechOutput.speak(envelope.speech)
+        }
         guard carTurnIsCurrent(target) else {
             abandonCarTurnIfStillOwned(target)
-            return
+            return nil
         }
 
         if envelope.status == .completed, let action = envelope.clientActions.first {
@@ -221,7 +235,7 @@ extension AppState {
 
         guard carTurnIsCurrent(target) else {
             abandonCarTurnIfStillOwned(target)
-            return
+            return nil
         }
         switch envelope.status {
         case .completed:
@@ -232,6 +246,7 @@ extension AppState {
             carPhase = .failed
         }
         carActiveTurnID = nil
+        return envelope.speech
     }
 
     func noteServerCurrentProjectWorktree(_ newValue: String?) {

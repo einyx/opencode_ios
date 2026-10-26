@@ -253,6 +253,7 @@ final class AppState {
         self.sshTunnelManager = sshTunnelManager ?? SSHTunnelManager()
         self.aiUsageQuotaClient = aiUsageQuotaClient ?? AIUsageQuotaClient()
         self.carSpeechOutput = carSpeechOutput ?? CarSpeechOutputService()
+        self.deviceVoice = DeviceVoiceEngine()
         self.deepLinkSessionResolver = deepLinkSessionResolver
         self.deepLinkHydratesSelection = deepLinkHydratesSelection
         self.clientCapabilityStore = clientCapabilityStore
@@ -333,6 +334,10 @@ final class AppState {
            let decoded = try? JSONDecoder().decode([ModelShortlistItem].self, from: data) {
             modelShortlist = decoded
         }
+
+        // The voice engine asks the state to run turns and to speak, so it
+        // can only be given its host once the state is fully built.
+        deviceVoice.host = self
     }
 
     var sessionScope = SessionScopedState()
@@ -1366,6 +1371,10 @@ final class AppState {
     var carActiveCapabilityCallbackID: String?
     var carLastKnownServerWorktree: String?
     let carSpeechOutput: CarSpeechOutputProviding
+
+    /// The hands-free voice loop: on-device recognition, the user's own server
+    /// as the brain, on-device speech.
+    let deviceVoice: DeviceVoiceEngine
     let clientCapabilityStore: ClientCapabilityCallbackStore
     let clientCapabilityURLOpener: @MainActor (URL) async -> Bool
     var pendingClientCapabilityRequest: PendingClientCapabilityRequest?

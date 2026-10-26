@@ -362,6 +362,17 @@ enum L10n {
         case carUnsupportedAction
         case carMapsUnavailable
         case carTranscriptionFailed
+        case carVoiceMicrophoneDenied
+        case carVoiceReady
+        case carVoiceListening
+        case carVoiceThinking
+        case carVoiceSpeaking
+        case carVoiceUnavailable
+        case carVoiceYou
+        case carVoiceOpenCode
+        case carVoiceStart
+        case carVoiceStop
+        case carVoiceEnd
         case carLiveModeMenuTitle
         case carLiveModeRealtime
         case carLiveModeTurnByTurn
@@ -952,6 +963,17 @@ enum L10n {
         Key.carUnsupportedAction.rawValue: "OpenCode requested an unsupported client action.",
         Key.carMapsUnavailable.rawValue: "Apple Maps could not open this route.",
         Key.carTranscriptionFailed.rawValue: "The recording could not be transcribed.",
+        Key.carVoiceMicrophoneDenied.rawValue: "Ambient Mode needs the microphone.",
+        Key.carVoiceReady.rawValue: "Ready",
+        Key.carVoiceListening.rawValue: "Listening",
+        Key.carVoiceThinking.rawValue: "Thinking",
+        Key.carVoiceSpeaking.rawValue: "Speaking",
+        Key.carVoiceUnavailable.rawValue: "Voice is unavailable: %@",
+        Key.carVoiceYou.rawValue: "You",
+        Key.carVoiceOpenCode.rawValue: "OpenCode",
+        Key.carVoiceStart.rawValue: "Start listening",
+        Key.carVoiceStop.rawValue: "Stop listening",
+        Key.carVoiceEnd.rawValue: "End the conversation",
         Key.carLiveModeMenuTitle.rawValue: "Voice Mode",
         Key.carLiveModeRealtime.rawValue: "Live Voice",
         Key.carLiveModeTurnByTurn.rawValue: "Sentence by sentence",
@@ -1538,6 +1560,17 @@ enum L10n {
         Key.carUnsupportedAction.rawValue: "OpenCode 请求了不支持的客户端操作。",
         Key.carMapsUnavailable.rawValue: "Apple 地图无法打开这条路线。",
         Key.carTranscriptionFailed.rawValue: "无法完成这段录音的转写。",
+        Key.carVoiceMicrophoneDenied.rawValue: "Ambient 模式需要麦克风权限。",
+        Key.carVoiceReady.rawValue: "准备就绪",
+        Key.carVoiceListening.rawValue: "正在聆听",
+        Key.carVoiceThinking.rawValue: "正在思考",
+        Key.carVoiceSpeaking.rawValue: "正在说话",
+        Key.carVoiceUnavailable.rawValue: "语音不可用：%@",
+        Key.carVoiceYou.rawValue: "你",
+        Key.carVoiceOpenCode.rawValue: "OpenCode",
+        Key.carVoiceStart.rawValue: "开始聆听",
+        Key.carVoiceStop.rawValue: "停止聆听",
+        Key.carVoiceEnd.rawValue: "结束对话",
         Key.carLiveModeMenuTitle.rawValue: "语音模式",
         Key.carLiveModeRealtime.rawValue: "实时语音",
         Key.carLiveModeTurnByTurn.rawValue: "逐句语音",

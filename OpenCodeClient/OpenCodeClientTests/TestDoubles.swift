@@ -3,8 +3,44 @@
 //  OpenCodeClientTests
 //
 
+import AVFoundation
 import Foundation
 @testable import OpenCodeClient
+
+/// A live-recogniser stand-in: the Speech framework's own request and result
+/// types cannot be built outside the framework, so the on-device session is
+/// driven through this seam instead.
+@MainActor
+final class FakeStreamingRecognizer: StreamingSpeechRecognizing {
+    var isAvailable = true
+    var supportsOnDeviceRecognition = true
+    private(set) var startCount = 0
+    private(set) var appendedBufferCount = 0
+    private(set) var finishCount = 0
+    private(set) var cancelCount = 0
+    private var events: (@Sendable (SpeechSessionEvent) -> Void)?
+
+    func start(events: @escaping @Sendable (SpeechSessionEvent) -> Void) throws {
+        startCount += 1
+        self.events = events
+    }
+
+    func append(_ buffer: AVAudioPCMBuffer) {
+        appendedBufferCount += 1
+    }
+
+    func finish() {
+        finishCount += 1
+    }
+
+    func cancel() {
+        cancelCount += 1
+    }
+
+    func emit(_ event: SpeechSessionEvent) {
+        events?(event)
+    }
+}
 
 /// Realistic model list used to seed the device-local shortlist in tests.
 /// Mirrors the historical default preset set. The app no longer ships a

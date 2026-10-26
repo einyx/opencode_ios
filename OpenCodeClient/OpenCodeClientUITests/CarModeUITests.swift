@@ -8,7 +8,7 @@ final class CarModeUITests: XCTestCase {
     }
 
     @MainActor
-    func testCarModeFixtureShowsLiveSurface() throws {
+    func testCarModeFixtureShowsTheDeviceSurface() throws {
         guard UIDevice.current.userInterfaceIdiom == .phone else {
             throw XCTSkip("Car Mode is iPhone-only")
         }
@@ -16,8 +16,10 @@ final class CarModeUITests: XCTestCase {
         app.launchArguments = ["UITEST_CAR_MODE_FIXTURE"]
         app.launch()
 
-        XCTAssertTrue(app.otherElements["car-live-root"].waitForExistence(timeout: 8))
-        XCTAssertTrue(app.buttons["car-live-connect"].exists)
+        XCTAssertTrue(app.otherElements["ambient-voice-root"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["ambient-voice-listen"].exists)
+        XCTAssertTrue(app.buttons["ambient-voice-end"].exists)
+        XCTAssertFalse(app.otherElements["car-live-root"].exists)
         XCTAssertFalse(app.otherElements["car-mode-root"].exists)
         XCTAssertFalse(app.buttons["car-primary-action"].exists)
         assertRemovedVoiceEntries(app)
@@ -29,7 +31,7 @@ final class CarModeUITests: XCTestCase {
     }
 
     @MainActor
-    func testStoredTurnByTurnStillShowsLive() throws {
+    func testStoredTurnByTurnStillShowsTheDeviceSurface() throws {
         guard UIDevice.current.userInterfaceIdiom == .phone else {
             throw XCTSkip("Car Mode is iPhone-only")
         }
@@ -37,7 +39,8 @@ final class CarModeUITests: XCTestCase {
         app.launchArguments = ["UITEST_CAR_MODE_FIXTURE", "UITEST_CAR_STORED_TURN_BY_TURN"]
         app.launch()
 
-        XCTAssertTrue(app.otherElements["car-live-root"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.otherElements["ambient-voice-root"].waitForExistence(timeout: 8))
+        XCTAssertFalse(app.otherElements["car-live-root"].exists)
         XCTAssertFalse(app.otherElements["car-mode-root"].exists)
         XCTAssertFalse(app.buttons["car-primary-action"].exists)
         assertRemovedVoiceEntries(app)
@@ -101,6 +104,7 @@ final class CarModeUITests: XCTestCase {
         XCTAssertTrue(app.otherElements["ipad-workspace-layout"].waitForExistence(timeout: 8))
         XCTAssertFalse(app.otherElements["car-mode-root"].exists)
         XCTAssertFalse(app.otherElements["car-live-root"].exists)
+        XCTAssertFalse(app.otherElements["ambient-voice-root"].exists)
         app.buttons["ipad-settings-button"].tap()
         let advanced = app.buttons["settings-advanced"]
         for _ in 0..<3 where !advanced.isHittable { app.swipeUp() }
