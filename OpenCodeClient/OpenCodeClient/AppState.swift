@@ -1575,10 +1575,17 @@ final class AppState {
         let known = Dictionary(uniqueKeysWithValues: sessions.map { ($0.id, $0) })
         var active: [String: SessionStatus] = [:]
         var unknownIDs: [String] = []
+        // The status poll covers only the sessions of the effective project
+        // directory. A session outside it is never confirmed — that is "not
+        // tracked", not "awaiting sync": claiming the latter left the row
+        // stuck on "Status awaiting sync" forever.
+        let polledDirectory = effectiveProjectDirectory ?? serverCurrentProjectWorktree
         for session in sessions {
-            let fresh = statusStreamConnected && isConnected && statusConfirmedAt[session.id].map { now.timeIntervalSince($0) < 60 } == true
+            let inPolledDirectory = polledDirectory == nil || session.directory == polledDirectory
+            let fresh = statusStreamConnected && isConnected && inPolledDirectory
+                && statusConfirmedAt[session.id].map { now.timeIntervalSince($0) < 60 } == true
             let type = sessionStatuses[session.id]?.type
-            if !fresh || (type != nil && type != "idle" && type != "busy" && type != "retry") {
+            if !fresh && inPolledDirectory {
                 unknownIDs.append(session.id)
             } else if let status = sessionStatuses[session.id], isBusySession(status) {
                 active[session.id] = status

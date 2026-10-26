@@ -36,6 +36,8 @@ def call(method: str, path: str, payload: dict | None = None) -> dict:
     result = subprocess.run(args, capture_output=True, text=True)
     if result.returncode != 0:
         raise SystemExit(f"the API call failed: {result.stderr.strip()}")
+    if not result.stdout.strip():
+        return {}  # a 204 No Content — the relationship was set
     try:
         return json.loads(result.stdout)
     except json.JSONDecodeError:
@@ -104,7 +106,15 @@ def main() -> int:
         body = text.split("---", 1)[1].strip() if "---" in text else text.strip()
         detail = call("GET", f"/v1/appStoreVersions/{VERSION_ID}/appStoreReviewDetail")
         detail_id = detail["data"]["id"]
-        call("PATCH", f"/v1/appStoreReviewDetails/{detail_id}", {"notes": body})
+        # The review-detail PATCH wants the full JSON:API document, unlike the
+        # flat bodies the rest of this API takes.
+        call("PATCH", f"/v1/appStoreReviewDetails/{detail_id}", {
+            "data": {
+                "type": "appStoreReviewDetails",
+                "id": detail_id,
+                "attributes": {"notes": body},
+            }
+        })
         print(f"review notes updated ({len(body)} chars)")
 
     final = call("GET", f"/v1/appStoreVersions/{VERSION_ID}?include=build")

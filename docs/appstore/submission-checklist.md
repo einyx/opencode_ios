@@ -71,27 +71,16 @@ audio leaving the device.
 - The privacy policy and the review notes now describe the on-device flow, and
   the privacy policy was republished.
 
-**Build 34 is uploaded** (2026-10-26, `VALID`, `APP_STORE_ELIGIBLE`) and it is
-what the release will ship. It is not attached yet: version 1.0 is in the
-review queue, and Apple locks the build and the review notes of a version that
-is awaiting review ("A relationship value is not acceptable for the current
-resource state"). Attaching it means cancelling the submission, which gives up
-the place in the queue — a decision for the owner, not the agent:
+**Build 34 is attached to version 1.0** (2026-10-26). The version had to
+leave the review queue for Apple to accept the swap — cancelling the
+submission gave up the place in the queue — and it is now in **Prepare for
+Submission**, carrying build 34, with the on-device review notes and the
+on-device privacy policy republished.
 
-    python3 scripts/asc_attach_build.py 34 --withdraw
-
-That cancels the submission, attaches build 34 and writes the new review notes.
-It does not re-submit: the release is manual, and re-submitting is the owner's
-call. The review notes in App Store Connect still describe build 33 (the
-hosted voice path), because Apple refused the change while the version was
-locked.
-
-**The published privacy policy still describes the hosted voice path**, for the
-same reason: version 1.0 ships build 33, and the page has to match the binary
-the reviewer is looking at. The device-only wording is ready in
-`docs/features/device_voice/privacy-policy-next-release.md`; swap it into
-`docs/appstore/privacy-policy.md` and republish before the build that removes
-the hosted path is submitted.
+What is left is the owner's: press **Submit for Review** in App Store Connect
+(the release is manual, so nothing publishes on its own), and run the
+device check first — Ambient Mode on a real iPhone and watch against the
+owner's own server, which the simulator cannot do.
 
 The Health export action can launch
 the separate Health Quantification app to export to its configured server;
