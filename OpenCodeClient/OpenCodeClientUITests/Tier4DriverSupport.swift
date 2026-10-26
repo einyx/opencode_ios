@@ -287,6 +287,14 @@ enum Tier4DriverSupport {
                 selectAll.tap()
             }
         }
+        // Typing into a field that has not taken the keyboard yet fails with
+        // "Neither element nor any descendant has keyboard focus". Wait for
+        // the keyboard before typing, and tap again if it did not come up.
+        let keyboard = XCUIApplication().keyboards.firstMatch
+        if !keyboard.waitForExistence(timeout: 4) {
+            element.tap()
+            _ = keyboard.waitForExistence(timeout: 4)
+        }
         element.typeText(text.isEmpty ? XCUIKeyboardKey.delete.rawValue : text)
     }
 }

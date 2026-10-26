@@ -43,6 +43,9 @@ struct TaskNotificationCardView<Result: View>: View {
                         .font(DesignTypography.micro)
                         .foregroundStyle(DesignColors.Brand.primary)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        // The label is one line of small text; the tap target
+                        // is the minimum a finger can hit.
+                        .frame(minHeight: ComposerHitTarget.minimum)
                         .padding(.vertical, DesignSpacing.xs)
                         .contentShape(Rectangle())
                 }

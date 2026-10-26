@@ -72,6 +72,9 @@ protocol DeviceVoiceHost: AnyObject {
     func answerDeviceVoicePermission(_ permission: PendingPermission, allow: Bool) async
     /// Hands an answer to the watch, which speaks it on the wrist.
     func deliverDeviceVoiceReplyToWatch(_ text: String) async
+    /// The question the agent asked at the end of the last turn, when it
+    /// wants a confirmation before it acts.
+    func deviceVoiceConfirmationPrompt() -> String?
 }
 
 /// One line of the voice conversation.
@@ -127,6 +130,9 @@ final class DeviceVoiceEngine {
     private(set) var entries: [AmbientVoiceEntry] = []
     /// A permission the agent asked for, waiting for a spoken yes or no.
     private var pendingPermission: PendingPermission?
+    /// A confirmation the agent asked for, waiting for a spoken confirm or
+    /// cancel.
+    private var pendingConfirmation: String?
     /// The microphone level, 0...1, for the meter.
     private(set) var inputLevel: Double = 0
 
@@ -346,6 +352,18 @@ final class DeviceVoiceEngine {
         }
     }
 
+    /// Asks for a confirmation out loud and waits for the answer.
+    ///
+    /// The agent asked a question at the end of its turn and wants to know
+    /// whether to act. The next utterance is the answer, not a new question.
+    func askConfirmation(_ prompt: String) {
+        pendingConfirmation = prompt
+        let spoken = "\(prompt) \(L10n.t(.carSpeakConfirmation))"
+        Task { [weak self] in
+            await self?.speakAnswer(spoken)
+        }
+    }
+
     /// Recognises a spoken yes or no.
     ///
     /// Whole words only: "know" contains "no", and a stray word in a longer
@@ -356,6 +374,18 @@ final class DeviceVoiceEngine {
         if words.contains(where: refusals.contains) { return false }
         let agreements = ["yes", "yeah", "yep", "yup", "ok", "okay", "allow", "allowed", "sure", "confirm", "do", "go", "continue"]
         return words.contains(where: agreements.contains)
+    }
+
+    /// Recognises a spoken cancel.
+    ///
+    /// Whole words only, for the same reason as the affirmative check.
+    nonisolated static func isCancellation(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        // "never mind" is two words, so it has to be matched as a phrase.
+        if lower.contains("never mind") || lower.contains("nevermind") { return true }
+        let words = Set(lower.split(whereSeparator: { !$0.isLetter }).map(String.init))
+        let cancellations = ["cancel", "cancelled", "canceled", "no", "nope", "abort", "stop"]
+        return words.contains(where: cancellations.contains)
     }
 
     /// Takes one transcript update.
@@ -384,6 +414,20 @@ final class DeviceVoiceEngine {
                 // The confirmation follows the answer to wherever the answer
                 // goes: the phone's speaker, or the watch.
                 await self?.speakAnswer(L10n.t(allow ? .carVoicePermissionAllowed : .carVoicePermissionRefused))
+            }
+            return
+        }
+        if pendingConfirmation != nil, update.isFinal {
+            // The agent asked a question and is waiting for the answer. The
+            // answer continues the turn: it goes back to the server as the
+            // next thing the user said.
+            pendingConfirmation = nil
+            let answer = Self.isCancellation(text) ? L10n.t(.carCancelUtterance) : L10n.t(.carConfirmUtterance)
+            transcript = text
+            session?.finish()
+            turnTask?.cancel()
+            turnTask = Task { [weak self] in
+                await self?.runTurn(answer)
             }
             return
         }
@@ -424,6 +468,11 @@ final class DeviceVoiceEngine {
         speaking = false
         guard !Task.isCancelled else { return }
         phase = .idle
+        // The agent may have ended its turn with a question it needs answered
+        // before it acts. Ask it out loud: the next utterance is the answer.
+        if let prompt = host?.deviceVoiceConfirmationPrompt(), !prompt.isEmpty {
+            askConfirmation(prompt)
+        }
         beginNextUtterance()
     }
 

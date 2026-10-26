@@ -13,7 +13,10 @@ extension AppState: DeviceVoiceHost {
     /// the answer. The answer is not spoken here — the engine decides, so the
     /// watch can ask for the text and speak it on the wrist.
     func runDeviceVoiceTurn(_ transcript: String) async -> String? {
-        await submitCarTurn(transcript, speaks: false)
+        // The turn may be the answer to a confirmation the agent asked for.
+        // The flag that says "a confirmation is outstanding" goes with it.
+        clearDeviceVoiceConfirmation()
+        return await submitCarTurn(transcript, speaks: false)
     }
 
     /// Speaks the answer on this device.
@@ -39,5 +42,30 @@ extension AppState: DeviceVoiceHost {
         #if os(iOS)
         watchPhoneBridge?.deliverVoiceReply(text)
         #endif
+    }
+
+    /// The question the agent asked at the end of the last turn.
+    ///
+    /// The agent's structured reply can end with a confirmation it needs
+    /// before it acts. The voice engine asks it out loud, and the answer
+    /// becomes the next thing the user said.
+    func deviceVoiceConfirmationPrompt() -> String? {
+        guard carPhase == .awaitingConfirmation else { return nil }
+        return carLastResponse?.confirmation?.prompt
+    }
+
+    /// Clears the pending confirmation once the user has answered it.
+    ///
+    /// The answer arrives as the next turn, so the flag that says "a
+    /// confirmation is outstanding" has to go with it.
+    func clearDeviceVoiceConfirmation() {
+        guard carPhase == .awaitingConfirmation else { return }
+        carPhase = .idle
+        carLastResponse = nil
+        let key = carContextKey
+        guard var record = carSessionsByContext[key] else { return }
+        record.pendingConfirmationID = nil
+        carSessionsByContext[key] = record
+        persistCarSessions()
     }
 }

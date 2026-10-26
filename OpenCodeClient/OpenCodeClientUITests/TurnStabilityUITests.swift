@@ -93,7 +93,11 @@ final class TurnStabilityUITests: XCTestCase {
 
     @MainActor
     private func assertExpanded(_ element: XCUIElement) {
-        XCTAssertEqual(element.value as? String, "已展开")
+        // The UI-test fixture pins English, so the toggle reports itself in
+        // English. Accept either language: the assertion is about the state,
+        // not about the wording.
+        let value = element.value as? String
+        XCTAssertTrue(value == "Expanded" || value == "已展开", "expanded toggle reported \(value ?? "nil")")
     }
 
     @MainActor

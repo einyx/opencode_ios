@@ -27,6 +27,8 @@ private final class FakeVoiceHost: DeviceVoiceHost {
     var spoken: [String] = []
     var permissionAnswers: [(permission: PendingPermission, allow: Bool)] = []
     var turnAnswer = "ok"
+    /// The question the agent asked at the end of the last turn.
+    var confirmationPrompt: String?
 
     func runDeviceVoiceTurn(_ transcript: String) async -> String? {
         turns.append(transcript)
@@ -45,6 +47,10 @@ private final class FakeVoiceHost: DeviceVoiceHost {
 
     func deliverDeviceVoiceReplyToWatch(_ text: String) async {
         spoken.append(text)
+    }
+
+    func deviceVoiceConfirmationPrompt() -> String? {
+        confirmationPrompt
     }
 }
 
@@ -301,5 +307,74 @@ struct DeviceVoiceEngineTests {
         #expect(!DeviceVoiceEngine.isAffirmative("no, stop"))
         #expect(!DeviceVoiceEngine.isAffirmative("I don't know"))
         #expect(!DeviceVoiceEngine.isAffirmative(""))
+    }
+
+    /// The agent ends its turn with a question it needs answered before it
+    /// acts. The engine asks it out loud, and the answer continues the turn.
+    @Test @MainActor func aSpokenConfirmContinuesTheTurn() async throws {
+        let audio = FakeAudioEngine()
+        let recognizer = FakeStreamingRecognizer()
+        let host = FakeVoiceHost()
+        let engine = DeviceVoiceEngine(
+            audioEngine: audio,
+            makeSession: {
+                let session = OnDeviceSpeechSession(recognizer: recognizer)
+                try session.start()
+                return session
+            },
+            turnRunner: { text in await host.runDeviceVoiceTurn(text) },
+            speaker: { text in await host.speakDeviceVoiceReply(text) }
+        )
+        engine.host = host
+        host.confirmationPrompt = "Shall I close the garage?"
+
+        await engine.start()
+        recognizer.emit(.transcript(SpeechTranscriptUpdate(text: "close the garage", isFinal: true)))
+        #expect(await waitUntil { host.turns.count == 1 })
+
+        // The question is asked out loud.
+        #expect(await waitUntil { host.spoken.contains { $0.contains("Shall I close the garage?") } })
+
+        recognizer.emit(.transcript(SpeechTranscriptUpdate(text: "yes please", isFinal: true)))
+        #expect(await waitUntil { host.turns.count == 2 })
+        // The answer continues the turn: it goes back to the server.
+        #expect(host.turns.last != "yes please")
+        #expect(host.turns.last?.contains("Confirm") == true)
+    }
+
+    /// A spoken cancel ends the turn instead of confirming it.
+    @Test @MainActor func aSpokenCancelCancelsTheTurn() async throws {
+        let audio = FakeAudioEngine()
+        let recognizer = FakeStreamingRecognizer()
+        let host = FakeVoiceHost()
+        let engine = DeviceVoiceEngine(
+            audioEngine: audio,
+            makeSession: {
+                let session = OnDeviceSpeechSession(recognizer: recognizer)
+                try session.start()
+                return session
+            },
+            turnRunner: { text in await host.runDeviceVoiceTurn(text) },
+            speaker: { text in await host.speakDeviceVoiceReply(text) }
+        )
+        engine.host = host
+        host.confirmationPrompt = "Shall I close the garage?"
+
+        await engine.start()
+        recognizer.emit(.transcript(SpeechTranscriptUpdate(text: "close the garage", isFinal: true)))
+        #expect(await waitUntil { host.turns.count == 1 })
+        #expect(await waitUntil { host.spoken.contains { $0.contains("Shall I close the garage?") } })
+
+        recognizer.emit(.transcript(SpeechTranscriptUpdate(text: "no, cancel that", isFinal: true)))
+        #expect(await waitUntil { host.turns.count == 2 })
+        #expect(host.turns.last?.contains("Cancel") == true)
+    }
+
+    @Test func spokenCancellationsAreWholeWords() {
+        #expect(DeviceVoiceEngine.isCancellation("cancel"))
+        #expect(DeviceVoiceEngine.isCancellation("no, cancel that"))
+        #expect(DeviceVoiceEngine.isCancellation("never mind"))
+        #expect(!DeviceVoiceEngine.isCancellation("cannot do that"))
+        #expect(!DeviceVoiceEngine.isCancellation(""))
     }
 }

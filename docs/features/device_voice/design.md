@@ -106,16 +106,20 @@ reused, `promptStructured` asks for the structured envelope, and the envelope's
 - The reply is spoken as one utterance. A new utterance while the app is speaking
   interrupts it (barge-in), which the hosted path also supported.
 
-### 3. Permission by voice
+### 3. Permission and confirmation by voice
 
-The token-free path has no permission handling today; the hosted path answered
-permissions by voice (`AppState+CarLive.swift:336-384`). The device path re-implements
-that one behaviour:
+The token-free path had no permission handling; the hosted path answered permissions
+by voice (`AppState+CarLive.swift:336-384`). The device path re-implements that one
+behaviour, and adds the confirmation the agent asks for at the end of a turn:
 
 - `permission.asked` for the ambient session is announced by voice.
 - The spoken answer ("yes" / "no") is parsed and sent with `state.respondPermission`.
-- `question.asked` is answered the same way, with the structured envelope's
-  `confirmation` prompt used for the yes/no case.
+  Matching is whole-word, so "I don't know" cannot read as a refusal.
+- The agent's structured envelope can end a turn with `needs_confirmation` and a
+  prompt. The prompt is asked out loud with "say confirm or cancel", and the answer
+  continues the turn: it goes back to the server as the next thing the user said.
+- Both answers follow the **delivery mode**: on the watch they are spoken on the
+  wrist, not on the phone next to the user's arm.
 
 ### 4. What is deleted
 
@@ -139,13 +143,14 @@ file, and the Ambient path uses it for the live recogniser feed.
 The watch stops being a second hosted client and becomes a remote control for the
 phone's engine:
 
-- **Up:** mic frames go to the phone in the existing chunked shape (8 KiB frames,
-  SHA-256 digest, sequence numbers).
-- **Down:** the recognised transcript and the reply text come back as text; the watch
-  speaks the reply locally and shows the transcript as a caption.
-- The `begin` reply no longer carries `portal` or `token`.
-- The watch's tool bridge (`tool` / `result` / `pull` / `ack`) is unaffected — it
-  already talks to the user's own server and never needed a token.
+- **Up:** the watch's mic frames go to the phone as `audio` messages. The phone
+  recognises them, because watchOS has no recogniser.
+- **Down:** the answer comes back as text over the `voice` op; the watch speaks it
+  locally with `AVSpeechSynthesizer` and shows it as a caption.
+- The `begin` reply no longer carries `portal` or `token` — it carries the run id and
+  nothing else.
+- The watch's tool bridge (`tool` / `result` / `pull` / `ack`) went with the hosted
+  path: the phone's engine runs the turn, so the watch no longer executes tools.
 
 The watch still needs the phone: `sendMessage` only reaches a reachable phone, exactly
 as the existing tool bridge already requires.
@@ -168,7 +173,7 @@ Planned, in the order the stages land:
   partials are reported, a final result resolves exactly once.
 - `AmbientVoiceTests` — a turn creates/reuses the ambient session, speaks the
   envelope, adds no rows to the chat transcript, and answers a permission by voice.
-- `WatchVoiceBridgeTests` — mic frames are chunked and digest-verified, the reply
-  reaches the watch, and **no credential crosses the bridge**.
+- `WatchVoiceBridgeTests` — the audio reaches the phone's engine, the answer comes
+  back, and **no credential crosses the bridge**.
 - Source guards — no `aiBuilderToken`, no `portal`/`token` in the watch `begin` reply,
   no `Speech.framework` import in the watch target.
