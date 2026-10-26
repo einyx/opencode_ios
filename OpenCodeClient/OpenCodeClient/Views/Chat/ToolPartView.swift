@@ -11,6 +11,7 @@ struct ToolPartView: View {
     private static let outputPreviewCharacterLimit = 500_000
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let part: Part
     let sessionTodos: [TodoItem]
     let workspaceDirectory: String?
@@ -132,6 +133,9 @@ struct ToolPartView: View {
     /// its content — a full-width slab per tool call turned the transcript
     /// into a stack of grey rectangles.
     private var toolTag: some View {
+        Button {
+            withAnimation(reduceMotion ? nil : DesignAnimation.spring) { isExpanded.toggle() }
+        } label: {
         HStack(spacing: 6) {
             Image(systemName: "wrench.and.screwdriver.fill")
                 .foregroundStyle(toolAccentColor)
@@ -177,13 +181,13 @@ struct ToolPartView: View {
             RoundedRectangle(cornerRadius: 10)
                 .fill(DesignColors.Neutral.text.opacity(DesignColors.surfaceFill(for: colorScheme)))
         )
+        .frame(minHeight: 44)
         .contentShape(Rectangle())
-        .onTapGesture {
-            withAnimation(DesignAnimation.spring) { isExpanded.toggle() }
         }
+        .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("toolcard.detail.\(part.id)")
-        .accessibilityValue(isExpanded ? "已展开" : "已收起")
+        .accessibilityValue(L10n.t(isExpanded ? .expanded : .collapsed))
         .accessibilityAddTraits(.isButton)
     }
 

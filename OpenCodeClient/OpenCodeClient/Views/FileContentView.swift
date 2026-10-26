@@ -114,6 +114,8 @@ struct FileContentView: View {
                     Image(systemName: previewMode.menuSystemImage)
                 }
                 .accessibilityIdentifier("markdown-preview-mode-menu")
+                .accessibilityLabel(L10n.t(.filePreviewMode))
+                .accessibilityValue(previewMode.label)
             }
         }
     }

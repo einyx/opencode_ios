@@ -37,7 +37,7 @@ struct WatchAmbientView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(model.connecting || model.phase == .closing)
-                .accessibilityLabel(connected ? "打断" : "开始语音")
+                .accessibilityLabel(connected ? String(localized: "Interrupt playback") : String(localized: "Start voice"))
                 .accessibilityIdentifier("watch-start-interrupt")
 
                 Text(model.latestCaption).font(.caption).lineLimit(3)
@@ -50,12 +50,12 @@ struct WatchAmbientView: View {
                         }
                         .disabled(!connected)
                         .tint(model.live.isMuted ? .orange : .blue)
-                        .accessibilityLabel(model.live.isMuted ? "取消静音" : "静音")
+                        .accessibilityLabel(model.live.isMuted ? String(localized: "Unmute") : String(localized: "Mute"))
                         .accessibilityIdentifier("watch-mute")
                         Button(role: .destructive) { Task { await model.stop() } } label: {
                             Image(systemName: "phone.down.fill")
                         }
-                        .accessibilityLabel("结束语音")
+                        .accessibilityLabel(String(localized: "End voice"))
                         .accessibilityIdentifier("watch-end")
                     }
                 }

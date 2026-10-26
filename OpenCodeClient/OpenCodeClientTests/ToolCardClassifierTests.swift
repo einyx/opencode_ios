@@ -35,9 +35,12 @@ struct ToolCardClassifierTests {
 
     // MARK: - isFileOperation
 
-    @Test func patchPartIsFileOperation() throws {
+    /// A patch part is the "files changed" signal, not a single file
+    /// operation: it renders as the changes card, not as a file card.
+    @Test func patchPartIsAChangePartNotAFileOperation() throws {
         let part = try makePart(type: "patch")
-        #expect(ToolCardClassifier.isFileOperation(part))
+        #expect(ToolCardClassifier.isChangePart(part))
+        #expect(!ToolCardClassifier.isFileOperation(part))
     }
 
     @Test func canonicalFileTools() throws {
@@ -78,7 +81,7 @@ struct ToolCardClassifierTests {
 
     // MARK: - split + count
 
-    @Test func splitPartitionsFileAndOtherTools() throws {
+    @Test func splitPartitionsFileChangeAndOtherTools() throws {
         let parts = [
             try makePart(id: "1", type: "tool", tool: "read_file", path: "src/a.ts"),
             try makePart(id: "2", type: "tool", tool: "bash"),
@@ -86,10 +89,11 @@ struct ToolCardClassifierTests {
             try makePart(id: "4", type: "tool", tool: "grep"),
             try makePart(id: "5", type: "tool", tool: "edit"),
         ]
-        let (fileParts, otherParts) = ToolCardClassifier.split(parts)
+        let split = ToolCardClassifier.split(parts)
 
-        #expect(fileParts.map(\.id) == ["1", "3", "5"])
-        #expect(otherParts.map(\.id) == ["2", "4"])
+        #expect(split.fileParts.map(\.id) == ["1", "5"])
+        #expect(split.changeParts.map(\.id) == ["3"])
+        #expect(split.otherParts.map(\.id) == ["2", "4"])
     }
 
     @Test func toolCallsCountIsOtherToolsOnly() throws {
@@ -99,18 +103,19 @@ struct ToolCardClassifierTests {
             try makePart(id: "3", type: "tool", tool: "glob"),
             try makePart(id: "4", type: "patch"),
         ]
-        // 2 file ops (write_file + patch), 2 other tools (bash + glob)
+        // 1 file op (write_file), 1 change part (patch), 2 other tools (bash + glob)
         #expect(ToolCardClassifier.toolCallsCount(parts) == 2)
     }
 
-    @Test func allFileOpsMeansZeroToolCalls() throws {
+    @Test func fileOpsOnlyMeansZeroToolCalls() throws {
         let parts = [
             try makePart(id: "1", type: "tool", tool: "read_file"),
             try makePart(id: "2", type: "patch"),
         ]
-        let (fileParts, otherParts) = ToolCardClassifier.split(parts)
-        #expect(fileParts.count == 2)
-        #expect(otherParts.isEmpty)
+        let split = ToolCardClassifier.split(parts)
+        #expect(split.fileParts.count == 1)
+        #expect(split.changeParts.count == 1)
+        #expect(split.otherParts.isEmpty)
         #expect(ToolCardClassifier.toolCallsCount(parts) == 0)
     }
 
@@ -120,9 +125,10 @@ struct ToolCardClassifierTests {
             try makePart(id: "2", type: "tool", tool: "webfetch"),
             try makePart(id: "3", type: "tool", tool: "task"),
         ]
-        let (fileParts, otherParts) = ToolCardClassifier.split(parts)
-        #expect(fileParts.isEmpty)
-        #expect(otherParts.count == 3)
+        let split = ToolCardClassifier.split(parts)
+        #expect(split.fileParts.isEmpty)
+        #expect(split.changeParts.isEmpty)
+        #expect(split.otherParts.count == 3)
         #expect(ToolCardClassifier.toolCallsCount(parts) == 3)
     }
 

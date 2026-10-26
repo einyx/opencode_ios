@@ -10,11 +10,12 @@ WORK=$(mktemp -d "${TMPDIR:-/tmp}/occlient-runner-tests-XXXXXX")
 WORK=$(cd "$WORK" && pwd -P)
 REPO="$WORK/repo with spaces"
 mkdir -p "$REPO/scripts" "$WORK/fakes"
-for script in test_ui.sh test_unit.sh lib_test_observability.sh lib_simulator.sh; do
+for script in test_ui.sh test_unit.sh lib_test_observability.sh lib_simulator.sh lib_storage.sh; do
   cp "$SOURCE/scripts/$script" "$REPO/scripts/"
 done
 cp "$FAKES/"* "$WORK/fakes/"
 chmod +x "$WORK/fakes/"*
+cp "$WORK/fakes/polish_lint.sh" "$REPO/scripts/"
 # Prevent ambient Git/index/fixture settings from redirecting isolated tests.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES || true
 for variable in ${!MOCK_@}; do unset "$variable"; done
@@ -26,7 +27,7 @@ export MOCK_REPO="$REPO"
 export OPENCODE_TEST_DERIVED_DATA="$WORK/derived data"
 export OPENCODE_TEST_DESTINATION='platform=iOS Simulator,id=AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE'
 export MOCK_CALLS="$WORK/calls" MOCK_PID="$WORK/pid"
-unset OPENCODE_TEST_ONLY OPENCODE_UI_TEST_ONLY OPENCODE_UI_TEST_INCLUDE_LAUNCH OPENCODE_TEST_REBUILD OPENCODE_TEST_PHASE_TIMEOUT_SECONDS || true
+unset OPENCODE_TEST_ONLY OPENCODE_UI_TEST_ONLY OPENCODE_UI_TEST_INCLUDE_LAUNCH OPENCODE_TEST_REBUILD OPENCODE_TEST_PHASE_TIMEOUT_SECONDS OPENCODE_MIN_FREE_GIB || true
 count=0
 fail() { printf 'FAIL: %s\nArtifacts: %s\n' "$*" "$WORK"; exit 1; }
 has() { /usr/bin/grep -q -- "$2" "$1" || fail "$1 lacks $2"; }
@@ -63,6 +64,20 @@ check_argv() {
   arg_pair "$MOCK_CALLS.test-without-building" -resultBundlePath "$RUN/test.xcresult"
   if /usr/bin/grep -q -- -resultBundlePath "$MOCK_CALLS.build-for-testing"; then fail 'test result path leaked into build argv'; fi
 }
+# Low-space rejection precedes simulator work and even artifact creation.
+for script in test_unit.sh test_ui.sh; do
+  export MOCK_FREE_KIB=1000
+  code=0
+  bash "$REPO/scripts/$script" > "$WORK/storage-$script.stdout" 2>&1 || code=$?
+  [ "$code" -eq 73 ] || fail "$script didn't reject low disk space"
+  has "$WORK/storage-$script.stdout" 'Low disk space'
+  [ ! -e "$REPO/.occlient" ] || fail 'low-space run created artifacts'
+  [ ! -e "$OC_STATE_DIR" ] || fail 'low-space run reached simulator setup'
+  [ ! -e "$MOCK_CALLS" ] || fail 'low-space run launched Xcode'
+  count=$((count + 1))
+  printf 'PASS %s disk reserve (exit 73)\n' "$script"
+done
+unset MOCK_FREE_KIB
 run success 0
 SUCCESS_RUN=$RUN
 has "$RUN/test.log" diagnostic-1$
@@ -116,6 +131,11 @@ has "$RUN/state.tsv" $'outcome\tfailed'
 has "$RUN/preflight.log" 'simulator unresponsive'
 [ ! -e "$RUN/build.log" ] || fail 'build ran after preflight failure'
 unset MOCK_PREFLIGHT_FAIL
+export MOCK_LINT_EXIT=1
+run lint_failure 65 test_unit.sh
+has "$RUN/lint.status.tsv" $'command_exit\t1'
+[ ! -e "$RUN/build.log" ] || fail 'build ran after lint failure'
+unset MOCK_LINT_EXIT
 for script in test_ui.sh test_unit.sh; do
   for failure in missing unreadable failed unknown_schema unknown_result; do
     case "$failure" in
@@ -257,11 +277,12 @@ unset MOCK_HANG
 
 # Real Git boundary regression, entirely within a disposable repository.
 mkdir -p "$WORK/device-fakes"
-for fake in xcodebuild xcrun tee sysctl; do cp "$WORK/fakes/$fake" "$WORK/device-fakes/"; done
+for fake in xcodebuild xcrun tee sysctl df; do cp "$WORK/fakes/$fake" "$WORK/device-fakes/"; done
 export PATH="$WORK/device-fakes:$BASE_PATH"
 REPO="$WORK/real git repo"
 mkdir -p "$REPO/scripts"
-for script in test_ui.sh test_unit.sh lib_test_observability.sh lib_simulator.sh; do
+cp "$WORK/fakes/polish_lint.sh" "$REPO/scripts/"
+for script in test_ui.sh test_unit.sh lib_test_observability.sh lib_simulator.sh lib_storage.sh; do
   cp "$SOURCE/scripts/$script" "$REPO/scripts/"
 done
 "$REAL_GIT" -C "$REPO" init -q

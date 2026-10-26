@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct ClientCapabilityPermissionView: View {
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @State private var isResponding = false
     @Bindable var state: AppState
     let request: PendingClientCapabilityRequest
 
@@ -13,6 +15,7 @@ struct ClientCapabilityPermissionView: View {
 
     var body: some View {
         NavigationStack {
+            ScrollView {
             VStack(alignment: .leading, spacing: DesignSpacing.lg) {
                 Label(L10n.t(.capabilityHealthExportTitle), systemImage: "heart.text.clipboard")
                     .font(.title2.weight(.semibold))
@@ -44,11 +47,12 @@ struct ClientCapabilityPermissionView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
 
-                Spacer()
-
-                HStack(alignment: .top, spacing: DesignSpacing.sm) {
+                let actions = typeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(spacing: DesignSpacing.sm))
+                    : AnyLayout(HStackLayout(alignment: .top, spacing: DesignSpacing.sm))
+                actions {
                     Button {
-                        Task { await state.resolveClientCapabilityPermission(allow: true) }
+                        respond(allow: true)
                     } label: {
                         permissionButtonLabel(L10n.t(.capabilityAllowOnce))
                     }
@@ -56,7 +60,7 @@ struct ClientCapabilityPermissionView: View {
                     .accessibilityIdentifier("capability-allow-once")
 
                     Button {
-                        Task { await state.resolveClientCapabilityPermission(allow: true, always: true) }
+                        respond(allow: true, always: true)
                     } label: {
                         permissionButtonLabel(L10n.t(.capabilityAllowAlways))
                     }
@@ -64,7 +68,7 @@ struct ClientCapabilityPermissionView: View {
                     .accessibilityIdentifier("capability-allow-always")
 
                     Button(role: .cancel) {
-                        Task { await state.resolveClientCapabilityPermission(allow: false) }
+                        respond(allow: false)
                     } label: {
                         permissionButtonLabel(L10n.t(.commonCancel))
                     }
@@ -72,21 +76,31 @@ struct ClientCapabilityPermissionView: View {
                     .accessibilityIdentifier("capability-cancel")
                 }
                 .controlSize(.large)
+                .disabled(isResponding)
             }
             .padding(DesignSpacing.lg)
+            }
             .navigationTitle(L10n.t(.capabilityPermissionTitle))
             .navigationBarTitleDisplayMode(.inline)
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
         .interactiveDismissDisabled()
+    }
+
+    private func respond(allow: Bool, always: Bool = false) {
+        guard !isResponding else { return }
+        isResponding = true
+        Task {
+            await state.resolveClientCapabilityPermission(allow: allow, always: always)
+            isResponding = false
+        }
     }
 
     private func permissionButtonLabel(_ text: String) -> some View {
         Text(text)
             .font(.subheadline.weight(.semibold))
             .multilineTextAlignment(.center)
-            .lineLimit(2)
-            .minimumScaleFactor(0.8)
+            .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, minHeight: 44)
     }
 }

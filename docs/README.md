@@ -28,6 +28,7 @@
 | `agent_catalog_validation/` | Agent catalog validation and visible delete failures | `notes.md` | shipped; the selected agent is checked against the current server `/agent`, and a non-2xx delete carries the status code and body |
 | `watch_ambient/` | Watch connects to Live directly, tools execute through the phone | `prd.md` / `rfc.md` | **Experimental**; it can still drop during an answer or on the second turn, and sustained background use is not accepted (PR #223) |
 | `v2_support/` | OpenCode V2 server support + `opencode pair` QR onboarding | `plan.md` | implemented; see `../v2_server_compatibility.md` for the wire contract |
+| `file_changes_surface/` | Session changes & diff surface — a "N files changed" card in chat, a diff viewer (iPhone sheet / iPad preview column), a Files-tab Changes section, and automatic tree refresh when the agent writes | `design.md` | design approved for implementation; preview in `../design/drafts/2026-10-26-changes-diff-surface.html` |
 | `polish/` | Superpolished app experience — the "Quiet Tech" conformance initiative | `plan.md` / `rubric.md` / `audit.md` / `linear-backlog.md` | **Phase 0 complete** (rubric + measured audit + ranked backlog); **R1 (haptics) implemented, awaiting the privacy review**. 102 rubric rows: 44 PASS, 35 FAIL, 9 PARTIAL, 14 REVIEW. Tracked in Linear as `PRY-5`…`PRY-40`; `features/polish/rubric.md` is the machine-checkable form of `../design.md`, and `features/polish/audit.md` is the measured baseline it is enforced against |
 
 The approved OpenCodex Settings refresh is described in

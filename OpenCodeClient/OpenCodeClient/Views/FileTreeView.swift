@@ -28,8 +28,21 @@ struct FileTreeView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .accessibilityIdentifier("file-search-loading")
             case .empty:
-                ContentUnavailableView(L10n.t(.fileNoContent), systemImage: "magnifyingglass")
-                    .accessibilityIdentifier("file-search-empty")
+                // The magnifier explains what was searched. The scene replaces
+                // the system symbol in the content region; the copy and the
+                // identifier stay as they were.
+                ContentUnavailableView {
+                    Label {
+                        Text(L10n.t(.fileNoContent))
+                    } icon: {
+                        Image("SearchArt")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 140, height: 140)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .accessibilityIdentifier("file-search-empty")
             case .failed(let message):
                 ContentUnavailableView(
                     L10n.t(.appError),
@@ -72,16 +85,54 @@ struct FileTreeView: View {
 
     private var treeList: some View {
         List {
+            if let error = state.fileStore.fileTreeError {
+                VStack(alignment: .leading, spacing: DesignSpacing.sm) {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                    Button(L10n.t(.commonRetry)) { Task { await state.loadFileTree() } }
+                        .frame(minHeight: 44)
+                }
+                .accessibilityIdentifier("file-tree-error")
+            } else if state.fileStore.isLoadingFileTree {
+                ProgressView(L10n.t(.appLoading))
+            } else if visibleNodes.isEmpty {
+                // The hand-drawn folder is the content-region placeholder for
+                // an empty workspace. It replaces the system symbol; the copy
+                // ("This workspace is empty") stays the one that is localized.
+                ContentUnavailableView {
+                    Label {
+                        Text(L10n.t(.fileTreeEmpty))
+                    } icon: {
+                        Image("FilesArt")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 140, height: 140)
+                            .accessibilityHidden(true)
+                    }
+                }
+            }
             ForEach(visibleNodes, id: \.path) { item in
                 if item.node.type == "directory" {
+                    Button {
+                        Task { await loadAndExpand(item.node.path) }
+                    } label: {
                     DirectoryRow(
                         state: state,
                         node: item.node,
                         indent: item.indent,
                         isLoading: isLoadingChildren.contains(item.node.path))
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        Task { await loadAndExpand(item.node.path) }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(item.node.name)
+                    .accessibilityValue(L10n.t(state.isFileExpanded(item.node.path) ? .expanded : .collapsed))
+                    .accessibilityIdentifier("file-tree-row-\(item.node.path)")
+                    if let error = state.fileStore.fileChildrenErrors[item.node.path] {
+                        VStack(alignment: .leading, spacing: DesignSpacing.sm) {
+                            Label(error, systemImage: "exclamationmark.triangle")
+                            Button(L10n.t(.commonRetry)) {
+                                Task { await retryChildren(item.node.path) }
+                            }
+                            .frame(minHeight: 44)
+                        }
                     }
                 } else if useSplitPreview {
                     Button {
@@ -168,6 +219,13 @@ struct FileTreeView: View {
         _ = await state.loadFileChildren(path: path)
         isLoadingChildren.remove(path)
     }
+
+    private func retryChildren(_ path: String) async {
+        guard !isLoadingChildren.contains(path) else { return }
+        isLoadingChildren.insert(path)
+        _ = await state.loadFileChildren(path: path)
+        isLoadingChildren.remove(path)
+    }
 }
 
 private struct SearchResultRow: View {
@@ -222,6 +280,16 @@ struct FileRow: View {
     let indent: Int
     let status: String?
 
+    private var statusPresentation: (symbol: String, label: String)? {
+        switch status {
+        case "added": return ("plus.circle", L10n.t(.fileStatusAdded))
+        case "deleted": return ("minus.circle", L10n.t(.fileStatusDeleted))
+        case "modified": return ("pencil.circle", L10n.t(.fileStatusModified))
+        case "untracked": return ("questionmark.circle", L10n.t(.fileStatusUntracked))
+        default: return nil
+        }
+    }
+
     private var statusColor: Color {
         switch status {
         case "added": return DesignColors.Semantic.success
@@ -243,7 +311,12 @@ struct FileRow: View {
                 .font(DesignTypography.body)
                 .lineLimit(1)
             Spacer()
+            if let statusPresentation {
+                Image(systemName: statusPresentation.symbol)
+                    .accessibilityLabel(statusPresentation.label)
+            }
         }
         .padding(.leading, CGFloat(indent) * DesignSpacing.lg)
+        .accessibilityElement(children: .combine)
     }
 }

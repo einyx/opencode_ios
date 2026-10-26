@@ -11,11 +11,19 @@
 import SwiftUI
 
 struct GlassSurface: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorScheme) private var colorScheme
     var cornerRadius: CGFloat
     /// Interactive glass reacts to presses (buttons, the composer).
     var interactive: Bool = false
 
     func body(content: Content) -> some View {
+        if reduceTransparency {
+            content.background(
+                colorScheme == .dark ? DesignColors.Neutral.surfaceDark : DesignColors.Neutral.surfaceLight,
+                in: RoundedRectangle(cornerRadius: cornerRadius)
+            )
+        } else {
         // `Glass` and `glassEffect(_:in:)` are API_UNAVAILABLE(visionos), so
         // the availability check alone is not enough: `#available(iOS 26, *)`
         // is true on visionOS 26 but the symbols still do not exist there.
@@ -31,6 +39,7 @@ struct GlassSurface: ViewModifier {
         #else
         content.materialSurface(cornerRadius: cornerRadius)
         #endif
+        }
     }
 }
 

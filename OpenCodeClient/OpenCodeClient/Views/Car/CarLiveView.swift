@@ -94,6 +94,9 @@ struct CarLiveView: View {
                             rowView(row)
                         }
                     }
+                    if let navigation = navigationAction {
+                        navigationActionRow(navigation)
+                    }
                     Color.clear
                         .frame(height: 1)
                         .id(Self.bottomID)
@@ -246,6 +249,55 @@ struct CarLiveView: View {
             return .accessibility5
         }
         return dynamicTypeSize
+    }
+
+    /// The navigation request the agent made in the last Ambient turn, if any.
+    ///
+    /// `open_navigation` is the one typed client action the agent can drive on
+    /// the phone; it travels in the structured reply envelope.
+    private var navigationAction: CarClientAction? {
+        state.carLastResponse?.clientActions.first { action in
+            if case .openNavigation = action { return true }
+            return false
+        }
+    }
+
+    /// The navigation request, drawn with the hand-drawn map pin.
+    ///
+    /// The pin sits in a leading slot and carries no information of its own,
+    /// so the destination stays fully readable. There are no controls here:
+    /// the request is confirmed by voice, not by a button.
+    @ViewBuilder
+    private func navigationActionRow(_ action: CarClientAction) -> some View {
+        if case .openNavigation(_, let destination, let waypoints) = action {
+            let target = destination.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !target.isEmpty, target.count <= 240 {
+                HStack(alignment: .top, spacing: DesignSpacing.md) {
+                    Image("NavigationArt")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 28, height: 28)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: DesignSpacing.xs) {
+                        Text(target)
+                            .font(DesignTypography.body)
+                            .fixedSize(horizontal: false, vertical: true)
+                        let stops = (waypoints ?? [])
+                            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                            .filter { !$0.isEmpty && $0.count <= 240 }
+                        if !stops.isEmpty {
+                            Text(stops.joined(separator: " → "))
+                                .font(DesignTypography.meta)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("car-live-navigation-action")
+            }
+        }
     }
 
     private var detailBody: some View {

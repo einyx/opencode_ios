@@ -36,11 +36,13 @@ nonisolated enum EffectiveLayout: Equatable {
 }
 
 enum EffectiveLayoutResolver {
-    static func resolve(preference: LayoutPreference, width: WindowWidthClass) -> EffectiveLayout {
+    static func resolve(preference: LayoutPreference, width: WindowWidthClass, availableWidth: CGFloat? = nil) -> EffectiveLayout {
         switch preference {
         case .focus:
             return .compact
         case .automatic:
+            // Three panes need room for a usable transcript and accessible controls.
+            if let availableWidth, availableWidth < 900 { return .compact }
             return width == .regular ? .regular : .compact
         }
     }

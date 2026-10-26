@@ -25,14 +25,27 @@ struct SettingsInputVoiceView: View {
             }
 
             Section {
-                Picker(L10n.t(.settingsRecordingStrategy), selection: $state.speechRecognitionEngine) {
-                    Text(L10n.t(.settingsAppleOnDevice)).tag(SpeechRecognitionEngine.appleOnDevice)
-                    Text(L10n.t(.settingsGPTLiveTranscribe)).tag(SpeechRecognitionEngine.gptLiveTranscribe)
-                    Text(L10n.t(.settingsOpenAIRealtime)).tag(SpeechRecognitionEngine.openAIRealtime)
-                    Text(L10n.t(.settingsGrokBatch)).tag(SpeechRecognitionEngine.grokBatch)
+                // The hand-drawn microphone belongs next to the thing it names
+                // (docs/design/artwork-placement.md: "inline, beside the
+                // engine picker"). It is a section illustration, not a hero:
+                // a small drawing that leads the picker row. Decorative — the
+                // picker's own label carries the meaning, so the drawing is
+                // hidden from assistive technology.
+                HStack(spacing: DesignSpacing.xs) {
+                    Image("VoiceArt")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 32, height: 32)
+                        .accessibilityHidden(true)
+                    Picker(L10n.t(.settingsRecordingStrategy), selection: $state.speechRecognitionEngine) {
+                        Text(L10n.t(.settingsAppleOnDevice)).tag(SpeechRecognitionEngine.appleOnDevice)
+                        Text(L10n.t(.settingsGPTLiveTranscribe)).tag(SpeechRecognitionEngine.gptLiveTranscribe)
+                        Text(L10n.t(.settingsOpenAIRealtime)).tag(SpeechRecognitionEngine.openAIRealtime)
+                        Text(L10n.t(.settingsGrokBatch)).tag(SpeechRecognitionEngine.grokBatch)
+                    }
+                    .pickerStyle(.menu)
+                    .accessibilityIdentifier("settings-recording-strategy")
                 }
-                .pickerStyle(.menu)
-                .accessibilityIdentifier("settings-recording-strategy")
                 // Apple's generative-AI guidance: people must know when their
                 // input leaves the device. The cloud engines upload audio; the
                 // on-device engine does not.
@@ -157,11 +170,25 @@ struct SettingsAdvancedView: View {
                 Text(L10n.t(.settingsAIUsageDashboardFooter))
             }
             Section {
-                LabeledContent(L10n.t(.capabilityHealthExportTitle),
-                               value: L10n.t(state.healthExportAutoAllowIsActive
-                                             ? .capabilityAllowedAutomatically
-                                             : (state.healthExportPermission == .allowAlways
-                                                ? .capabilityAllowedOtherHost : .capabilityAskEveryTime)))
+                // The hand-drawn pulse belongs next to the capability it names
+                // (docs/design/artwork-placement.md: "inline illustration for
+                // the section, small"). A small drawing leads the row; the
+                // row keeps its text label and the drawing stays decorative.
+                LabeledContent {
+                    Text(L10n.t(state.healthExportAutoAllowIsActive
+                              ? .capabilityAllowedAutomatically
+                              : (state.healthExportPermission == .allowAlways
+                                 ? .capabilityAllowedOtherHost : .capabilityAskEveryTime)))
+                } label: {
+                    HStack(spacing: DesignSpacing.xs) {
+                        Image("HealthArt")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 32, height: 32)
+                            .accessibilityHidden(true)
+                        Text(L10n.t(.capabilityHealthExportTitle))
+                    }
+                }
                 if state.healthExportPermission == .allowAlways {
                     Button(L10n.t(.capabilityRevoke), role: .destructive) {
                         state.revokeHealthExportPermission()

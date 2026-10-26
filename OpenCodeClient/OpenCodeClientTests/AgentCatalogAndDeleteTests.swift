@@ -3,6 +3,24 @@ import Testing
 @testable import OpenCodeClient
 
 struct AgentCatalogAndDeleteTests {
+    @Test @MainActor func staleDeleteConfirmationCannotTargetNewHost() async {
+        let api = MockAPIClient()
+        let state = makeIsolatedAppState(apiClient: api)
+        let confirmedHost = state.captureHostRequestSnapshot()
+        let other = HostProfile.defaultProfile(serverURL: "https://other.example.invalid")
+        state.hostProfiles.append(other)
+        state.beginHostTransportTransition(to: other.id)
+        state.sessions = [Self.session(id: "same-id")]
+        do {
+            try await state.deleteSession(sessionID: "same-id", expectedHost: confirmedHost)
+            Issue.record("A stale confirmation must be cancelled before issuing a delete")
+        } catch {
+            #expect(error is CancellationError)
+        }
+        #expect(await api.deletedSessionIDs.isEmpty)
+        #expect(state.sessions.map(\.id) == ["same-id"])
+    }
+
     @Test @MainActor func loadAgentsCorrectsUnknownSelection() async {
         let api = MockAPIClient()
         await api.setAgentsResult([

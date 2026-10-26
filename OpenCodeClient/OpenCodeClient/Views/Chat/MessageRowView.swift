@@ -118,6 +118,8 @@ struct MessageRowView: View {
         case thinking(Part)
         case fileCard(Part)
         case toolCall(Part)
+        /// The "N files changed" card.
+        case changes(Part)
 
         var id: String {
             switch self {
@@ -127,6 +129,8 @@ struct MessageRowView: View {
                 return "tile-file-\(part.id)"
             case .toolCall(let part):
                 return "tile-toolcall-\(part.id)"
+            case .changes(let part):
+                return "tile-changes-\(part.id)"
             }
         }
     }
@@ -156,7 +160,7 @@ struct MessageRowView: View {
             case .fileCard:
                 pending.append(tile)
                 if pending.count == columnCount { flushPending() }
-            case .thinking, .toolCall:
+            case .thinking, .toolCall, .changes:
                 flushPending()
                 rows.append(ProcessTileRow(id: "row-\(tile.id)", tiles: [tile], isFullWidth: true))
             }
@@ -228,15 +232,18 @@ struct MessageRowView: View {
             case .thinking(let part):
                 tiles.append(.thinking(part))
             case .cards(let cardParts):
-                let (fileParts, otherParts) = ToolCardClassifier.split(cardParts)
-                for filePart in fileParts {
+                let split = ToolCardClassifier.split(cardParts)
+                for filePart in split.fileParts {
                     tiles.append(.fileCard(filePart))
                 }
                 // Every remaining tool call gets its own row: a merged
                 // "N tool calls" tile stacked a group disclosure on top of
                 // each card's own disclosure.
-                for otherPart in otherParts {
+                for otherPart in split.otherParts {
                     tiles.append(.toolCall(otherPart))
+                }
+                for changePart in split.changeParts {
+                    tiles.append(.changes(changePart))
                 }
             case .text, .attachment:
                 break
@@ -856,7 +863,32 @@ struct MessageRowView: View {
                 workspaceDirectory: workspaceDirectory,
                 onOpenResolvedPath: onOpenResolvedPath
             )
+        case .changes(let part):
+            PatchPartView(
+                part: part,
+                totals: state.fileChangeTotals(turnUserMessageID: message.info.parentID, part: part),
+                scope: .turn,
+                onOpen: { openChanges(for: part) }
+            )
         }
+    }
+
+    /// Open the changes surface for a change part.
+    private func openChanges(for part: Part) {
+        let paths = part.filePathsForNavigation
+        guard !paths.isEmpty else {
+            // A patch part without paths still means "files changed": send the
+            // person to the file browser rather than to nothing.
+            onOpenFilesTab()
+            return
+        }
+        state.presentSessionChanges(
+            host: .chat,
+            sessionID: message.info.sessionID,
+            turnUserMessageID: message.info.parentID,
+            paths: paths,
+            workspaceDirectory: workspaceDirectory
+        )
     }
 }
 
@@ -865,6 +897,7 @@ struct MessageRowView: View {
 // tappable element and toggles expansion in place.
 private struct ThinkingCard<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var expanded = false
     private let content: Content
 
@@ -877,6 +910,9 @@ private struct ThinkingCard<Content: View>: View {
             // Compact tag, like the tool rows: the thinking card is prose, but
             // its header is a one-line disclosure, not a band across the
             // transcript.
+            Button {
+                withAnimation(reduceMotion ? nil : DesignAnimation.spring) { expanded.toggle() }
+            } label: {
             HStack(spacing: 6) {
                 Image(systemName: "brain.head.profile")
                     .font(.caption)
@@ -894,15 +930,15 @@ private struct ThinkingCard<Content: View>: View {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(DesignColors.Neutral.text.opacity(DesignColors.surfaceFill(for: colorScheme)))
             )
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
-            .onTapGesture {
-                withAnimation(DesignAnimation.spring) { expanded.toggle() }
             }
+            .buttonStyle(.plain)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(L10n.t(.chatThinkingCard))
             .accessibilityIdentifier("message-thinking-card")
             .accessibilityAddTraits(.isButton)
-            .accessibilityValue(expanded ? "已展开" : "已收起")
+            .accessibilityValue(L10n.t(expanded ? .expanded : .collapsed))
 
             if expanded {
                 content

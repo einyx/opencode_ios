@@ -2,66 +2,80 @@
 //  PatchPartView.swift
 //  OpenCodeClient
 //
+//  The "files changed" card.
+//
+//  A patch part is the single signal that a turn changed files — V1 sends it,
+//  V2 synthesizes it from the assistant message's snapshot. It renders as one
+//  card that states how many files changed and how much was added/removed,
+//  and tapping it opens the changes surface.
+//
+//  Spec: docs/features/file_changes_surface/design.md
+//
 
 import SwiftUI
 
 struct PatchPartView: View {
     @Environment(\.colorScheme) private var colorScheme
+    /// The patch part. Its `files` carry the changed paths.
     let part: Part
-    let workspaceDirectory: String?
-    let onOpenResolvedPath: (String) -> Void
-    let onOpenFilesTab: () -> Void
-    @State private var showOpenFileSheet = false
+    /// The added/removed totals, when they are known.
+    let totals: FileChangeTotals?
+    /// What the totals cover.
+    let scope: FileChangeScope
+    /// Opens the changes surface.
+    let onOpen: () -> Void
+
+    private var fileCount: Int {
+        max(part.files?.count ?? 0, 1)
+    }
 
     var body: some View {
-        let fileCount = part.files?.count ?? 0
-        // A patch is a navigational action (tap → open changed files), so it
-        // earns the single electric-blue accent — never orange.
-        let accent = DesignColors.Brand.primary
-        Button {
-            let paths = part.filePathsForNavigation
-            if paths.count == 1 {
-                openFile(paths[0])
-            } else if paths.count > 1 {
-                showOpenFileSheet = true
-            } else {
-                onOpenFilesTab()
-            }
-        } label: {
-            HStack(spacing: 8) {
+        Button(action: onOpen) {
+            HStack(spacing: DesignSpacing.sm) {
                 Image(systemName: "doc.text.fill")
-                    .foregroundStyle(accent)
-                Text(L10n.patchFilesChanged(fileCount))
-                    .fontWeight(.medium)
-                    .foregroundStyle(accent)
-                Spacer()
+                    .foregroundStyle(DesignColors.Brand.primary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L10n.patchFilesChanged(fileCount))
+                        .font(DesignTypography.bodyProminent)
+                        .foregroundStyle(DesignColors.Brand.primary)
+                    HStack(spacing: 6) {
+                        if let totals {
+                            Text(L10n.t(.changesAdded, totals.additions))
+                                .foregroundStyle(DesignColors.Brand.primary)
+                            Text(L10n.t(.changesDeleted, totals.deletions))
+                                .foregroundStyle(DesignColors.Neutral.textSecondary)
+                            Text("·")
+                                .foregroundStyle(DesignColors.Neutral.textTertiary)
+                        }
+                        Text(scope.label)
+                            .foregroundStyle(DesignColors.Neutral.textSecondary)
+                    }
+                    .font(DesignTypography.microMono)
+                }
+                Spacer(minLength: DesignSpacing.sm)
                 Image(systemName: "chevron.right")
                     .font(DesignTypography.micro)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(DesignColors.Neutral.textTertiary)
             }
-            .font(DesignTypography.micro)
+            .font(DesignTypography.body)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(DesignSpacing.cardPadding)
-            .background(DesignColors.Neutral.text.opacity(DesignColors.surfaceFill(for: colorScheme)))
+            .background(DesignColors.Brand.surface(for: colorScheme))
             .clipShape(RoundedRectangle(cornerRadius: DesignCorners.medium))
         }
         .buttonStyle(.plain)
-        .confirmationDialog(L10n.t(.toolOpenFile), isPresented: $showOpenFileSheet) {
-            ForEach(part.filePathsForNavigation, id: \.self) { path in
-                Button(L10n.toolOpenFileLabel(path: path)) {
-                    openFile(path)
-                }
-            }
-            Button(L10n.t(.commonCancel), role: .cancel) {}
-        } message: {
-            Text(L10n.t(.toolSelectFile))
-        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint(L10n.t(.changesOpenInFiles))
     }
 
-    private func openFile(_ path: String) {
-        let raw = path.trimmingCharacters(in: .whitespacesAndNewlines)
-        let p = PathNormalizer.resolveWorkspaceRelativePath(raw, workspaceDirectory: workspaceDirectory)
-        guard !p.isEmpty else { return }
-        onOpenResolvedPath(p)
+    private var accessibilityLabel: String {
+        guard let totals else { return L10n.patchFilesChanged(fileCount) }
+        return L10n.t(
+            .changesAccessibilityLabel,
+            fileCount,
+            totals.additions,
+            totals.deletions
+        )
     }
 }

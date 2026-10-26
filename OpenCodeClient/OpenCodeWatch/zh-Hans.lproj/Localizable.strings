@@ -1,0 +1,14 @@
+"Interrupt playback" = "打断播报";
+"Start voice" = "开始语音";
+"Unmute" = "取消静音";
+"Mute" = "静音";
+"End voice" = "结束语音";
+"Listening" = "正在听";
+"Connecting…" = "连接中…";
+"Muted" = "已静音";
+"Speaking, tap to interrupt" = "正在播报，轻点打断";
+"Ending voice" = "正在结束语音";
+"Voice disconnected" = "语音连接已断开";
+"Continuing on iPhone" = "已交给手机继续处理";
+"iPhone unavailable. Open OpenCode on your iPhone first." = "手机不可达，请先在 iPhone 打开 OpenCode";
+"Voice ended. Background work continues." = "语音已结束，后台工作仍在继续";

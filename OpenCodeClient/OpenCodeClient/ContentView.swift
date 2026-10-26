@@ -28,6 +28,8 @@ struct ContentView: View {
     @State private var selectedTab = 0
     @State private var carModeEnabled: Bool
     @State private var sessionsCollapsed: Bool = false
+    @State private var windowWidth: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init() {
         let initialState = Self.makeInitialState()
@@ -72,7 +74,8 @@ struct ContentView: View {
     private var effectiveLayout: EffectiveLayout {
         EffectiveLayoutResolver.resolve(
             preference: state.layoutPreference,
-            width: WindowWidthClass(horizontalSizeClass: resolvedSizeClass)
+            width: WindowWidthClass(horizontalSizeClass: resolvedSizeClass),
+            availableWidth: windowWidth > 0 ? windowWidth : nil
         )
     }
 
@@ -143,6 +146,8 @@ struct ContentView: View {
                     .frame(width: showColumns ? metrics.chatWidth : nil)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .onAppear { windowWidth = geo.size.width }
+            .onChange(of: geo.size.width) { _, width in windowWidth = width }
             .overlay(alignment: .leading) {
                 if showColumns, sessionsCollapsed {
                     Color.clear
@@ -152,7 +157,7 @@ struct ContentView: View {
                             DragGesture(minimumDistance: 20)
                                 .onEnded { value in
                                     if value.translation.width > 40 && abs(value.translation.height) < 80 {
-                                        withAnimation(DesignAnimation.spring) {
+                                        withAnimation(reduceMotion ? nil : DesignAnimation.spring) {
                                             sessionsCollapsed = false
                                         }
                                     }
@@ -172,7 +177,7 @@ struct ContentView: View {
                         TabletSessionsColumn(
                             state: state,
                             showSettings: $showTabletSettings,
-                            onCollapse: { withAnimation(DesignAnimation.spring) { sessionsCollapsed = true } }
+                            onCollapse: { withAnimation(reduceMotion ? nil : DesignAnimation.spring) { sessionsCollapsed = true } }
                         )
                         .frame(width: metrics.sessionsWidth)
                         Divider()
@@ -180,7 +185,7 @@ struct ContentView: View {
                     TabletFilesColumn(
                         state: state,
                         sessionsCollapsed: sessionsCollapsed,
-                        onExpandSessions: { withAnimation(DesignAnimation.spring) { sessionsCollapsed = false } }
+                        onExpandSessions: { withAnimation(reduceMotion ? nil : DesignAnimation.spring) { sessionsCollapsed = false } }
                     )
                     .frame(width: metrics.filesWidth)
                     Divider()
@@ -508,7 +513,11 @@ struct ContentView: View {
         ChatTabView(
             state: state,
             showSettingsInToolbar: false,
-            showSessionListInToolbar: !useSplitLayout
+            showSessionListInToolbar: !useSplitLayout,
+            onSettingsTap: {
+                if useSplitLayout { showTabletSettings = true }
+                else { state.selectedTab = RootTab.settings.rawValue }
+            }
         )
     }
 
@@ -592,7 +601,22 @@ private struct TabletFilesColumn: View {
     var body: some View {
         NavigationStack {
             Group {
-                if let path = state.previewFilePath, !path.isEmpty {
+                if let changes = state.changesPreview {
+                    SessionChangesView(
+                        paths: changes.paths,
+                        diffs: state.diffs(forTurn: changes.turnUserMessageID),
+                        scope: changes.turnUserMessageID == nil ? .session : .turn,
+                        workspaceDirectory: changes.workspaceDirectory,
+                        onOpenFile: { path in
+                            state.closeSessionChanges()
+                            state.presentFilesColumnPreview(
+                                path: path,
+                                workspaceDirectory: changes.workspaceDirectory
+                            )
+                        },
+                        onClose: { state.closeSessionChanges() }
+                    )
+                } else if let path = state.previewFilePath, !path.isEmpty {
                     FileContentView(
                         state: state,
                         filePath: path,
@@ -618,7 +642,14 @@ private struct TabletFilesColumn: View {
                     }
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    if let path = state.previewFilePath, !path.isEmpty {
+                    if state.changesPreview != nil {
+                        Button {
+                            state.closeSessionChanges()
+                        } label: {
+                            Image(systemName: "xmark")
+                        }
+                        .help(L10n.t(.appClose))
+                    } else if let path = state.previewFilePath, !path.isEmpty {
                         Button {
                             state.closeFilePreview()
                         } label: {
@@ -641,13 +672,16 @@ private struct TabletSessionsColumn: View {
     @State private var mutatingSessionID: String?
     @State private var actionError: String?
     @State private var showCreateDisabledAlert = false
+    @State private var searchText = ""
+    @State private var pendingDeletion: Session?
+    @State private var pendingDeletionHost: HostRequestSnapshot?
 
     private var activeNodes: [SessionNode] {
-        state.sessionTree(archived: false)
+        state.sessionTree(archived: false, query: searchText)
     }
 
     private var archivedNodes: [SessionNode] {
-        state.sessionTree(archived: true)
+        state.sessionTree(archived: true, query: searchText)
     }
 
     var body: some View {
@@ -656,19 +690,21 @@ private struct TabletSessionsColumn: View {
             Group {
                 if showSettings {
                     SettingsTabView(state: state, isCarModeEnabled: .constant(false))
-                } else if activeNodes.isEmpty && archivedNodes.isEmpty {
-                    ContentUnavailableView(
-                        L10n.t(.sessionsEmptyTitle),
-                        systemImage: "bubble.left.and.text.bubble.right",
-                        description: Text(L10n.t(.sessionsEmptyDescription))
-                    )
+                } else if activeNodes.isEmpty && archivedNodes.isEmpty && searchText.isEmpty {
+                    SessionListEmptyState()
                 } else {
                     List {
+                        if !searchText.isEmpty {
+                            Text(L10n.t(.sessionsSearchScope)).font(DesignTypography.meta)
+                            if activeNodes.isEmpty && archivedNodes.isEmpty {
+                                Text(L10n.t(.sessionsNoMatches))
+                            }
+                        }
                         SessionSectionHeader(title: L10n.t(.sessionsActive), isExpanded: activeExpanded) {
                             activeExpanded.toggle()
                         }
 
-                        if activeExpanded {
+                        if activeExpanded || !searchText.isEmpty {
                             sessionNodes(activeNodes, archived: false, presentations: presentations)
                         }
 
@@ -676,7 +712,7 @@ private struct TabletSessionsColumn: View {
                             archivedExpanded.toggle()
                         }
 
-                        if archivedExpanded {
+                        if archivedExpanded || !searchText.isEmpty {
                             sessionNodes(archivedNodes, archived: true, presentations: presentations)
                         }
 
@@ -696,6 +732,7 @@ private struct TabletSessionsColumn: View {
                 }
             }
             .navigationTitle(showSettings ? L10n.t(.navSettings) : L10n.t(.sessionsTitle))
+            .searchable(text: $searchText, prompt: L10n.t(.sessionsSearchLoaded))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // Sessions 列左上"折叠"按钮 (除 settings sheet 外都显示)
@@ -743,6 +780,7 @@ private struct TabletSessionsColumn: View {
                                 Image(systemName: "gear")
                             }
                             .accessibilityIdentifier("ipad-settings-button")
+                            .accessibilityLabel(L10n.t(.navSettings))
                         }
                     }
                 }
@@ -767,6 +805,17 @@ private struct TabletSessionsColumn: View {
             Button(L10n.t(.commonOk)) {}
         }
         .modifier(SessionStatusRefresh(state: state))
+        .alert(L10n.t(.sessionsDeleteConfirmation), isPresented: Binding(
+            get: { pendingDeletion != nil }, set: { if !$0 { pendingDeletion = nil } }
+        ), presenting: pendingDeletion) { session in
+            Button(L10n.t(.commonCancel), role: .cancel) {}
+            Button(L10n.t(.sessionsDelete), role: .destructive) {
+                guard let host = pendingDeletionHost, state.isCurrentHostRequest(host) else { return }
+                mutateSession(session) { try await state.deleteSession(sessionID: session.id, expectedHost: host) }
+            }
+        } message: { session in
+            Text(L10n.t(.sessionsDeleteWarning, session.title))
+        }
     }
 
     private func sessionNodes(
@@ -811,9 +860,8 @@ private struct TabletSessionsColumn: View {
                 }
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     Button {
-                        mutateSession(session) {
-                            try await state.deleteSession(sessionID: session.id)
-                        }
+                        pendingDeletionHost = state.captureHostRequestSnapshot()
+                        pendingDeletion = session
                     } label: {
                         Label(L10n.t(.sessionsDelete), systemImage: "trash")
                     }
@@ -821,7 +869,7 @@ private struct TabletSessionsColumn: View {
                     .disabled(mutatingSessionID != nil)
                 }
 
-                if state.expandedSessionIDs.contains(session.id) {
+                if state.expandedSessionIDs.contains(session.id) || !searchText.isEmpty {
                     sessionNodes(
                         node.children,
                         archived: archived,

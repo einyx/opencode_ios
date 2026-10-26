@@ -1090,9 +1090,26 @@ actor APIClient {
     }
 
     func sessionDiff(sessionID: String) async throws -> [FileDiff] {
+        try await sessionDiff(sessionID: sessionID, from: nil, to: nil, context: nil)
+    }
+
+    /// The diff of the files a turn changed.
+    ///
+    /// V2 scopes the diff to a turn: `from` is the user message that started
+    /// it, `to` extends the range through a later turn, and `context` sets how
+    /// many unchanged lines surround each hunk. V1 has no such parameters and
+    /// always answers with the whole session's diff.
+    func sessionDiff(sessionID: String, from: String?, to: String?, context: Int?) async throws -> [FileDiff] {
         let generation = try await resolvedGeneration()
         if generation == .v2 {
-            let (data, _) = try await makeRequest(path: "/api/session/\(sessionID)/diff")
+            var queryItems: [URLQueryItem] = []
+            if let from { queryItems.append(URLQueryItem(name: "from", value: from)) }
+            if let to { queryItems.append(URLQueryItem(name: "to", value: to)) }
+            if let context { queryItems.append(URLQueryItem(name: "context", value: String(context))) }
+            let (data, _) = try await makeRequest(
+                path: "/api/session/\(sessionID)/diff",
+                queryItems: queryItems.isEmpty ? nil : queryItems
+            )
             return try V2Mapper.diff(from: data)
         }
         let (data, _) = try await makeRequest(path: "/session/\(sessionID)/diff")
@@ -1814,9 +1831,17 @@ nonisolated struct FileDiff: Codable, Identifiable, Hashable {
     let additions: Int
     let deletions: Int
     let status: String?
+    /// The server's unified patch text.
+    ///
+    /// V2 sends it as `patch` (and leaves `before` empty, so the patch is the
+    /// only diff body it can show). V1 has no equivalent field — there the
+    /// renderer derives a diff from `before`/`after` instead. Keeping the two
+    /// apart lets the renderer tell them apart instead of guessing whether
+    /// `after` holds a patch or file content.
+    let patchText: String?
 
     enum CodingKeys: String, CodingKey {
-        case file, path, before, after, additions, deletions, status
+        case file, path, before, after, additions, deletions, status, patch
     }
 
     init(from decoder: Decoder) throws {
@@ -1827,6 +1852,7 @@ nonisolated struct FileDiff: Codable, Identifiable, Hashable {
         additions = (try? c.decode(Int.self, forKey: .additions)) ?? 0
         deletions = (try? c.decode(Int.self, forKey: .deletions)) ?? 0
         status = try? c.decode(String.self, forKey: .status)
+        patchText = try? c.decode(String.self, forKey: .patch)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -1837,15 +1863,25 @@ nonisolated struct FileDiff: Codable, Identifiable, Hashable {
         try c.encode(additions, forKey: .additions)
         try c.encode(deletions, forKey: .deletions)
         try c.encodeIfPresent(status, forKey: .status)
+        try c.encodeIfPresent(patchText, forKey: .patch)
     }
 
-    init(file: String, before: String, after: String, additions: Int, deletions: Int, status: String?) {
+    init(
+        file: String,
+        before: String,
+        after: String,
+        additions: Int,
+        deletions: Int,
+        status: String?,
+        patchText: String? = nil
+    ) {
         self.file = file
         self.before = before
         self.after = after
         self.additions = additions
         self.deletions = deletions
         self.status = status
+        self.patchText = patchText
     }
 
     func hash(into hasher: inout Hasher) { hasher.combine(file) }
@@ -2148,6 +2184,9 @@ protocol APIClientProtocol: Actor {
     func providerRegistry() async throws -> ProviderRegistryResponse
     func agents() async throws -> [AgentInfo]
     func sessionDiff(sessionID: String) async throws -> [FileDiff]
+    /// The diff of the files a turn changed. V2 scopes it to a turn; V1
+    /// answers with the whole session and ignores the range.
+    func sessionDiff(sessionID: String, from: String?, to: String?, context: Int?) async throws -> [FileDiff]
     func sessionTodos(sessionID: String) async throws -> [TodoItem]
     func fileList(path: String, directory: String?) async throws -> [FileNode]
     func fileContent(path: String, directory: String?) async throws -> FileContent
@@ -2184,6 +2223,11 @@ protocol FileDirectorySearching: APIClientProtocol {
 extension APIClient: FileDirectorySearching {}
 
 extension APIClientProtocol {
+    /// The turn-scoped diff of a client that does not scope diffs: the whole
+    /// session's diff is the closest answer it can give.
+    func sessionDiff(sessionID: String, from: String?, to: String?, context: Int?) async throws -> [FileDiff] {
+        try await sessionDiff(sessionID: sessionID)
+    }
     /// The status of a specific directory. V2 needs it: without a location
     /// the server resolves the request against its own working directory,
     /// which can be a large repository, and the call then hangs.

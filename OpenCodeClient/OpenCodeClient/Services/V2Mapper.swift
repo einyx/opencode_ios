@@ -210,7 +210,8 @@ nonisolated enum V2Mapper {
                 after: wire.patch,
                 additions: wire.additions ?? 0,
                 deletions: wire.deletions ?? 0,
-                status: wire.status
+                status: wire.status,
+                patchText: wire.patch
             )
         }
     }
@@ -543,6 +544,13 @@ private struct V2Content: Decodable {
     }
 }
 
+private struct V2Snapshot: Decodable {
+    let start: String?
+    let end: String?
+    /// The relative paths this step changed. Paths only — no counts.
+    let files: [String]?
+}
+
 nonisolated private struct V2Message: Decodable {
     let id: String
     let type: String
@@ -556,6 +564,7 @@ nonisolated private struct V2Message: Decodable {
     let tokens: Message.TokenInfo?
     let cost: Double?
     let time: V2MessageTime
+    let snapshot: V2Snapshot?
 
     func message(sessionID: String, parentID: String?) -> MessageWithParts {
         let info = Message(
@@ -613,9 +622,8 @@ nonisolated private struct V2Message: Decodable {
             return parts
         }
 
-        guard let content else { return [] }
         var parts: [Part] = []
-        for (index, entry) in content.enumerated() {
+        for (index, entry) in (content ?? []).enumerated() {
             switch entry.type {
             case "text", "reasoning":
                 guard let text = entry.text else { continue }
@@ -647,6 +655,23 @@ nonisolated private struct V2Message: Decodable {
             default:
                 continue
             }
+        }
+        // V2 has no patch part: the paths a step changed live on the message's
+        // snapshot. Synthesize the same part shape V1 sends so one renderer
+        // serves both generations.
+        if let changed = snapshot?.files, !changed.isEmpty {
+            parts.append(Part(
+                id: "\(id)-patch-0",
+                messageID: id,
+                sessionID: sessionID,
+                type: "patch",
+                text: nil,
+                tool: nil,
+                callID: nil,
+                state: nil,
+                metadata: nil,
+                files: changed.map { Part.FileChange(path: $0) }
+            ))
         }
         return parts
     }

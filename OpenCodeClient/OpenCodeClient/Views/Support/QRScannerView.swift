@@ -28,7 +28,7 @@ struct QRScannerView: View {
                 scannerPreview
                 overlay
             }
-            .navigationTitle("Scan pairing code")
+            .navigationTitle(L10n.t(.hostScanTitle))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -52,6 +52,10 @@ struct QRScannerView: View {
                     .font(.largeTitle)
                 Text(L10n.t(.hostPairCameraDenied))
                     .multilineTextAlignment(.center)
+                if let settings = URL(string: UIApplication.openSettingsURLString) {
+                    Link(L10n.t(.settingsOpenSystem), destination: settings)
+                        .frame(minHeight: 44)
+                }
             }
             .foregroundStyle(.white)
             .padding()

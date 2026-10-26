@@ -12,6 +12,16 @@ struct SettingsTabView: View {
         isCheckingConnection || state.connectionDiagnostic?.phase.isChecking == true
     }
 
+    /// The host is unreachable: the connection failed, or the app is left
+    /// disconnected with an error to explain. This mirrors the two branches
+    /// that render the failure copy, so the drawing never appears without the
+    /// message that says why.
+    private var showsOfflineArt: Bool {
+        if checking { return false }
+        if state.connectionDiagnostic?.phase == .failed { return true }
+        return state.connectionError != nil && !state.isConnected && state.connectionDiagnostic == nil
+    }
+
     var body: some View {
         NavigationStack {
             ScrollViewReader { proxy in
@@ -28,12 +38,8 @@ struct SettingsTabView: View {
                     preferencesSection
 
                     Section {
-                        NavigationLink {
-                            OpenSourceLicencesView()
-                        } label: {
-                            valueLabel("OpenCodex", value: appVersion)
-                        }
-                        .accessibilityIdentifier("settings-open-source-licences")
+                        aboutIdentityRow
+                        aboutLicencesLink
                     } header: {
                         sectionTitle(.settingsAbout)
                     }
@@ -118,6 +124,21 @@ struct SettingsTabView: View {
                 .buttonStyle(.borderless)
                 .accessibilityIdentifier("settings-test-connection")
                 .disabled(checking || state.currentHostProfile == nil)
+            }
+
+            // Host unreachable: the unplugged-plug scene states the condition
+            // visually. The reason below and the Check action above stay
+            // exactly as they are — the drawing states the state, it never
+            // replaces the copy or the way out (HIG Feedback).
+            if showsOfflineArt {
+                Image("OfflineArt")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 128, height: 128)
+                    .accessibilityHidden(true)
+                    .frame(maxWidth: .infinity)
+                    .listRowSeparator(.hidden)
+                    .accessibilityIdentifier("settings-offline-art")
             }
 
             if let diagnostic = state.connectionDiagnostic, diagnostic.phase == .failed, !checking {
@@ -304,6 +325,53 @@ struct SettingsTabView: View {
         } label: {
             Text(title)
         }
+    }
+
+    /// The About identity block: the hand-drawn spark next to the app name.
+    ///
+    /// The drawing is decoration — the name and the version carry the
+    /// information, so the art is hidden from assistive technology.
+    private var aboutIdentityRow: some View {
+        HStack(spacing: DesignSpacing.md) {
+            Image("AgentArt")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 72, height: 72)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: DesignSpacing.xs) {
+                Text("OpenCodex")
+                    .font(DesignTypography.display)
+                    .foregroundStyle(SettingsStyle.foreground(scheme))
+                Text(appVersion)
+                    .font(DesignTypography.meta)
+                    .foregroundStyle(SettingsStyle.secondary(scheme))
+            }
+            Spacer(minLength: DesignSpacing.sm)
+        }
+        .padding(.vertical, DesignSpacing.sm)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// The licences link, with the small hand-drawn terminal as its mark.
+    ///
+    /// TerminalArt stays secondary here: the row is a text link into the
+    /// licence notices, not a second picture to look at.
+    private var aboutLicencesLink: some View {
+        NavigationLink {
+            OpenSourceLicencesView()
+        } label: {
+            HStack(spacing: DesignSpacing.md) {
+                Image("TerminalArt")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 28, height: 28)
+                    .accessibilityHidden(true)
+                Text(L10n.t(.settingsOpenSourceLicences))
+                    .font(DesignTypography.body)
+                    .foregroundStyle(SettingsStyle.foreground(scheme))
+            }
+        }
+        .accessibilityIdentifier("settings-open-source-licences")
     }
 
     private var appVersion: String {

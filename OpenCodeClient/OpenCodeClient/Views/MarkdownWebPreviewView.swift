@@ -24,6 +24,7 @@ import MarkdownUI
 struct MarkdownWebPreviewInput: Equatable {
     let markdown: String
     let colorScheme: ColorScheme
+    var fontScale: Double = 1
 }
 
 private struct WebPreviewDocumentID: Hashable {
@@ -58,6 +59,8 @@ struct MarkdownWebPreviewContainer: View {
     var onSwitchToSource: (() -> Void)?
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .body) private var previewFontSize = 16.0
     @Environment(\.openURL) private var openURL
 
     @State private var resolvedMarkdown: String?
@@ -77,7 +80,8 @@ struct MarkdownWebPreviewContainer: View {
                 let workspace = workspaceDirectory
                 let basePath = markdownFilePath
                 MarkdownWebPreviewView(
-                    input: MarkdownWebPreviewInput(markdown: resolved, colorScheme: colorScheme),
+                    input: MarkdownWebPreviewInput(markdown: resolved, colorScheme: colorScheme,
+                                                   fontScale: previewFontSize / 16),
                     onOpenExternalURL: { url in openURL(url) },
                     onOpenRelativePath: { href in
                         openWorkspacePath(href, owner: owner, workspaceDirectory: workspace, baseFilePath: basePath)
@@ -320,6 +324,7 @@ struct MarkdownWebPreviewView: UIViewRepresentable {
             let payload: [String: Any] = [
                 "markdown": input.markdown,
                 "theme": input.colorScheme == .dark ? "dark" : "light",
+                "fontScale": input.fontScale,
             ]
             guard
                 let data = try? JSONSerialization.data(withJSONObject: payload),

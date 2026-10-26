@@ -246,6 +246,8 @@ struct ChatTabView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.layoutDirection) private var textLayoutDirection
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var useGridCards: Bool { effectiveLayout == .regular }
 
@@ -497,6 +499,41 @@ struct ChatTabView: View {
         )
     }
 
+    /// The messages of the session on screen. `state.messages` is swapped on
+    /// a session switch, so it can briefly still hold the previous session's
+    /// rows — the filter keeps the placeholder honest about which session it
+    /// is describing.
+    private var currentSessionMessages: [MessageWithParts] {
+        guard let sessionID = state.currentSessionID else { return [] }
+        return state.messages.filter { $0.info.sessionID == sessionID }
+    }
+
+    /// True once the agent has produced any tool or patch output in this
+    /// session. Until then the tool region of the transcript is empty.
+    private var currentSessionHasToolOutput: Bool {
+        currentSessionMessages.contains { message in
+            message.parts.contains { $0.isTool || $0.isPatch }
+        }
+    }
+
+    /// The tool/activity region is idle while the session has turns but the
+    /// agent has not run a tool yet — the region where the tool output lands
+    /// is still empty, and the wrench marks it.
+    ///
+    /// A running turn is a loading state, not an empty one, so the artwork
+    /// stays out of it (the composer already carries the running state), and
+    /// a transcript that ends with the user's own message is a turn in
+    /// flight rather than an idle region.
+    private var showsToolActivityPlaceholder: Bool {
+        guard state.currentSessionID != nil else { return false }
+        // An empty transcript has its own scene (the empty-chat artwork).
+        guard !currentSessionMessages.isEmpty else { return false }
+        guard !isCurrentSessionBusy else { return false }
+        guard !currentSessionHasToolOutput else { return false }
+        guard let last = currentSessionMessages.last, !last.info.isUser else { return false }
+        return true
+    }
+
     private var voiceRailMode: VoiceRailWaveformView.Mode {
         if isRecording { return .active }
         if isShowingTranscribingUI || isRetryingSpeech { return .generating }
@@ -591,7 +628,7 @@ struct ChatTabView: View {
             }
             .font(DesignTypography.meta)
             .foregroundStyle(DesignColors.Neutral.textSecondary)
-            .frame(minHeight: 24)
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -629,7 +666,7 @@ struct ChatTabView: View {
                     Image(systemName: "ellipsis")
                         .font(DesignTypography.meta.weight(.semibold))
                         .foregroundStyle(DesignColors.Neutral.textTertiary)
-                        .frame(width: 30, height: 24)
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -719,7 +756,10 @@ struct ChatTabView: View {
     }
 
     private var voiceRail: some View {
-        HStack(spacing: DesignSpacing.sm) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: DesignSpacing.sm))
+            : AnyLayout(HStackLayout(spacing: DesignSpacing.sm))
+        return layout {
             // Voice-first owns the rail: the transport sits on the leading
             // edge, the waveform and status fill the middle (PRD anatomy).
             // Otherwise the action row carries the mic, so the rail only
@@ -798,12 +838,13 @@ struct ChatTabView: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("speech-error-dismiss")
+                        .accessibilityLabel(L10n.t(.appClose))
+                        .frame(width: 44, height: 44)
                     }
                     .padding(.horizontal, DesignSpacing.md)
                     .padding(.top, DesignSpacing.xs)
                 }
 
-                HStack(alignment: .bottom, spacing: DesignSpacing.sm) {
                 VStack(alignment: .leading, spacing: DesignSpacing.xs) {
                     ZStack(alignment: .leading) {                        ChatComposerTextView(
                             text: composerInputBinding,
@@ -865,12 +906,7 @@ struct ChatTabView: View {
                     }
                     .environment(\.layoutDirection, textLayoutDirection)
 
-                    composerContextRow
-                        .environment(\.layoutDirection, textLayoutDirection)
-                }
-
-                composerActions
-                    .environment(\.layoutDirection, textLayoutDirection)
+                    composerFooter
             }
             .padding(.horizontal, DesignSpacing.md)
             .padding(.vertical, DesignSpacing.sm)
@@ -882,23 +918,35 @@ struct ChatTabView: View {
         .padding(.bottom, DesignSpacing.sm)
     }
 
-    /// The caption row inside the composer card: the model picker, the todo
-    /// list and the live turn state share the row with — not float above —
-    /// the input surface. The session counters live in the session sheet —
-    /// a third band above the composer read as a control panel, and counters
-    /// are session detail, not input context.
+    /// One shared bottom row: model/todos at the leading edge, actions trailing.
+    /// Only accessibility text sizes split the controls across rows.
+    private var composerFooter: some View {
+        VStack(alignment: .leading, spacing: DesignSpacing.xs) {
+            if shouldShowComposerStatus {
+                quietComposerStatus
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    .environment(\.layoutDirection, textLayoutDirection)
+            }
+            let layout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: DesignSpacing.sm))
+                : AnyLayout(HStackLayout(alignment: .center, spacing: DesignSpacing.sm))
+            layout {
+                composerContextRow
+                    .environment(\.layoutDirection, textLayoutDirection)
+                if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
+                composerActions
+                    .fixedSize(horizontal: true, vertical: false)
+                    .environment(\.layoutDirection, textLayoutDirection)
+            }
+        }
+    }
+
     private var composerContextRow: some View {
         HStack(spacing: DesignSpacing.sm) {
             ChatModelChip(state: state)
                 .glassSurface(cornerRadius: 15)
             ChatTodoChip(state: state)
                 .glassSurface(cornerRadius: 15)
-            Spacer(minLength: 0)
-            if shouldShowComposerStatus {
-                quietComposerStatus
-                    .layoutPriority(1)
-                    .lineLimit(1)
-            }
         }
     }
 
@@ -925,6 +973,7 @@ struct ChatTabView: View {
                 }
                 .disabled(isLoadingAttachment || isSending)
                 .accessibilityIdentifier("chat-attach-image")
+                .accessibilityLabel(L10n.t(.chatAttachImage))
             }
 
             // Dictation sits in the same cluster as photo and send, the way
@@ -952,7 +1001,7 @@ struct ChatTabView: View {
                 .disabled(isSending || isShowingTranscribingUI || isStartingRecording || isRetryingSpeech
                           || speechConfigurationCleanupTask != nil || (!state.isChatSpeechConfigured && !isRecording))
                 .accessibilityIdentifier("speech-transport")
-                .accessibilityLabel(isRecording ? L10n.t(.chatSpeechListening) : L10n.t(.chatSpeechTapToSpeak))
+                .accessibilityLabel(isRecording ? L10n.t(.chatStopRecording) : L10n.t(.chatSpeechTapToSpeak))
             }
 
             Button(action: sendCurrentInput) {
@@ -969,7 +1018,7 @@ struct ChatTabView: View {
                 .background {
                     // Circular send, matching the reference composer card.
                     Circle()
-                        .fill(canSendNow ? DesignColors.Brand.primary : DesignColors.Brand.primary.opacity(0.35))
+                        .fill(canSendNow ? DesignColors.Brand.primary : DesignColors.dimmedFill(DesignColors.Brand.primary))
                 }
                 .frame(width: composerActionSlotWidth, height: max(ComposerHitTarget.minimum, DesignControls.composerPrimaryActionButtonSize))
                 .contentShape(Rectangle())
@@ -977,6 +1026,7 @@ struct ChatTabView: View {
                 .hoverEffect(.lift)
             }
             .accessibilityIdentifier("chat-send")
+            .accessibilityLabel(L10n.t(.chatSend))
             .disabled(!canSendNow)
         }
     }
@@ -993,12 +1043,12 @@ struct ChatTabView: View {
                         filePath: previewPath,
                         workspaceDirectory: state.inlinePreviewWorkspaceDirectory,
                         onClose: {
-                            withAnimation(DesignAnimation.spring) {
+                            withAnimation(reduceMotion ? nil : DesignAnimation.spring) {
                                 state.closeFilePreview()
                             }
                         }
                     )
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                 } else {
                     ScrollViewReader { proxy in
                     GeometryReader { scrollGeometry in
@@ -1087,13 +1137,13 @@ struct ChatTabView: View {
                                                 TurnActivityRowView(activity: a)
                                             }
                                         }
-                                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                                        .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .bottom)))
                                     }
                                 }
 
                                 if useGridCards {
                                     LazyVGrid(
-                                        columns: Array(repeating: GridItem(.flexible(), spacing: DesignSpacing.sm), count: 3),
+                                        columns: [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 600 : 300), spacing: DesignSpacing.sm)],
                                         alignment: .leading,
                                         spacing: DesignSpacing.sm
                                     ) {
@@ -1131,6 +1181,18 @@ struct ChatTabView: View {
                                             }
                                         )
                                     }
+                                }
+
+                                // The tool/activity region's idle state: the
+                                // agent has produced turns but has not run a
+                                // single tool yet, so the region where the
+                                // tool output lands is still empty. The wrench
+                                // marks that spot and leaves as soon as the
+                                // first tool card arrives.
+                                if showsToolActivityPlaceholder {
+                                    ToolActivityArtwork()
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.top, DesignSpacing.sm)
                                 }
 
                                 Color.clear
@@ -1204,6 +1266,30 @@ struct ChatTabView: View {
             )
             .sheet(isPresented: $showSessionList) {
                 SessionListView(state: state)
+            }
+            .sheet(item: Binding<AppState.SessionChangesPreview?>(
+                get: {
+                    guard effectiveLayout != .regular else { return nil }
+                    guard let changes = state.changesPreview, changes.host == .chat else { return nil }
+                    return changes
+                },
+                set: { newValue, _ in if newValue == nil { state.closeSessionChanges() } }
+            )) { changes in
+                NavigationStack {
+                    SessionChangesView(
+                        paths: changes.paths,
+                        diffs: state.diffs(forTurn: changes.turnUserMessageID),
+                        scope: changes.turnUserMessageID == nil ? .session : .turn,
+                        workspaceDirectory: changes.workspaceDirectory,
+                        onOpenFile: { path in
+                            openFileInChat(path, workspaceDirectory: changes.workspaceDirectory)
+                        },
+                        onClose: { state.closeSessionChanges() }
+                    )
+                    .navigationTitle(L10n.t(.changesSectionTitle))
+                    .navigationBarTitleDisplayMode(.inline)
+                }
+                .presentationDetents([.medium, .large])
             }
             .alert(L10n.t(.chatSendFailed), isPresented: Binding(
                 get: { state.sendError != nil },
@@ -1562,7 +1648,7 @@ struct ChatTabView: View {
     private func scheduleScrollToBottom(using proxy: ScrollViewProxy) {
         lastSelfScrollAt = Date()
         pendingScrollTask?.cancel()
-        let shouldAnimate = !state.isBusy
+        let shouldAnimate = !state.isBusy && !reduceMotion
 
         pendingScrollTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(50))
@@ -1736,6 +1822,21 @@ struct ChatTabView: View {
                         .font(DesignTypography.headline)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
+                    if !state.isConnected {
+                        Button(L10n.t(.chatConnectServer)) {
+                            if let onSettingsTap { onSettingsTap() }
+                            else { state.selectedTab = RootTab.settings.rawValue }
+                        }
+                            .buttonStyle(.borderedProminent)
+                            .frame(minHeight: 44)
+                    } else if state.canCreateSession {
+                        Button(L10n.t(.sessionsNew)) { Task { await state.createSession() } }
+                            .buttonStyle(.borderedProminent)
+                            .frame(minHeight: 44)
+                    } else {
+                        Button(L10n.t(.sessionsTitle)) { showSessionList = true }
+                            .frame(minHeight: 44)
+                    }
                 }
                 .padding(.top, 40)
                 .frame(maxWidth: .infinity)
@@ -1751,13 +1852,14 @@ struct ChatTabView: View {
                     .padding(.vertical, 18)
                 }
             } else {
-                // Claude-style greeting: the asterisk mark over a prompt. The
-                // text presentation (U+FE0E) keeps it monochrome so it matches
-                // the app icon instead of rendering as a green emoji badge.
+                // A selected session whose transcript holds no turn yet. The
+                // transcript IS the session's history, so this is an empty
+                // timeline and the clock says so — the same swap the
+                // no-session branch made when EmptyChatArt replaced its
+                // decorative glyph. The greeting keeps the copy; the drawing
+                // takes the hero slot.
                 VStack(spacing: DesignSpacing.md) {
-                    Text("✳︎")
-                        .font(.system(size: 34))
-                        .foregroundStyle(DesignColors.Brand.primary)
+                    SessionHistoryArtwork()
                     Text(L10n.t(.chatGreeting))
                         .font(DesignTypography.display)
                         .foregroundStyle(DesignColors.Neutral.text)
@@ -1799,7 +1901,7 @@ struct ChatTabView: View {
                 layout: .regular
             )
         } else {
-            withAnimation(DesignAnimation.spring) {
+            withAnimation(reduceMotion ? nil : DesignAnimation.spring) {
                 state.presentChatFilePreview(
                     path: resolvedPath,
                     workspaceDirectory: workspaceDirectory,
@@ -1851,6 +1953,8 @@ private struct ComposerAttachmentThumbnail: View {
                     .font(.caption)
                     .symbolRenderingMode(.palette)
                     .foregroundStyle(.white, DesignColors.Neutral.textSecondary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .offset(x: 6, y: -6)
             .accessibilityLabel(L10n.t(.attachmentRemoveImageAccessibilityLabel))

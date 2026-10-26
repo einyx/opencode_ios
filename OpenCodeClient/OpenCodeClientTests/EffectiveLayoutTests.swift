@@ -5,6 +5,13 @@ import UIKit
 @testable import OpenCodeClient
 
 struct EffectiveLayoutTests {
+    @Test func narrowRegularWindowUsesCompactLayout() {
+        #expect(EffectiveLayoutResolver.resolve(preference: .automatic, width: .regular, availableWidth: 700) == .compact)
+        #expect(EffectiveLayoutResolver.resolve(preference: .automatic, width: .regular, availableWidth: 899) == .compact)
+        #expect(EffectiveLayoutResolver.resolve(preference: .automatic, width: .regular, availableWidth: 900) == .regular)
+        #expect(EffectiveLayoutResolver.resolve(preference: .focus, width: .regular, availableWidth: 1200) == .compact)
+    }
+
     @Test func automaticFollowsRegularWidth() {
         #expect(EffectiveLayoutResolver.resolve(preference: .automatic, width: .regular) == .regular)
     }

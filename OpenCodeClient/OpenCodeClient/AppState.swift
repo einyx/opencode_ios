@@ -756,12 +756,22 @@ final class AppState {
             .sorted { $0.time.updated > $1.time.updated }
     }
 
-    func sessionTree(archived: Bool) -> [SessionNode] {
-        Self.prioritizeAttention(
+    func sessionTree(archived: Bool, query: String = "") -> [SessionNode] {
+        let tree = Self.prioritizeAttention(
             Self.buildSessionTree(from: filteredSessions(archived: archived)),
             attentionCounts: sessionAttentionCounts,
             descendantBusyCounts: sessionDescendantBusyCounts
         )
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return tree }
+        func matching(_ nodes: [SessionNode]) -> [SessionNode] {
+            nodes.compactMap { node in
+                let children = matching(node.children)
+                guard node.session.title.localizedCaseInsensitiveContains(query) || !children.isEmpty else { return nil }
+                return SessionNode(session: node.session, children: children)
+            }
+        }
+        return matching(tree)
     }
 
     var attentionSessionIDs: [String] {
