@@ -582,6 +582,16 @@ struct ChatTabView: View {
         return "mic.fill"
     }
 
+    /// The action-row mic is the transport when the layout is not voice-first.
+    /// It carries the same meaning as the rail's transport, so it gets the
+    /// same icon.
+    private var composerTransportIcon: String {
+        if isRecording { return "stop.circle.fill" }
+        if isRetryingSpeech { return "circle.dotted" }
+        if hasPreservedSpeechAudioForUI { return "arrow.clockwise" }
+        return "mic.fill"
+    }
+
     /// Adaptive composer status bar: one line when only the persistent
     /// session counters are present, expanding to two when there is also
     /// transient per-turn state (agent activity, voice, abort). Top line =
@@ -975,13 +985,20 @@ struct ChatTabView: View {
             // over the card or inside the text field — reads as clutter.
             if showsComposerMicButton {
                 Button {
-                    Task { await toggleRecording() }
+                    // With a preserved recording waiting, the button retries
+                    // that recording instead of opening a new capture — the
+                    // same behaviour the voice-first rail has.
+                    if hasPreservedSpeechAudioForUI {
+                        Task { await retryPreservedSpeechAudio() }
+                    } else {
+                        Task { await toggleRecording() }
+                    }
                 } label: {
                     ZStack {
                         if isStartingRecording || isRetryingSpeech {
                             ProgressView().controlSize(.small)
                         } else {
-                            Image(systemName: isRecording ? "stop.circle.fill" : "mic.fill")
+                            Image(systemName: composerTransportIcon)
                                 .font(DesignControls.composerActionIconFont)
                         }
                     }
@@ -993,7 +1010,7 @@ struct ChatTabView: View {
                 .buttonStyle(.plain)
                 .disabled(isSending || isShowingTranscribingUI || isStartingRecording || isRetryingSpeech
                           || speechConfigurationCleanupTask != nil || (!state.isChatSpeechConfigured && !isRecording))
-                .accessibilityIdentifier("speech-transport")
+                .accessibilityIdentifier(hasPreservedSpeechAudioForUI ? "speech-retry-segment" : "speech-transport")
                 .accessibilityLabel(isRecording ? L10n.t(.chatStopRecording) : L10n.t(.chatSpeechTapToSpeak))
             }
 

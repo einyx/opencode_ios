@@ -223,10 +223,8 @@ final class OpenCodeClientUITests: XCTestCase {
         app.staticTexts["Add Host"].tap()
 
         XCTAssertTrue(app.navigationBars["Add Host"].waitForExistence(timeout: 8))
-        app.textFields["host-name"].tap()
-        app.textFields["host-name"].typeText("Tailscale Mac")
-        app.textFields["host-server-url"].tap()
-        app.textFields["host-server-url"].typeText("https://tailnet.example.invalid:4096")
+        UITestFieldFocus.type("Tailscale Mac", into: app.textFields["host-name"])
+        UITestFieldFocus.type("https://tailnet.example.invalid:4096", into: app.textFields["host-server-url"])
         app.buttons["host-save"].tap()
 
         XCTAssertTrue(app.navigationBars["Hosts"].waitForExistence(timeout: 8))
@@ -435,9 +433,7 @@ final class HostEditorCredentialUITests: XCTestCase {
 
     @MainActor
     private func typeSecret(_ app: XCUIApplication) throws {
-        let field = app.descendants(matching: .any)["host-password"]
-        field.tap()
-        field.typeText(secret)
+        UITestFieldFocus.type(secret, into: app.descendants(matching: .any)["host-password"])
     }
 
     @MainActor

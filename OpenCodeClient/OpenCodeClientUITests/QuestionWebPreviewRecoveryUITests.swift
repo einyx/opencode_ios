@@ -41,7 +41,7 @@ final class QuestionWebPreviewRecoveryUITests: XCTestCase {
         waitUntil(submit, isEnabled: false)
         waitUntil(submit, isEnabled: true)
 
-        XCTAssertEqual(option.value as? String, "selected")
+        XCTAssertEqual(option.value as? String, "Selected")
         XCTAssertEqual(field.value as? String, "kept-answer")
         XCTAssertEqual(app.descendants(matching: .any)["question-recovery-recorded"].label, "Build+kept-answer")
         XCTAssertTrue(submit.isEnabled)

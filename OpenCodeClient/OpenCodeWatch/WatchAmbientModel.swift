@@ -175,15 +175,34 @@ final class WatchAmbientModel: NSObject, WCSessionDelegate {
     }
 
     /// Streams the watch's microphone to the phone.
+    ///
+    /// The capture delivers a frame every 40 ms; the bridge is a message
+    /// channel, so the frames are batched into 8 KiB chunks before they go
+    /// up. One message per frame would be 25 messages a second, and a
+    /// dropped message is a hole in the audio the phone has to recognise.
     private func forwardAudio(_ handle: CarLiveCaptureHandle) async {
+        var chunk = Data()
+        chunk.reserveCapacity(WatchBridgeWire.chunkBytes)
         for await pcm in handle.frames {
             guard !run.isEmpty, !Task.isCancelled else { return }
             if muted { continue }
-            framesSent += 1
-            var message = WatchBridgeWire.envelope("audio", run: run)
-            message["data"] = pcm
-            send(message)
+            chunk.append(pcm)
+            while chunk.count >= WatchBridgeWire.chunkBytes {
+                let head = chunk.prefix(WatchBridgeWire.chunkBytes)
+                chunk.removeFirst(WatchBridgeWire.chunkBytes)
+                sendAudio(Data(head))
+            }
         }
+        if !chunk.isEmpty {
+            sendAudio(chunk)
+        }
+    }
+
+    private func sendAudio(_ data: Data) {
+        framesSent += 1
+        var message = WatchBridgeWire.envelope("audio", run: run)
+        message["data"] = data
+        send(message)
     }
 
     private func request(_ payload: [String: Any]) async throws -> [String: Any] {

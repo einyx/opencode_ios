@@ -45,9 +45,9 @@ involved, no analytics and no advertising.
 
 **AMBIENT MODE.** An experimental hands-free surface for the car: the app
 listens, asks your server, and reads the answer aloud. It is behind a switch in
-Settings → About → Ambient Mode, and it is off by default. Speech recognition
-and speech output both run on the device; there is no cloud speech service, no
-access token and no account to set up.
+Settings → Preferences → Advanced → Ambient Mode, and it is off by default.
+Speech recognition and speech output both run on the device; there is no cloud
+speech service, no access token and no account to set up.
 
 **APPLE WATCH.** The app ships a watch app that shows the current session and
 lets you talk to it. The watch has no speech-recognition framework of its own,

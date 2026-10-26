@@ -288,13 +288,11 @@ enum Tier4DriverSupport {
             }
         }
         // Typing into a field that has not taken the keyboard yet fails with
-        // "Neither element nor any descendant has keyboard focus". Wait for
-        // the keyboard before typing, and tap again if it did not come up.
-        let keyboard = XCUIApplication().keyboards.firstMatch
-        if !keyboard.waitForExistence(timeout: 4) {
-            element.tap()
-            _ = keyboard.waitForExistence(timeout: 4)
-        }
+        // "Neither element nor any descendant has keyboard focus".
+        XCTAssertTrue(
+            UITestFieldFocus.focus(element),
+            "the field should take the keyboard focus before typing"
+        )
         element.typeText(text.isEmpty ? XCUIKeyboardKey.delete.rawValue : text)
     }
 }

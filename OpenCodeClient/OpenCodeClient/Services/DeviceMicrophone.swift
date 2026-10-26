@@ -59,6 +59,7 @@ final class DeviceMicrophone {
         let session = AVAudioSession.sharedInstance()
         try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetoothHFP])
         try session.setPreferredSampleRate(48_000)
+        try? session.setPreferredIOBufferDuration(0.02)
         try session.setActive(true, options: [])
 
         let input = engine.inputNode
@@ -66,7 +67,17 @@ final class DeviceMicrophone {
         guard format.sampleRate > 0, format.channelCount > 0 else {
             throw DeviceMicrophoneError.unavailable
         }
-        let writer = DeviceWAVWriter(sampleRate: format.sampleRate)
+        // The Speech framework reads 16 kHz mono PCM; the hardware gives
+        // whatever it likes (usually 48 kHz), so the capture is converted.
+        guard let target = AVAudioFormat(
+            commonFormat: .pcmFormatInt16,
+            sampleRate: Self.targetSampleRate,
+            channels: 1,
+            interleaved: false
+        ), let converter = AVAudioConverter(from: format, to: target) else {
+            throw DeviceMicrophoneError.unavailable
+        }
+        let writer = DeviceWAVWriter(sampleRate: Self.targetSampleRate)
         recording = writer
         chunkHandler = onPCMChunk
 
@@ -74,7 +85,7 @@ final class DeviceMicrophone {
         let smoother = smoother
         input.installTap(onBus: 0, bufferSize: 960, format: format) { [weak self] buffer, _ in
             guard let self else { return }
-            guard let data = Self.pcm16(from: buffer) else { return }
+            guard let data = Self.convert(buffer, with: converter, to: target) else { return }
             writer.append(data)
             onPCMChunk?(data)
             let raw = Self.level(of: data)
@@ -118,12 +129,31 @@ final class DeviceMicrophone {
         #endif
     }
 
-    /// The captured samples as little-endian PCM16.
-    private static func pcm16(from buffer: AVAudioPCMBuffer) -> Data? {
-        guard let channel = buffer.int16ChannelData?.pointee else { return nil }
+    /// The sample rate the on-device recogniser reads.
+    static let targetSampleRate: Double = 16_000
+
+    /// Converts one captured buffer to the recogniser's format.
+    private static func convert(
+        _ buffer: AVAudioPCMBuffer,
+        with converter: AVAudioConverter,
+        to target: AVAudioFormat
+    ) -> Data? {
         let frames = Int(buffer.frameLength)
         guard frames > 0 else { return nil }
-        return Data(bytes: channel, count: frames * MemoryLayout<Int16>.size)
+        let ratio = target.sampleRate / buffer.format.sampleRate
+        let capacity = AVAudioFrameCount((Double(frames) * ratio).rounded(.up))
+        guard capacity > 0,
+              let output = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: capacity) else { return nil }
+        var error: NSError?
+        nonisolated(unsafe) let captured = buffer
+        converter.convert(to: output, error: &error) { _, status in
+            status.pointee = .haveData
+            return captured
+        }
+        guard error == nil, let channel = output.int16ChannelData?.pointee else { return nil }
+        let count = Int(output.frameLength) * MemoryLayout<Int16>.size
+        guard count > 0 else { return nil }
+        return Data(bytes: channel, count: count)
     }
 
     /// The root-mean-square level of a PCM16 chunk, 0...1.
@@ -153,7 +183,7 @@ enum DeviceMicrophoneError: Error {
 extension DeviceMicrophone: ChatSpeechMicrophoneControlling {}
 
 /// Smooths the level: 30% of the new sample, 70% carried over.
-private actor DeviceLevelSmoother {
+actor DeviceLevelSmoother {
     private var current: Float = 0
 
     func advance(_ raw: Float) -> Float {
@@ -164,7 +194,7 @@ private actor DeviceLevelSmoother {
 
 #if os(iOS) || os(visionOS)
 /// Writes PCM16 chunks into a WAV file.
-private final class DeviceWAVWriter {
+final class DeviceWAVWriter {
     private let sampleRate: Double
     private let channels: UInt16 = 1
     private var samples: [Int16] = []
@@ -214,7 +244,7 @@ private final class DeviceWAVWriter {
     }
 
     /// A 44-byte canonical WAV header for PCM16 mono.
-    private static func wavHeader(sampleRate: Double, byteCount: UInt32) -> Data {
+    static func wavHeader(sampleRate: Double, byteCount: UInt32) -> Data {
         let rate = UInt32(sampleRate)
         let byteRate = rate * 2
         var bytes: [UInt8] = []

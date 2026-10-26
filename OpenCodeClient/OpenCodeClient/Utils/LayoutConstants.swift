@@ -83,8 +83,4 @@ enum StorageKeys {
     static let themePreference = "themePreference"
     static let draftInputsBySession = "draftInputsBySession"
     static let selectedModelBySession = "selectedModelBySession"
-    static let aiBuilderBaseURL = "aiBuilderBaseURL"
-    static let aiBuilderToken = "aiBuilderToken"
-    static let aiBuilderLastOKSignature = "aiBuilderLastOKSignature"
-    static let aiBuilderLastTestedAt = "aiBuilderLastTestedAt"
 }
