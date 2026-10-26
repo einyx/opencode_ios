@@ -191,7 +191,12 @@ extension AppState {
         }
         let host = captureHostRequestSnapshot()
         let selection = sessionLoadingID
-        let model = selectedModel.map { Message.ModelInfo(providerID: $0.providerID, modelID: $0.modelID) }
+        // Only a model the user explicitly chose for this session is sent.
+        // The model lives on the server session, which other clients (the
+        // desktop app, the web UI) share: writing a default index into it
+        // silently moved their turns onto whichever model happened to sit at
+        // that index.
+        let model = sessionModelPreset.map { Message.ModelInfo(providerID: $0.providerID, modelID: $0.modelID) }
         let agentName = agentNameForPrompt()
         let directory = currentSession?.directory ?? effectiveProjectDirectory
         let messageID = Self.makeServerID(prefix: "msg")

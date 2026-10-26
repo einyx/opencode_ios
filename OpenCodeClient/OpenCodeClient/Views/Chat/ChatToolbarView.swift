@@ -62,7 +62,10 @@ struct ChatModelChip: View {
             showConfigSheet = true
         } label: {
             HStack(spacing: 4) {
-                Text(state.selectedModel?.shortName ?? L10n.t(.configureModel))
+                // What the session will actually use: the model the user
+                // picked for it, or the server's own default. Never a
+                // shortlist entry the user never chose.
+                Text(state.effectiveModelPreset?.shortName ?? L10n.t(.configureModel))
                     .font(.caption.weight(.semibold))
                     .lineLimit(1)
                 Image(systemName: "chevron.down")
@@ -80,7 +83,7 @@ struct ChatModelChip: View {
         }
         .accessibilityIdentifier("chat-toolbar-model")
         .accessibilityLabel(L10n.t(.configureModel))
-        .accessibilityValue(state.selectedModel?.shortName ?? L10n.t(.configureModel))
+        .accessibilityValue(state.effectiveModelPreset?.shortName ?? L10n.t(.configureModel))
         .sheet(isPresented: $showConfigSheet) {
             ModelConfigSheet(state: state, isPresented: $showConfigSheet)
         }

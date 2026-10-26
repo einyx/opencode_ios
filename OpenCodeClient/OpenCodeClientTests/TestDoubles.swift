@@ -183,6 +183,9 @@ actor MockAPIClient: APIClientProtocol {
         var promptAsyncCalls: [(String, String, [ComposerImageAttachment])] = []
         var promptAsyncMessageIDs: [String] = []
         var promptAsyncAgents: [String] = []
+        /// The model each prompt asked the server to run on. `nil` means the
+        /// app left the session's model alone.
+        var promptAsyncModels: [Message.ModelInfo?] = []
     var promptStructuredCalls: [(sessionID: String, messageID: String?, text: String, system: String, agent: String, providerID: String, modelID: String)] = []
     var promptStructuredResult: MessageWithParts?
     var promptStructuredDelayNanoseconds: UInt64 = 0
@@ -491,6 +494,7 @@ actor MockAPIClient: APIClientProtocol {
         promptAsyncCalls.append((sessionID, text, attachments))
         promptAsyncMessageIDs.append(messageID)
         promptAsyncAgents.append(agent)
+        promptAsyncModels.append(model)
         if let promptError { throw promptError }
     }
 

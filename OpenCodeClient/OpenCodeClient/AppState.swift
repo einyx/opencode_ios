@@ -657,7 +657,10 @@ final class AppState {
         return Double(cacheRead) / Double(denominator)
     }
 
-    var selectedModelIndex: Int = 2
+    /// Index into `pickerModelPresets`. 0 until the session's own pick (or the
+    /// server's default) is resolved — never an arbitrary position, which
+    /// used to point at a model the user never selected.
+    var selectedModelIndex: Int = 0
     
     var agents: [AgentInfo] = [
         AgentInfo(name: "OpenCode-Builder", description: "Build agent (OpenCode default)", mode: "all", hidden: false, native: false),
@@ -1338,6 +1341,40 @@ final class AppState {
 
     var selectedModel: ModelPreset? {
         pickerModelPresets.indices.contains(selectedModelIndex) ? pickerModelPresets[selectedModelIndex] : nil
+    }
+
+    /// The model the session will actually run on: the user's explicit pick
+    /// for it, otherwise the server's own default.
+    ///
+    /// This is the only model the app is allowed to write to the server
+    /// session. The picker's *index* is a UI position, not a decision: with a
+    /// default of 2 it pointed at whatever third entry the shortlist had —
+    /// including a provider the user never chose — and because the model
+    /// lives on the shared session, every other client inherited it.
+    var effectiveModelPreset: ModelPreset? {
+        if let picked = sessionModelPreset { return picked }
+        guard let model = providersResponse?.default else { return nil }
+        return ModelPreset(
+            displayName: model.modelID,
+            providerID: model.providerID,
+            modelID: model.modelID
+        )
+    }
+
+    /// The model the user explicitly chose for the current session, if any.
+    ///
+    /// This is the only model the app is allowed to write to the server
+    /// session. The picker's *index* is a UI position, not a decision: with a
+    /// default of 2 it pointed at whatever third entry the shortlist had —
+    /// including a provider the user never chose — and because the model
+    /// lives on the shared session, every other client inherited it.
+    var sessionModelPreset: ModelPreset? {
+        guard let sessionID = currentSessionID,
+              let savedID = selectedModelIDBySessionID[sessionID],
+              let preset = pickerModelPresets.first(where: { $0.id == savedID }) else {
+            return nil
+        }
+        return preset
     }
 
     /// Chat picker source: only the local shortlist.

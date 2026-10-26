@@ -21,12 +21,12 @@ struct AIUsageQuotaButton: View {
             }
             return "\(quota.clampedRemainingPercentage)% @ \(quota.label)"
         }
-        return state.selectedModel?.primaryQuotaKey?.label ?? ""
+        return state.effectiveModelPreset?.primaryQuotaKey?.label ?? ""
     }
 
     var body: some View {
         Group {
-            if state.isAIUsageQuotaConfigured, state.selectedModel?.primaryQuotaKey != nil {
+            if state.isAIUsageQuotaConfigured, state.effectiveModelPreset?.primaryQuotaKey != nil {
                 TimelineView(.periodic(from: .now, by: 60)) { context in
                     quotaButton(at: context.date)
                 }
