@@ -104,21 +104,7 @@ enum L10n {
         case settingsComposerLeftHand
         case settingsComposerRightHand
         case settingsShowImageButton
-        case settingsVoiceFirstNeedsToken
         case settingsSpeechRecognition
-        case settingsRecordingStrategy
-        case settingsOpenAIRealtime
-        case settingsGPTLiveTranscribe
-        case settingsGrokBatch
-        case settingsStrategyHelp
-        case settingsStrategyDialogTitle
-        case settingsStrategyDialogBody
-        case settingsAiBuilderBaseURL
-        case settingsAiBuilderToken
-        case settingsCustomPrompt
-        case settingsTerminology
-        case settingsTesting
-        case settingsTestConnectionScope
         case settingsAbout
         case settingsServerVersion
         case settingsOpenSourceLicences
@@ -127,7 +113,6 @@ enum L10n {
         case settingsCarMode
         case settingsAppleOnDevice
         case settingsAppleOnDeviceFooter
-        case settingsVoiceCloudDisclosure
         case settingsModelShortlist
         case settingsModelShortlistFooter
         case settingsModelShortlistEmpty
@@ -297,18 +282,15 @@ enum L10n {
         case chatNoMessages
         case chatGreeting
         case chatTurnCompleted
-        case chatSpeechTokenMissing
         case speechApplePermissionDenied
         case speechAppleUnavailable
         case speechAppleOnDeviceUnavailable
         case speechAppleNoSpeech
         case chatSpeechTesting
         case chatSpeechNotPassed
-        case chatSpeechStreamDisconnected
         case chatSpeechTapToSpeak
         case chatSpeechListening
         case chatSpeechTranscriptWillAppear
-        case chatSpeechRecovering
         case chatSpeechTranscribing
         case chatSpeechTranscribingHint
         case chatSpeechPreservedAudio
@@ -340,10 +322,8 @@ enum L10n {
         case taskNotificationNoOutput
         case carTitle
         case carReady
-        case carListening
         case carFinalizing
         case carWorking
-        case carSpeaking
         case carNeedsConfirmation
         case carFailed
         case carStartSpeaking
@@ -379,41 +359,7 @@ enum L10n {
         case carLiveModeMenuTitle
         case carLiveModeRealtime
         case carLiveModeTurnByTurn
-        case carLiveConnect
-        case carLiveDisconnect
-        case carLiveReconnect
-        case carLiveMute
-        case carLiveUnmute
-        case carLiveInterruptPlayback
-        case carLiveRoleUser
-        case carLiveRoleAssistant
-        case carLiveToolRow
-        case carLiveToolArgs
-        case carLiveToolResult
         case carLiveEmptyConversation
-        case carLiveConnecting
-        case carLiveEnding
-        case carLiveListeningAndSpeaking
-        case carLiveDetailsTitle
-        case carLiveInputLevel
-        case carLiveOutputLevel
-        case carLiveVoiceDuration
-        case carLiveSessionDuration
-        case carLiveInputUsage
-        case carLiveOutputUsage
-        case carLiveCacheRead
-        case carLiveCacheWrite
-        case carLiveLocalCostEstimate
-        case carLivePortalCostSnapshot
-        case carLivePortalNoSnapshot
-        case carLiveCostHeading
-        case carLiveCostExplanation
-        case carLiveConnectFailedError
-        case carLiveToolRunning
-        case carLiveToolSent
-        case carLiveToolDropped
-        case carLiveToolResultPending
-        case carLiveUsageUnconfirmed
         case attachmentImageTitle
         case attachmentFileTitle
         case attachmentRemoveImageAccessibilityLabel
@@ -569,7 +515,6 @@ enum L10n {
         case errorFileNotFound
         case errorOperationFailed
         case errorUnknown
-        case errorAiBuilderTokenEmpty
         case errorInvalidBaseURL
         case errorServerAddressEmpty
         case errorWanRequiresHttps
@@ -707,22 +652,8 @@ enum L10n {
         Key.settingsComposerLeftHand.rawValue: "Left-hand side mode",
         Key.settingsComposerRightHand.rawValue: "Right-hand side mode",
         Key.settingsShowImageButton.rawValue: "Show image button",
-        Key.settingsVoiceFirstNeedsToken.rawValue: "Without an AI Builder Space token, drafts use the normal keyboard.",
         Key.settingsVoiceFirstFooter.rawValue: "When on, tapping a draft won't show the keyboard. Use Paste, or tap the keyboard button to edit.",
         Key.settingsSpeechRecognition.rawValue: "Speech Recognition",
-        Key.settingsRecordingStrategy.rawValue: "Recording Strategy",
-        Key.settingsOpenAIRealtime.rawValue: "GPT Realtime",
-        Key.settingsGPTLiveTranscribe.rawValue: "GPT Live Transcribe",
-        Key.settingsGrokBatch.rawValue: "Grok STT",
-        Key.settingsStrategyHelp.rawValue: "Which one should I choose?",
-        Key.settingsStrategyDialogTitle.rawValue: "Which one should I choose?",
-        Key.settingsStrategyDialogBody.rawValue: "GPT Realtime — conversational realtime transcription with strong formatting and punctuation.\n\nGPT Live Transcribe — dedicated live transcription over the same realtime transport.\n\nGrok STT — lower-cost batch transcription. Records locally and uploads after Stop.",
-        Key.settingsAiBuilderBaseURL.rawValue: "AI Builder Base URL",
-        Key.settingsAiBuilderToken.rawValue: "AI Builder Token",
-        Key.settingsCustomPrompt.rawValue: "Custom Prompt",
-        Key.settingsTerminology.rawValue: "Terminology (comma-separated)",
-        Key.settingsTesting.rawValue: "Testing...",
-        Key.settingsTestConnectionScope.rawValue: "Test Connection checks endpoint and token access only. It does not validate the selected transcription strategy.",
         Key.settingsAbout.rawValue: "About",
         Key.settingsServerVersion.rawValue: "Server Version",
         Key.settingsOpenSourceLicences.rawValue: "Open source licences",
@@ -731,7 +662,6 @@ enum L10n {
         Key.settingsCarMode.rawValue: "Ambient Mode",
         Key.settingsAppleOnDevice.rawValue: "Apple On-Device",
         Key.settingsAppleOnDeviceFooter.rawValue: "Transcription runs entirely on this device with Apple's speech recognizer. Nothing is uploaded and no account is needed.",
-        Key.settingsVoiceCloudDisclosure.rawValue: "Audio is captured on this device and uploaded to the speech service for transcription.",
         Key.settingsModelShortlist.rawValue: "Models",
         Key.settingsModelShortlistFooter.rawValue: "The chat picker only shows this shortlist. Add models from the connected server.",
         Key.settingsModelShortlistEmpty.rawValue: "No models yet. Tap + to search and add.",
@@ -901,18 +831,15 @@ enum L10n {
         Key.chatNoMessages.rawValue: "No messages yet",
         Key.chatGreeting.rawValue: "How can I help you?",
         Key.chatTurnCompleted.rawValue: "Completed",
-        Key.chatSpeechTokenMissing.rawValue: "Speech recognition is not configured. Set AI Builder Token in Settings → Speech Recognition and tap Test Connection.",
         Key.speechApplePermissionDenied.rawValue: "Speech recognition permission denied. Enable it in Settings → Privacy & Security → Speech Recognition.",
         Key.speechAppleUnavailable.rawValue: "On-device speech recognition is not available on this device.",
         Key.speechAppleOnDeviceUnavailable.rawValue: "On-device speech recognition is not available for your language yet. Pick a cloud strategy in Settings → Speech Recognition.",
         Key.speechAppleNoSpeech.rawValue: "No speech detected in the recording.",
         Key.chatSpeechTesting.rawValue: "AI Builder connection is being tested, please wait.",
         Key.chatSpeechNotPassed.rawValue: "AI Builder connection test failed. Go to Settings → Speech Recognition, tap Test Connection, and confirm it's OK before recording.",
-        Key.chatSpeechStreamDisconnected.rawValue: "The speech connection was lost and couldn't recover. Tap stop and try again.",
         Key.chatSpeechTapToSpeak.rawValue: "Tap to speak",
         Key.chatSpeechListening.rawValue: "Listening...",
         Key.chatSpeechTranscriptWillAppear.rawValue: "Transcript will appear here...",
-        Key.chatSpeechRecovering.rawValue: "Reconnecting voice...",
         Key.chatSpeechTranscribing.rawValue: "Transcribing...",
         Key.chatSpeechTranscribingHint.rawValue: "Finishing transcript...",
         Key.chatSpeechPreservedAudio.rawValue: "Audio saved. Retry this segment.",
@@ -944,10 +871,8 @@ enum L10n {
         Key.taskNotificationNoOutput.rawValue: "No output",
         Key.carTitle.rawValue: "Ambient Mode",
         Key.carReady.rawValue: "Ready",
-        Key.carListening.rawValue: "Listening",
         Key.carFinalizing.rawValue: "Finishing transcript",
         Key.carWorking.rawValue: "OpenCode is working",
-        Key.carSpeaking.rawValue: "Speaking",
         Key.carNeedsConfirmation.rawValue: "Confirmation needed",
         Key.carFailed.rawValue: "Needs attention",
         Key.carStartSpeaking.rawValue: "Start speaking",
@@ -983,41 +908,7 @@ enum L10n {
         Key.carLiveModeMenuTitle.rawValue: "Voice Mode",
         Key.carLiveModeRealtime.rawValue: "Live Voice",
         Key.carLiveModeTurnByTurn.rawValue: "Sentence by sentence",
-        Key.carLiveConnect.rawValue: "Connect",
-        Key.carLiveDisconnect.rawValue: "End Voice",
-        Key.carLiveReconnect.rawValue: "Reconnect",
-        Key.carLiveMute.rawValue: "Mute",
-        Key.carLiveUnmute.rawValue: "Unmute",
-        Key.carLiveInterruptPlayback.rawValue: "Stop Playback",
-        Key.carLiveRoleUser.rawValue: "You",
-        Key.carLiveRoleAssistant.rawValue: "Assistant",
-        Key.carLiveToolRow.rawValue: "Tool",
-        Key.carLiveToolArgs.rawValue: "Arguments",
-        Key.carLiveToolResult.rawValue: "Result",
         Key.carLiveEmptyConversation.rawValue: "No conversation yet",
-        Key.carLiveConnecting.rawValue: "Connecting…",
-        Key.carLiveEnding.rawValue: "Ending voice…",
-        Key.carLiveListeningAndSpeaking.rawValue: "Listening & speaking",
-        Key.carLiveDetailsTitle.rawValue: "Connection Details",
-        Key.carLiveInputLevel.rawValue: "Input Level",
-        Key.carLiveOutputLevel.rawValue: "Output Level",
-        Key.carLiveVoiceDuration.rawValue: "Voice Duration",
-        Key.carLiveSessionDuration.rawValue: "Session Duration",
-        Key.carLiveInputUsage.rawValue: "Ordinary Input",
-        Key.carLiveOutputUsage.rawValue: "Output Usage",
-        Key.carLiveCacheRead.rawValue: "Cache Read",
-        Key.carLiveCacheWrite.rawValue: "Cache Write",
-        Key.carLiveLocalCostEstimate.rawValue: "Reasoning Reference Estimate (Luna)",
-        Key.carLivePortalCostSnapshot.rawValue: "Platform Session Estimate (Voice + Reasoning)",
-        Key.carLivePortalNoSnapshot.rawValue: "No portal snapshot",
-        Key.carLiveCostHeading.rawValue: "Cost Reference (USD)",
-        Key.carLiveCostExplanation.rawValue: "Both figures are reference estimates only, not a final bill; the platform estimate already includes reasoning, so do not add them together. The Luna estimate covers hosted reasoning tokens only and excludes voice and delegated worker execution.",
-        Key.carLiveConnectFailedError.rawValue: "Connection failed. Tap Reconnect.",
-        Key.carLiveToolRunning.rawValue: "Running",
-        Key.carLiveToolSent.rawValue: "Sent",
-        Key.carLiveToolDropped.rawValue: "Dropped",
-        Key.carLiveToolResultPending.rawValue: "Pending",
-        Key.carLiveUsageUnconfirmed.rawValue: "Unconfirmed",
         Key.attachmentImageTitle.rawValue: "Image",
         Key.attachmentFileTitle.rawValue: "Attachment",
         Key.attachmentRemoveImageAccessibilityLabel.rawValue: "Remove image",
@@ -1173,7 +1064,6 @@ enum L10n {
         Key.errorFileNotFound.rawValue: "File not found: %@",
         Key.errorOperationFailed.rawValue: "Operation failed: %@",
         Key.errorUnknown.rawValue: "Unknown error: %@",
-        Key.errorAiBuilderTokenEmpty.rawValue: "Token is empty",
         Key.errorInvalidBaseURL.rawValue: "Invalid base URL",
         Key.errorServerAddressEmpty.rawValue: "Server address is empty",
         Key.errorWanRequiresHttps.rawValue: "WAN address must use HTTPS",
@@ -1312,22 +1202,8 @@ enum L10n {
         Key.settingsComposerLeftHand.rawValue: "左手模式",
         Key.settingsComposerRightHand.rawValue: "右手模式",
         Key.settingsShowImageButton.rawValue: "显示图像按钮",
-        Key.settingsVoiceFirstNeedsToken.rawValue: "未配置 AI Builder Space token 时，输入框使用普通键盘。",
         Key.settingsVoiceFirstFooter.rawValue: "开启后轻点草稿不弹键盘，仍可粘贴文本，点键盘按钮进入编辑。",
         Key.settingsSpeechRecognition.rawValue: "语音识别",
-        Key.settingsRecordingStrategy.rawValue: "录音策略",
-        Key.settingsOpenAIRealtime.rawValue: "GPT Realtime",
-        Key.settingsGPTLiveTranscribe.rawValue: "GPT Live Transcribe",
-        Key.settingsGrokBatch.rawValue: "Grok STT",
-        Key.settingsStrategyHelp.rawValue: "我该选哪个？",
-        Key.settingsStrategyDialogTitle.rawValue: "我该选哪个？",
-        Key.settingsStrategyDialogBody.rawValue: "GPT Realtime：对话式实时转写，排版和标点能力较强。\n\nGPT Live Transcribe：使用同一实时传输链路的专用实时转写。\n\nGrok STT：成本较低的批量转写；本地录音，停止后上传。",
-        Key.settingsAiBuilderBaseURL.rawValue: "AI Builder 服务地址",
-        Key.settingsAiBuilderToken.rawValue: "AI Builder 访问令牌",
-        Key.settingsCustomPrompt.rawValue: "自定义提示词",
-        Key.settingsTerminology.rawValue: "术语（逗号分隔）",
-        Key.settingsTesting.rawValue: "测试中...",
-        Key.settingsTestConnectionScope.rawValue: "测试连接只检查服务地址和令牌是否可用，不验证当前选择的转写策略。",
         Key.settingsAbout.rawValue: "关于",
         Key.settingsServerVersion.rawValue: "服务器版本",
         Key.settingsOpenSourceLicences.rawValue: "开源许可证",
@@ -1336,7 +1212,6 @@ enum L10n {
         Key.settingsCarMode.rawValue: "Ambient Mode",
         Key.settingsAppleOnDevice.rawValue: "Apple 设备端识别",
         Key.settingsAppleOnDeviceFooter.rawValue: "转写完全在这台设备上用 Apple 语音识别完成，不上传任何数据，也无需账号。",
-        Key.settingsVoiceCloudDisclosure.rawValue: "录音在这台设备上采集，并上传到语音服务进行转写。",
         Key.settingsModelShortlist.rawValue: "模型",
         Key.settingsModelShortlistFooter.rawValue: "聊天栏只显示这份短名单。从已连接的 server 目录里搜索添加。",
         Key.settingsModelShortlistEmpty.rawValue: "还没有模型。点右上角 + 搜索添加。",
@@ -1507,18 +1382,15 @@ enum L10n {
         Key.chatNoMessages.rawValue: "暂无消息",
         Key.chatGreeting.rawValue: "有什么可以帮你的？",
         Key.chatTurnCompleted.rawValue: "已完成",
-        Key.chatSpeechTokenMissing.rawValue: "语音识别未配置：请先到“设置 > 语音识别”填写 AI Builder 访问令牌，并点击“测试连接”。",
         Key.speechApplePermissionDenied.rawValue: "语音识别权限被拒绝：请在“设置 > 隐私与安全性 > 语音识别”中开启。",
         Key.speechAppleUnavailable.rawValue: "此设备不支持设备端语音识别。",
         Key.speechAppleOnDeviceUnavailable.rawValue: "你的语言暂不支持设备端语音识别。请到“设置 > 语音识别”选择云端方案。",
         Key.speechAppleNoSpeech.rawValue: "录音中没有识别到语音。",
         Key.chatSpeechTesting.rawValue: "AI Builder 正在测试连接，请稍候。",
         Key.chatSpeechNotPassed.rawValue: "AI Builder 连接未通过测试：请先到 Settings -> Speech Recognition 点击 Test Connection，确认 OK 后再录音。",
-        Key.chatSpeechStreamDisconnected.rawValue: "语音连接断开且无法恢复，请按停止后重试。",
         Key.chatSpeechTapToSpeak.rawValue: "点击说话",
         Key.chatSpeechListening.rawValue: "正在听…",
         Key.chatSpeechTranscriptWillAppear.rawValue: "转写内容会显示在这里…",
-        Key.chatSpeechRecovering.rawValue: "语音正在重连…",
         Key.chatSpeechTranscribing.rawValue: "正在转写…",
         Key.chatSpeechTranscribingHint.rawValue: "正在完成转写…",
         Key.chatSpeechPreservedAudio.rawValue: "音频已保留，可重试这段。",
@@ -1544,10 +1416,8 @@ enum L10n {
         Key.chatEditFromHere.rawValue: "从这里编辑",
         Key.carTitle.rawValue: "Ambient Mode",
         Key.carReady.rawValue: "可以说话",
-        Key.carListening.rawValue: "正在听",
         Key.carFinalizing.rawValue: "正在完成转写",
         Key.carWorking.rawValue: "OpenCode 正在处理",
-        Key.carSpeaking.rawValue: "正在朗读",
         Key.carNeedsConfirmation.rawValue: "需要确认",
         Key.carFailed.rawValue: "需要处理",
         Key.carStartSpeaking.rawValue: "开始说话",
@@ -1583,41 +1453,7 @@ enum L10n {
         Key.carLiveModeMenuTitle.rawValue: "语音模式",
         Key.carLiveModeRealtime.rawValue: "实时语音",
         Key.carLiveModeTurnByTurn.rawValue: "逐句语音",
-        Key.carLiveConnect.rawValue: "连接",
-        Key.carLiveDisconnect.rawValue: "结束语音",
-        Key.carLiveReconnect.rawValue: "重新连接",
-        Key.carLiveMute.rawValue: "静音",
-        Key.carLiveUnmute.rawValue: "取消静音",
-        Key.carLiveInterruptPlayback.rawValue: "打断播放",
-        Key.carLiveRoleUser.rawValue: "你",
-        Key.carLiveRoleAssistant.rawValue: "助手",
-        Key.carLiveToolRow.rawValue: "工具",
-        Key.carLiveToolArgs.rawValue: "参数",
-        Key.carLiveToolResult.rawValue: "结果",
         Key.carLiveEmptyConversation.rawValue: "暂无对话",
-        Key.carLiveConnecting.rawValue: "连接中",
-        Key.carLiveEnding.rawValue: "结束中",
-        Key.carLiveListeningAndSpeaking.rawValue: "同时在听和说",
-        Key.carLiveDetailsTitle.rawValue: "连接详情",
-        Key.carLiveInputLevel.rawValue: "输入电平",
-        Key.carLiveOutputLevel.rawValue: "输出电平",
-        Key.carLiveVoiceDuration.rawValue: "语音时长",
-        Key.carLiveSessionDuration.rawValue: "会话时长",
-        Key.carLiveInputUsage.rawValue: "普通输入",
-        Key.carLiveOutputUsage.rawValue: "输出量",
-        Key.carLiveCacheRead.rawValue: "缓存读取",
-        Key.carLiveCacheWrite.rawValue: "缓存写入",
-        Key.carLiveLocalCostEstimate.rawValue: "推理参考估算（Luna）",
-        Key.carLivePortalCostSnapshot.rawValue: "平台会话估算（语音＋推理）",
-        Key.carLivePortalNoSnapshot.rawValue: "门户暂无快照",
-        Key.carLiveCostHeading.rawValue: "费用参考（USD）",
-        Key.carLiveCostExplanation.rawValue: "两项均为非账单参考值，平台估算已包含当前会话的推理部分，请勿相加。Luna 估算仅统计云端推理 token，不含语音时长及委派任务开销。",
-        Key.carLiveConnectFailedError.rawValue: "连接失败，点重新连接",
-        Key.carLiveToolRunning.rawValue: "执行中",
-        Key.carLiveToolSent.rawValue: "已发送",
-        Key.carLiveToolDropped.rawValue: "已丢弃",
-        Key.carLiveToolResultPending.rawValue: "待返回",
-        Key.carLiveUsageUnconfirmed.rawValue: "未最终确认",
         Key.chatForkFromHere.rawValue: "从这里分叉",
         Key.chatThinkingCard.rawValue: "思考",
         Key.taskNotificationCompleted.rawValue: "已完成",
@@ -1779,7 +1615,6 @@ enum L10n {
         Key.errorFileNotFound.rawValue: "文件不存在：%@",
         Key.errorOperationFailed.rawValue: "操作失败：%@",
         Key.errorUnknown.rawValue: "未知错误：%@",
-        Key.errorAiBuilderTokenEmpty.rawValue: "访问令牌为空",
         Key.errorInvalidBaseURL.rawValue: "无效的 URL",
         Key.helpLanHttp.rawValue: "LAN: HTTP 允许，但建议仅在可信局域网内使用。HTTP 不安全。",
         Key.helpWanHttp.rawValue: "WAN: 需要 HTTPS（HTTP 会被阻止）。HTTP 不安全。",

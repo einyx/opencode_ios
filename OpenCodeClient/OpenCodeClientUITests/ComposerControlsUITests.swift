@@ -30,9 +30,10 @@ final class ComposerControlsUITests: XCTestCase {
         XCTAssertTrue(send.exists)
         // The action cluster is one row of equal-weight glyphs in the Messages
         // order — photo, mic, send — with the send button the only filled one.
-        // A left-handed composer mirrors the row.
+        // A left-handed composer moves the cluster to the other side of the
+        // input; it does not reorder the glyphs inside it.
         var ordered = [photo, mic, send]
-        if left { ordered.reverse() }
+        if !imageVisible { ordered.removeAll { $0 === photo } }
         let visible = ordered.filter { $0.exists }
         for pair in zip(visible, visible.dropFirst()) {
             XCTAssertLessThan(pair.0.frame.minX, pair.1.frame.minX)
@@ -46,9 +47,13 @@ final class ComposerControlsUITests: XCTestCase {
         } else {
             XCTAssertFalse(photo.exists)
         }
-        // The cluster sits at the trailing edge of the composer, over the
-        // input field rather than beside it.
-        XCTAssertGreaterThan(send.frame.maxX, input.frame.maxX - 160)
+        // The cluster sits on the chosen side of the composer.
+        let midpoint = app.frame.midX
+        if left {
+            XCTAssertLessThan(send.frame.maxX, midpoint)
+        } else {
+            XCTAssertGreaterThan(send.frame.minX, midpoint)
+        }
         XCTAssertGreaterThanOrEqual(mic.frame.width, 44)
         XCTAssertGreaterThanOrEqual(mic.frame.height, 44)
         XCTAssertTrue(mic.isHittable)
@@ -84,10 +89,15 @@ final class ComposerControlsUITests: XCTestCase {
     @MainActor
     func testVoiceRailIsAlwaysAvailableAndTheKeyboardStillWorks() {
         let app = launch(voiceFirst: true)
-        XCTAssertTrue(app.buttons["speech-transport"].exists)
-        XCTAssertFalse(app.buttons["chat-keyboard"].exists)
+        // The dictation button is there without any setup: no token, no
+        // connection test, no picker.
+        XCTAssertTrue(app.buttons["speech-transport"].waitForExistence(timeout: 4))
+        // The voice-first composer starts with the keyboard down and offers a
+        // way to bring it back.
+        let keyboard = app.buttons["chat-keyboard"]
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 4))
+        keyboard.tap()
         let input = app.textViews["chat-input"]
-        input.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 4))
         input.typeText("typed-without-voice")
         XCTAssertTrue((input.value as? String)?.contains("typed-without-voice") == true)

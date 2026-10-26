@@ -177,7 +177,7 @@ final class WatchAmbientModel: NSObject, WCSessionDelegate {
     /// Streams the watch's microphone to the phone.
     private func forwardAudio(_ handle: CarLiveCaptureHandle) async {
         for await pcm in handle.frames {
-            guard run == ownerToken(), !Task.isCancelled else { return }
+            guard !run.isEmpty, !Task.isCancelled else { return }
             if muted { continue }
             framesSent += 1
             var message = WatchBridgeWire.envelope("audio", run: run)
@@ -185,8 +185,6 @@ final class WatchAmbientModel: NSObject, WCSessionDelegate {
             send(message)
         }
     }
-
-    private func ownerToken() -> String { run }
 
     private func request(_ payload: [String: Any]) async throws -> [String: Any] {
         // Activation is asynchronous, including immediately after the first tap.

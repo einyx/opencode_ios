@@ -1,9 +1,9 @@
 # Device-only voice — design
 
-> Status: **in progress** (2026-10-26). Plan: `plan.md`.
-> Landed: the streaming on-device recogniser, the device voice engine, and the iPhone
-> Ambient tab cutover. Still to do: permission by voice, the watch, the removal of the
-> hosted path, and the App Store copy.
+> Status: **landed** (2026-10-26). Plan: `plan.md`.
+> Every voice surface now runs on the device: the streaming on-device recogniser, the
+> device voice engine, the iPhone Ambient tab, the watch (whose microphone travels to
+> the phone), and the removal of the hosted path and its token.
 > Related: `docs/appstore/privacy-policy.md` (published copy), `docs/appstore/review-notes.md`.
 
 ## Intent

@@ -265,3 +265,31 @@ You can confirm on the spot that the actual output is `data: {"payload":{"type":
 **Correct approach**: give the state an explicit in-flight flag owned by the operation itself — raised before the first await and released on every exit path, including early returns — so the label follows the check and not the reload behind it. Scope every shared diagnostic write to the request that produced it, so a superseded check publishes nothing and stamps its phase with the host it was made for. Have the row read only the current host's diagnostic.
 
 **Lesson**: a progress label must be scoped to the operation it names and must have a guaranteed terminal state. The tell-tale sign is a progress label sitting next to a value that only a *completed* operation could have produced — when those two disagree, the label's owner is wrong, not the value.
+
+---
+
+## 22. A Voice Feature That Needs a Credential Is a Voice Feature Most People Never Use
+
+**Scenario**: Ambient Mode — the hands-free car surface — was the only voice feature in
+the app that could not be used without setup. It ran on a hosted realtime service and
+refused to start until the user pasted an access token into Settings. Dictation, right
+next to it, needed no credential at all. The feature was built for a moment when the
+user is driving and cannot reach for a keyboard, and it was the one surface that
+demanded a keyboard first.
+
+**Anti-pattern**: treating "the platform provides this model" as "the user provides the
+credential for it". The hosted service also turned out to be the only part of the app
+that uploaded raw audio to somebody else's server, so the token was not just a
+configuration step: it was the whole privacy story of the voice feature.
+
+**Correct approach**: ask what the user's own machine already has. The OpenCode server
+already holds the model credentials and already answers over an API the app speaks, so
+the conversation brain never needed a hosted service — and Apple's Speech framework
+recognises and synthesises on the device with no account. The one platform limit worth
+knowing: watchOS ships no `Speech.framework` at all, so the watch cannot recognise
+locally and its microphone has to travel to the phone over the private
+Apple-to-iPhone connection, which is still "on the user's own devices".
+
+**Lesson**: before wiring a feature to a hosted service, check what the user's own
+machine already provides — a hosted service adds a credential, a privacy disclosure
+and a third-party failure mode, and the local path often needs none of the three.

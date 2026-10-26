@@ -6,8 +6,7 @@ the reviewer is likely to trip over.
 
 ---
 
-OpenCode Remote is a native client for OpenCode, the open-source AI coding
-agent. The user runs an OpenCode server on their own computer and this app
+OpenCodeX is a native client for OpenCode, the open-source AI coding agent. The user runs an OpenCode server on their own computer and this app
 connects to it.
 
 **ACCOUNT SIGN-IN IS NOT REQUIRED.** There is no account, no login and no

@@ -333,11 +333,6 @@ final class DeviceVoiceEngine {
         }
     }
 
-    /// Takes one transcript update.
-    ///
-    /// This never waits: the turn and the answer run in their own task, so a
-    /// word spoken over the answer still reaches the engine while the answer
-    /// is being spoken.
     /// Asks a permission out loud and waits for the answer.
     ///
     /// The next utterance is the answer, not a new turn: the agent is waiting
@@ -363,6 +358,11 @@ final class DeviceVoiceEngine {
         return words.contains(where: agreements.contains)
     }
 
+    /// Takes one transcript update.
+    ///
+    /// This never waits: the turn and the answer run in their own task, so a
+    /// word spoken over the answer still reaches the engine while the answer
+    /// is being spoken.
     private func note(_ update: SpeechTranscriptUpdate) {
         let text = update.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
