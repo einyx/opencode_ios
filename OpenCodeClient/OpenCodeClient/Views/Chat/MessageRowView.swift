@@ -271,12 +271,26 @@ struct MessageRowView: View {
     }
 
     @ViewBuilder
-    private func markdownText(_ text: String, isUser: Bool, forcingMarkdown: Bool = false) -> some View {
+    /// Renders a text part.
+    ///
+    /// While the turn is still streaming, the text is rendered plain. A
+    /// Markdown parse re-reads the whole message, so on a phone every token
+    /// meant a full re-parse of the paragraph so far — the text only appeared
+    /// in chunks, when the parse had caught up. Plain text updates per token
+    /// and the Markdown takes over when the turn completes.
+    private func markdownText(
+        _ text: String,
+        isUser: Bool,
+        forcingMarkdown: Bool = false,
+        isStreaming: Bool = false
+    ) -> some View {
         let trimmed = isUser
             ? text.trimmingCharacters(in: .whitespacesAndNewlines)
             : Self.normalizedText(text)
         let font = isUser ? DesignTypography.bodyProminent : DesignTypography.body
-        let style = Self.renderStyle(for: trimmed, forcingMarkdown: forcingMarkdown)
+        let style = isStreaming
+            ? TextRenderStyle.plain
+            : Self.renderStyle(for: trimmed, forcingMarkdown: forcingMarkdown)
         if trimmed.isEmpty {
             EmptyView()
         } else if style == .largePreview {
@@ -793,7 +807,7 @@ struct MessageRowView: View {
             ForEach(layout.contents) { block in
                 switch block {
                 case .text(let part):
-                    markdownText(part.text ?? "", isUser: false)
+                    markdownText(part.text ?? "", isUser: false, isStreaming: isTurnRunning)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 case .attachment(let part):
                     MessageAttachmentView(part: part)
@@ -840,7 +854,8 @@ struct MessageRowView: View {
 
     private func thinkingCard(_ part: Part) -> some View {
         ThinkingCard(isStreaming: isTurnRunning) {
-            markdownText(part.text ?? "", isUser: false, forcingMarkdown: true)
+            markdownText(part.text ?? "", isUser: false, forcingMarkdown: true,
+                         isStreaming: isTurnRunning)
         }
     }
 
