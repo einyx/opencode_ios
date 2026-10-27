@@ -55,7 +55,57 @@ struct SessionModelSelectionTests {
         #expect(await api.promptAsyncModels[0]?.providerID == "anthropic")
     }
 
-    @Test @MainActor func theDefaultIndexNeverPointsAtAModelTheUserDidNotChoose() async throws {
+// MARK: agent omission
+
+    @Test @MainActor func sendingWithoutAnExplicitAgentPickOmitsTheAgent() async throws {
+        let (state, api) = makeState()
+        state.sessions = [
+            Session(id: "ses_agent", slug: "ses-agent", projectID: "p", directory: "/tmp", parentID: nil, title: "s", version: "1", time: .init(created: 1, updated: 1, archived: nil), share: nil, summary: nil)
+        ]
+        state.currentSessionID = "ses_agent"
+        // No explicit agent pick: the flag stays off even though a default
+        // agent name is populated for the UI.
+        #expect(state.agentExplicitlyChosen == false)
+
+        let sent = await state.sendMessage("hello")
+        #expect(sent)
+        #expect(await api.promptAsyncAgentsSent.last == "")
+    }
+
+    @Test @MainActor func sendingWithAnExplicitAgentPickSendsIt() async throws {
+        let (state, api) = makeState()
+        state.sessions = [
+            Session(id: "ses_agent", slug: "ses-agent", projectID: "p", directory: "/tmp", parentID: nil, title: "s", version: "1", time: .init(created: 1, updated: 1, archived: nil), share: nil, summary: nil)
+        ]
+        state.currentSessionID = "ses_agent"
+        state.hasServerAgentCatalog = true
+        state.agents = [
+            AgentInfo(name: "build", description: nil, mode: "primary", hidden: false, native: nil),
+            AgentInfo(name: "plan", description: nil, mode: "primary", hidden: false, native: nil),
+        ]
+        state.setSelectedAgentIndex(0)
+
+        let sent = await state.sendMessage("hello")
+        #expect(sent)
+        #expect(await api.promptAsyncAgentsSent.last == "build")
+    }
+
+    @Test @MainActor func aStaleCapitalisedAgentPickResolvesToTheServerCasing() async throws {
+        // The regression from the device report: a saved "Build" made every
+        // prompt fail with Agent not found.
+        let (state, _) = makeState()
+        state.hasServerAgentCatalog = true
+        state.agents = [
+            AgentInfo(name: "build", description: nil, mode: "primary", hidden: false, native: nil),
+        ]
+        // The user explicitly picked an agent under an old, capitalised name.
+        state.agentExplicitlyChosen = true
+        state.reconcileSelectedAgent(preferredName: "Build")
+        #expect(state.selectedAgentName == "build")
+        #expect(state.agentForPrompt() == "build")
+    }
+
+        @Test @MainActor func theDefaultIndexNeverPointsAtAModelTheUserDidNotChoose() async throws {
         let (state, _) = makeState()
         // The picker starts at the top of the list, not at an arbitrary index
         // that could be a provider the user never picked.

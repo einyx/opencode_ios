@@ -68,7 +68,7 @@ struct AgentCatalogAndDeleteTests {
         #expect(state.selectedAgentName == "grok")
     }
 
-    @Test @MainActor func sendUsesCatalogNotPlaceholderName() async {
+    @Test @MainActor func sendWithoutExplicitPickOmitsTheAgent() async {
         let api = MockAPIClient()
         let state = makeIsolatedAppState(apiClient: api)
         state.currentSessionID = "s1"
@@ -78,7 +78,10 @@ struct AgentCatalogAndDeleteTests {
         let sent = await state.sendMessage("hello")
 
         #expect(sent)
-        #expect(await api.promptAsyncAgents == ["build"])
+        // No explicit pick: the app omits the agent entirely (empty string)
+        // so the server keeps its own default. The placeholder catalog name
+        // never reaches the server.
+        #expect(await api.promptAsyncAgents == [""])
         #expect(state.agents.first?.name == "OpenCode-Builder")
     }
 
@@ -91,6 +94,9 @@ struct AgentCatalogAndDeleteTests {
             AgentInfo(name: "build", description: nil, mode: "primary", hidden: false, native: true),
         ]
         state.hasServerAgentCatalog = true
+        // The user explicitly picked an agent; a saved stale name ("grok")
+        // is corrected against the catalog before it reaches the server.
+        state.agentExplicitlyChosen = true
         state.selectedAgentName = "grok"
 
         let sent = await state.sendMessage("hello")
@@ -110,6 +116,7 @@ struct AgentCatalogAndDeleteTests {
             AgentInfo(name: "plan", description: nil, mode: "primary", hidden: false, native: true),
         ]
         state.hasServerAgentCatalog = true
+        state.agentExplicitlyChosen = true
         state.selectedAgentName = "plan"
         state.selectedAgentIndex = 1
 

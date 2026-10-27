@@ -185,7 +185,7 @@ struct MessageReconciliationTests {
         let prompts = await api.prompts
         #expect(prompts.count == 1)
         #expect(prompts[0].sessionID == "a")
-        #expect(prompts[0].agent == "build")
+        #expect(prompts[0].agent == "")
         #expect(prompts[0].modelID == "captured")
         #expect(prompts[0].directory == "/work/a")
         #expect(state.messages.map(\.info.sessionID) == ["a"])
