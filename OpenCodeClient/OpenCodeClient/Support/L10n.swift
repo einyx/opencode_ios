@@ -48,6 +48,16 @@ enum L10n {
         case capabilityPermissionFooter
         case capabilityAllowOnce
         case capabilityAllowAlways
+        case setupPlanTitle
+        case setupPlanSubtitle
+        case setupPlanAddressPlaceholder
+        case setupPlanEnterToSend
+        case setupPlanSend
+        case setupPlanIdeasTitle
+        case setupPlanIdeaLocal
+        case setupPlanIdeaSSH
+        case setupPlanIdeaPaste
+        case setupPlanIdeaScan
         case capabilitySettingsTitle
         case capabilityAllowedAutomatically
         case capabilityAllowedOtherHost
@@ -601,6 +611,16 @@ enum L10n {
         Key.capabilityPermissionFooter.rawValue: "OpenCode constructs a one-time callback. Health details are not returned through the link.",
         Key.capabilityAllowOnce.rawValue: "Allow Once",
         Key.capabilityAllowAlways.rawValue: "Always Allow",
+        Key.setupPlanTitle.rawValue: "Let's connect your server",
+        Key.setupPlanSubtitle.rawValue: "OpenCodex talks straight to your OpenCode server. Tell us where it is, or pick one of the starting points below.",
+        Key.setupPlanAddressPlaceholder.rawValue: "Server address, e.g. 192.168.1.10:4096",
+        Key.setupPlanEnterToSend.rawValue: "Enter to send",
+        Key.setupPlanSend.rawValue: "Send",
+        Key.setupPlanIdeasTitle.rawValue: "Ideas for you",
+        Key.setupPlanIdeaLocal.rawValue: "A local server",
+        Key.setupPlanIdeaSSH.rawValue: "An SSH tunnel",
+        Key.setupPlanIdeaPaste.rawValue: "Paste a pairing code",
+        Key.setupPlanIdeaScan.rawValue: "Scan a pairing code",
         Key.capabilitySettingsTitle.rawValue: "Client Capabilities",
         Key.capabilityAllowedAutomatically.rawValue: "Allowed automatically",
         Key.capabilityAllowedOtherHost.rawValue: "Granted to a different host",
@@ -1153,6 +1173,16 @@ enum L10n {
         Key.capabilityPermissionFooter.rawValue: "OpenCode 会生成一次性回调链接，链接不会返回健康明细。",
         Key.capabilityAllowOnce.rawValue: "仅这次允许",
         Key.capabilityAllowAlways.rawValue: "以后自动允许",
+        Key.setupPlanTitle.rawValue: "连接你的服务器",
+        Key.setupPlanSubtitle.rawValue: "OpenCodex 会直连你的 OpenCode 服务器。填入地址，或从下面的选项开始。",
+        Key.setupPlanAddressPlaceholder.rawValue: "服务器地址，例如 192.168.1.10:4096",
+        Key.setupPlanEnterToSend.rawValue: "回车发送",
+        Key.setupPlanSend.rawValue: "发送",
+        Key.setupPlanIdeasTitle.rawValue: "你可以试试",
+        Key.setupPlanIdeaLocal.rawValue: "本地服务器",
+        Key.setupPlanIdeaSSH.rawValue: "SSH 隧道",
+        Key.setupPlanIdeaPaste.rawValue: "粘贴配对码",
+        Key.setupPlanIdeaScan.rawValue: "扫描配对码",
         Key.capabilitySettingsTitle.rawValue: "客户端能力",
         Key.capabilityAllowedAutomatically.rawValue: "自动允许",
         Key.capabilityAllowedOtherHost.rawValue: "已授权给其他主机",

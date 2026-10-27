@@ -205,6 +205,7 @@ struct ChatTabView: View {
     @State private var isSending = false
     @State private var isSyncingDraft = false
     @State private var showSessionList = false
+    @State private var showSetupPlan = false
     @State var microphone = DeviceMicrophone()
     @State var speechStartID: UUID?
     @State var speechOriginSessionID: String?
@@ -1287,6 +1288,9 @@ struct ChatTabView: View {
             .sheet(isPresented: $showSessionList) {
                 SessionListView(state: state)
             }
+            .sheet(isPresented: $showSetupPlan) {
+                SetupPlanSheet(state: state)
+            }
             .sheet(item: Binding<AppState.SessionChangesPreview?>(
                 get: {
                     guard effectiveLayout != .regular else { return nil }
@@ -1844,11 +1848,11 @@ struct ChatTabView: View {
                         .multilineTextAlignment(.center)
                     if !state.isConnected {
                         Button(L10n.t(.chatConnectServer)) {
-                            if let onSettingsTap { onSettingsTap() }
-                            else { state.selectedTab = RootTab.settings.rawValue }
+                            showSetupPlan = true
                         }
                             .buttonStyle(.borderedProminent)
                             .frame(minHeight: 44)
+                            .accessibilityIdentifier("chat-connect-server")
                     } else if state.canCreateSession {
                         Button(L10n.t(.sessionsNew)) { Task { await state.createSession() } }
                             .buttonStyle(.borderedProminent)
