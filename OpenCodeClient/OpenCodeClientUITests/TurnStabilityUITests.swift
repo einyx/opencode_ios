@@ -39,6 +39,28 @@ final class TurnStabilityUITests: XCTestCase {
     }
 
     @MainActor
+    func testThinkingPillIsUpWhileTheModelWorksAndFillsInPlace() {
+        let app = launch(mode: "thinking")
+
+        // The turn is running and nothing has arrived yet: the pill is the
+        // only signal that the agent is working.
+        let pill = app.descendants(matching: .any)["message-thinking-placeholder"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 12))
+        XCTAssertFalse(app.descendants(matching: .any)["message-thinking-card"].exists)
+
+        // The reasoning arrives: the pill becomes the thinking card.
+        app.buttons["w09-turn-fill-reasoning"].tap()
+        let card = app.descendants(matching: .any)["message-thinking-card"]
+        XCTAssertTrue(card.waitForExistence(timeout: 8))
+        XCTAssertFalse(pill.exists)
+        XCTAssertTrue(label("W09_THINK_WORDS", in: app).waitForExistence(timeout: 6))
+
+        // The turn ends: the pill must not come back.
+        app.buttons["w09-turn-complete"].tap()
+        XCTAssertFalse(pill.waitForExistence(timeout: 4))
+    }
+
+    @MainActor
     func testLaterStepErrorSpeechAndFooterAreVisible() {
         let app = launch(mode: "metadata")
         XCTAssertTrue(label("W09_SPEECH_M1", in: app).waitForExistence(timeout: 12))

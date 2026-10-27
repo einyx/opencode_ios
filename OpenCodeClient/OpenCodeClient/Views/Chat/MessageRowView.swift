@@ -116,6 +116,10 @@ struct MessageRowView: View {
     /// order; the row layout below decides which of them share a grid row.
     enum CardGridTile: Identifiable {
         case thinking(Part)
+        /// The thinking pill shown while the model is thinking but has not
+        /// produced reasoning yet. The indicator has to be live while the
+        /// thinking happens, not only once the reasoning has landed.
+        case thinkingPlaceholder
         case fileCard(Part)
         case toolCall(Part)
         /// The "N files changed" card.
@@ -125,12 +129,24 @@ struct MessageRowView: View {
             switch self {
             case .thinking(let part):
                 return "tile-thinking-\(part.id)"
+            case .thinkingPlaceholder:
+                return "tile-thinking-placeholder"
             case .fileCard(let part):
                 return "tile-file-\(part.id)"
             case .toolCall(let part):
                 return "tile-toolcall-\(part.id)"
             case .changes(let part):
                 return "tile-changes-\(part.id)"
+            }
+        }
+
+        /// Whether this tile carries the model's thinking.
+        var isThinking: Bool {
+            switch self {
+            case .thinking, .thinkingPlaceholder:
+                return true
+            case .fileCard, .toolCall, .changes:
+                return false
             }
         }
     }
@@ -160,7 +176,7 @@ struct MessageRowView: View {
             case .fileCard:
                 pending.append(tile)
                 if pending.count == columnCount { flushPending() }
-            case .thinking, .toolCall, .changes:
+            case .thinking, .thinkingPlaceholder, .toolCall, .changes:
                 flushPending()
                 rows.append(ProcessTileRow(id: "row-\(tile.id)", tiles: [tile], isFullWidth: true))
             }
@@ -178,7 +194,17 @@ struct MessageRowView: View {
         ToolCardClassifier.isFileOperation(part)
     }
 
-    static func buildAssistantBlocks(parts: [Part]) -> [AssistantBlock] {
+    /// Splits the assistant parts into blocks.
+    ///
+    /// `keepingEmptyReasoningOf` names the message whose reasoning parts are
+    /// kept even while they carry no text: that is the step the model is
+    /// still thinking in, and its reasoning part is the slot the thinking
+    /// pill holds until the words arrive. A finished step drops the empty
+    /// part instead — there is nothing to show for it.
+    static func buildAssistantBlocks(
+        parts: [Part],
+        keepingEmptyReasoningOf messageID: String? = nil
+    ) -> [AssistantBlock] {
         var blocks: [AssistantBlock] = []
         var buffer: [Part] = []
 
@@ -190,7 +216,12 @@ struct MessageRowView: View {
 
         for part in parts {
             if part.isReasoning {
-                if normalizedText(part.text).isEmpty { continue }
+                if normalizedText(part.text).isEmpty {
+                    guard let messageID, part.messageID == messageID else { continue }
+                    flushBuffer()
+                    blocks.append(.thinking(part))
+                    continue
+                }
                 flushBuffer()
                 blocks.append(.thinking(part))
                 continue
@@ -225,9 +256,12 @@ struct MessageRowView: View {
         let contents: [AssistantBlock]
     }
 
-    static func cardGridTiles(for parts: [Part]) -> [CardGridTile] {
+    static func cardGridTiles(
+        for parts: [Part],
+        keepingEmptyReasoningOf messageID: String? = nil
+    ) -> [CardGridTile] {
         var tiles: [CardGridTile] = []
-        for block in buildAssistantBlocks(parts: parts) {
+        for block in buildAssistantBlocks(parts: parts, keepingEmptyReasoningOf: messageID) {
             switch block {
             case .thinking(let part):
                 tiles.append(.thinking(part))
@@ -256,9 +290,26 @@ struct MessageRowView: View {
     /// cards, in part order) and full-width content blocks (text /
     /// attachments), which render after the grid.
     private func assistantLayout(for parts: [Part]) -> AssistantLayout {
-        let blocks = Self.buildAssistantBlocks(parts: parts)
+        // The pill has to be up while the model thinks, not only once the
+        // reasoning lands. Without it the transcript sits empty for the
+        // whole first step of a turn and the agent looks idle.
+        //
+        // The running step's empty reasoning part is kept, so the pill holds
+        // the very slot the reasoning will fill: it never jumps when the
+        // words arrive.
+        let runningStep = turnPresentation.messages.last
+        let pendingReasoning = isTurnRunning ? runningStep?.info.id : nil
+        let blocks = Self.buildAssistantBlocks(parts: parts, keepingEmptyReasoningOf: pendingReasoning)
+        var tiles = Self.cardGridTiles(for: parts, keepingEmptyReasoningOf: pendingReasoning)
+        // A step whose reasoning part has not arrived at all has no slot to
+        // hold: the pill stands in at the end, where that part will land.
+        let runningStepParts = runningStep?.parts ?? []
+        if !tiles.contains(where: \.isThinking),
+           Self.showsThinkingPlaceholder(parts: runningStepParts, isTurnRunning: isTurnRunning) {
+            tiles.append(.thinkingPlaceholder)
+        }
         return AssistantLayout(
-            tiles: Self.cardGridTiles(for: parts),
+            tiles: tiles,
             contents: blocks.compactMap { block in
                 switch block {
                 case .text, .attachment:
@@ -807,7 +858,7 @@ struct MessageRowView: View {
             ForEach(layout.contents) { block in
                 switch block {
                 case .text(let part):
-                    markdownText(part.text ?? "", isUser: false, isStreaming: isTurnRunning)
+                    markdownText(part.text ?? "", isUser: false, isStreaming: isPartStreaming(part))
                         .frame(maxWidth: .infinity, alignment: .leading)
                 case .attachment(let part):
                     MessageAttachmentView(part: part)
@@ -853,22 +904,68 @@ struct MessageRowView: View {
     }
 
     private func thinkingCard(_ part: Part) -> some View {
-        ThinkingCard(isStreaming: isTurnRunning) {
+        ThinkingCard(isStreaming: isPartStreaming(part)) {
             markdownText(part.text ?? "", isUser: false, forcingMarkdown: true,
-                         isStreaming: isTurnRunning)
+                         isStreaming: isPartStreaming(part))
         }
     }
 
     /// The turn that owns this row is still producing output.
+    ///
+    /// A turn spans several assistant messages — one per step — and the
+    /// earlier steps are already completed while the last one is running.
+    /// The last message decides, not the first.
     private var isTurnRunning: Bool {
-        message.info.time.completed == nil
+        guard let last = turnPresentation.messages.last else { return false }
+        return last.info.time.completed == nil
+    }
+
+    /// Whether the step that owns a part is still producing output.
+    ///
+    /// A merged turn holds several steps: the finished ones keep their
+    /// Markdown, while the running one streams as plain text. The part's
+    /// own message decides, not the row's.
+    private func isPartStreaming(_ part: Part) -> Bool {
+        guard let owner = turnPresentation.messages.first(where: { $0.info.id == part.messageID }) else {
+            return isTurnRunning
+        }
+        return owner.info.time.completed == nil
+    }
+
+    /// Whether the thinking pill should stand in for a reasoning card that
+    /// has not arrived yet.
+    ///
+    /// True while the step is live and the model has produced nothing the
+    /// reader can see yet: no reasoning words, no answer text, and no tool
+    /// still running (a running tool card carries its own live indicator).
+    /// The pill is then the only sign that the agent is working.
+    static func showsThinkingPlaceholder(parts: [Part], isTurnRunning: Bool) -> Bool {
+        guard isTurnRunning else { return false }
+        if parts.contains(where: { $0.isReasoning && !normalizedText($0.text).isEmpty }) { return false }
+        if parts.contains(where: { $0.isText && !normalizedText($0.text).isEmpty }) { return false }
+        if parts.contains(where: { $0.isTool && Self.isPartRunning($0) }) { return false }
+        return true
+    }
+
+    /// Whether a tool part is still in flight.
+    private static func isPartRunning(_ part: Part) -> Bool {
+        guard let state = part.stateDisplay?.lowercased() else { return false }
+        return state == "running" || state == "pending"
     }
 
     @ViewBuilder
     private func tileView(_ tile: CardGridTile) -> some View {
         switch tile {
         case .thinking(let part):
-            thinkingCard(part)
+            // The reasoning part exists but carries no words yet: the model
+            // is thinking. The pill holds the slot the prose will fill.
+            if Self.normalizedText(part.text).isEmpty {
+                ThinkingPlaceholderPill()
+            } else {
+                thinkingCard(part)
+            }
+        case .thinkingPlaceholder:
+            ThinkingPlaceholderPill()
         case .fileCard(let part):
             FileCardView(
                 part: part,
@@ -909,6 +1006,42 @@ struct MessageRowView: View {
             paths: paths,
             workspaceDirectory: workspaceDirectory
         )
+    }
+}
+
+/// The thinking pill shown while the model is working but has not produced
+/// reasoning yet.
+///
+/// It is the same chip the thinking card collapses into, so the transcript
+/// shows one element that fills in rather than two that swap.
+private struct ThinkingPlaceholderPill: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isPulsing = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "brain.head.profile")
+                .font(DesignTypography.micro)
+                .scaleEffect(isPulsing ? 1.08 : 1)
+            Text(L10n.t(.chatThinkingCard))
+                .fontWeight(.medium)
+        }
+        .font(DesignTypography.micro)
+        .foregroundStyle(DesignColors.Brand.primary)
+        .padding(.horizontal, DesignSpacing.chipHorizontal)
+        .padding(.vertical, DesignSpacing.chipVertical)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(DesignColors.surfaceFillColor(for: colorScheme))
+        )
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+        .animation(reduceMotion ? nil : DesignAnimation.breathing, value: isPulsing)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L10n.t(.chatThinkingCard))
+        .accessibilityIdentifier("message-thinking-placeholder")
+        .onAppear { isPulsing = true }
     }
 }
 
@@ -953,11 +1086,11 @@ private struct ThinkingCard<Content: View>: View {
             }
             .font(DesignTypography.micro)
             .foregroundStyle(DesignColors.Brand.primary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.horizontal, DesignSpacing.chipHorizontal)
+            .padding(.vertical, DesignSpacing.chipVertical)
             .background(
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(DesignColors.Neutral.text.opacity(DesignColors.surfaceFill(for: colorScheme)))
+                    .fill(DesignColors.surfaceFillColor(for: colorScheme))
             )
             .frame(minHeight: 44)
             .contentShape(Rectangle())

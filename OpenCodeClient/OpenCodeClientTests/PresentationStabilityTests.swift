@@ -4,6 +4,10 @@ import Testing
 
 struct PresentationStabilityTests {
     private static let png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+XGZ0AAAAASUVORK5CYII="
+    /// A tool part still in flight: its card carries the live indicator.
+    private static let runningToolJSON = """
+    {"id":"t1","messageID":"m1","sessionID":"s","type":"tool","tool":"bash","state":{"status":"running"}}
+    """
 
     @Test func assistantGroupIDStaysOnFirstMessageWhenStepAppended() throws {
         let user = try row(id: "u1", role: "user", parts: [part(id: "ut", messageID: "u1", type: "text", text: "ask")])
@@ -54,6 +58,70 @@ struct PresentationStabilityTests {
         let grown = MessageRowView.cardGridTiles(for: [first, thinking, third, fourth])
         #expect(tileIDs(split) == ["tile-toolcall-p1", "tile-thinking-r1", "tile-toolcall-p3"])
         #expect(tileIDs(grown) == ["tile-toolcall-p1", "tile-thinking-r1", "tile-toolcall-p3", "tile-toolcall-p4"])
+    }
+
+    @Test func thinkingPillStandsInWhileTheModelWorksWithoutOutputYet() {
+        // Nothing has landed yet: the turn is live, so the pill is the only
+        // sign that the agent is working.
+        #expect(MessageRowView.showsThinkingPlaceholder(parts: [], isTurnRunning: true))
+
+        // A finished turn shows no pill.
+        #expect(!MessageRowView.showsThinkingPlaceholder(parts: [], isTurnRunning: false))
+
+        // Reasoning text has arrived: the real thinking card takes over.
+        let reasoning = part(id: "r1", messageID: "m1", type: "reasoning", text: "weighing it up")
+        #expect(!MessageRowView.showsThinkingPlaceholder(parts: [reasoning], isTurnRunning: true))
+
+        // Answer text has arrived: nothing is pending any more.
+        let answer = part(id: "p1", messageID: "m1", type: "text", text: "done")
+        #expect(!MessageRowView.showsThinkingPlaceholder(parts: [answer], isTurnRunning: true))
+
+        // An empty reasoning part is still pending: the pill holds the slot.
+        let emptyReasoning = part(id: "r2", messageID: "m1", type: "reasoning", text: "")
+        #expect(MessageRowView.showsThinkingPlaceholder(parts: [emptyReasoning], isTurnRunning: true))
+    }
+
+    @Test func runningToolCarriesItsOwnIndicatorSoNoThinkingPill() throws {
+        let running = try JSONDecoder().decode(Part.self, from: Data(Self.runningToolJSON.utf8))
+        #expect(!MessageRowView.showsThinkingPlaceholder(parts: [running], isTurnRunning: true))
+
+        // A finished tool is not a live indicator, so the pill returns.
+        let completed = try partWithToolTime(id: "t2", messageID: "m1")
+        #expect(MessageRowView.showsThinkingPlaceholder(parts: [completed], isTurnRunning: true))
+    }
+
+    @Test func thinkingTileKeepsItsOwnFullWidthRow() {
+        let thinking = part(id: "r1", messageID: "m1", type: "reasoning", text: "next")
+        let tiles = MessageRowView.cardGridTiles(for: [thinking])
+        let rows = MessageRowView.processTileRows(for: tiles, columnCount: 2)
+        #expect(rows.count == 1)
+        #expect(rows[0].isFullWidth)
+        #expect(rows[0].tiles.map(\.id) == ["tile-thinking-r1"])
+    }
+
+    @Test func pendingReasoningKeepsTheSlotTheWordsWillFill() {
+        // The reasoning part exists but carries no words yet: the thinking
+        // tile holds its slot so the pill does not jump when they arrive.
+        let pending = part(id: "r1", messageID: "m1", type: "reasoning", text: "")
+        let tiles = MessageRowView.cardGridTiles(for: [pending], keepingEmptyReasoningOf: "m1")
+        #expect(tiles.map(\.id) == ["tile-thinking-r1"])
+
+        // The same part with words: the very same slot, so the pill becomes
+        // the card in place.
+        let filled = part(id: "r1", messageID: "m1", type: "reasoning", text: "weighing it up")
+        let filledTiles = MessageRowView.cardGridTiles(for: [filled], keepingEmptyReasoningOf: "m1")
+        #expect(filledTiles.map(\.id) == ["tile-thinking-r1"])
+
+        // A finished step keeps no empty reasoning: there is nothing to show.
+        let dropped = MessageRowView.cardGridTiles(for: [pending])
+        #expect(dropped.isEmpty)
+    }
+
+    @Test func pendingReasoningSitsInPartOrder() {
+        let tool = part(id: "t1", messageID: "m1", type: "tool", tool: "bash")
+        let pending = part(id: "r1", messageID: "m1", type: "reasoning", text: "")
+        let tiles = MessageRowView.cardGridTiles(for: [tool, pending], keepingEmptyReasoningOf: "m1")
+        #expect(tiles.map(\.id) == ["tile-toolcall-t1", "tile-thinking-r1"])
     }
 
     @Test func laterStepErrorSpeechAndFooterStayWithTheirMessage() throws {

@@ -19,6 +19,13 @@ enum TurnStabilityFixture {
         isActive && mode == "append"
     }
 
+    /// The "thinking" mode drives a live turn: the assistant message is
+    /// still running, so the transcript has to show the thinking pill before
+    /// any reasoning arrives.
+    static var showsThinkingControls: Bool {
+        isActive && mode == "thinking"
+    }
+
     static func makeAppState() -> AppState {
         UITestFixtures.makeFixtureAppState(
             apiClient: StubClient(),
@@ -36,9 +43,42 @@ enum TurnStabilityFixture {
             applyMetadata(to: state, laterHasModel: true)
         case "nomodel":
             applyMetadata(to: state, laterHasModel: false)
+        case "thinking":
+            applyThinking(to: state)
         default:
             applyAppend(to: state)
         }
+    }
+
+    /// Starts the turn: the assistant message exists but has produced
+    /// nothing yet, so the thinking pill is the only signal.
+    static func startThinking(to state: AppState) {
+        state.messages = [
+            MessageWithParts(
+                info: user(id: "u1", text: "Why is the build slow?"),
+                parts: [textPart(id: "u-text", messageID: "u1", text: "Why is the build slow?")]
+            ),
+            MessageWithParts(
+                info: runningAssistant(id: firstID),
+                parts: []
+            ),
+        ]
+    }
+
+    /// The reasoning arrives: the pill turns into the thinking card in place.
+    static func fillReasoning(to state: AppState) {
+        guard let index = state.messages.firstIndex(where: { $0.info.id == firstID }) else { return }
+        var messages = state.messages
+        messages[index].parts = [reasoningPart(id: "r1", messageID: firstID, text: "W09_THINK_WORDS")]
+        state.messages = messages
+    }
+
+    /// The turn ends: the pill must be gone.
+    static func completeThinking(to state: AppState) {
+        guard let index = state.messages.firstIndex(where: { $0.info.id == firstID }) else { return }
+        var messages = state.messages
+        messages[index].info = completedAssistant(id: firstID)
+        state.messages = messages
     }
 
     static func appendPart(to state: AppState) {
@@ -61,6 +101,10 @@ enum TurnStabilityFixture {
 
     nonisolated static func forkMarker(messageID: String) -> String {
         "W09_FORK_\(messageID)"
+    }
+
+    private static func applyThinking(to state: AppState) {
+        startThinking(to: state)
     }
 
     private static func applyAppend(to state: AppState) {
@@ -205,6 +249,78 @@ enum TurnStabilityFixture {
         ])
     }
 
+    private static func reasoningPart(id: String, messageID: String, text: String) -> Part {
+        UITestFixtures.decodePart([
+            "id": id,
+            "messageID": messageID,
+            "sessionID": sessionID,
+            "type": "reasoning",
+            "text": text,
+        ])
+    }
+
+    private static func textPart(id: String, messageID: String, text: String) -> Part {
+        UITestFixtures.decodePart([
+            "id": id,
+            "messageID": messageID,
+            "sessionID": sessionID,
+            "type": "text",
+            "text": text,
+        ])
+    }
+
+    private static func user(id: String, text: String) -> Message {
+        Message(
+            id: id,
+            sessionID: sessionID,
+            role: "user",
+            parentID: nil,
+            providerID: nil,
+            modelID: nil,
+            model: nil,
+            error: nil,
+            time: .init(created: 0, completed: 1),
+            finish: nil,
+            tokens: nil,
+            cost: nil
+        )
+    }
+
+    /// An assistant message whose turn is still running: `completed` is nil.
+    private static func runningAssistant(id: String) -> Message {
+        Message(
+            id: id,
+            sessionID: sessionID,
+            role: "assistant",
+            parentID: "u1",
+            providerID: "w09",
+            modelID: "step",
+            model: nil,
+            error: nil,
+            time: .init(created: 1, completed: nil),
+            finish: nil,
+            tokens: nil,
+            cost: nil
+        )
+    }
+
+    private static func completedAssistant(id: String) -> Message {
+        Message(
+            id: id,
+            sessionID: sessionID,
+            role: "assistant",
+            parentID: "u1",
+            providerID: "w09",
+            modelID: "step",
+            model: nil,
+            error: nil,
+            time: .init(created: 1, completed: 2),
+            finish: nil,
+            tokens: nil,
+            cost: nil
+        )
+    }
+
     actor StubClient: APIClientProtocol {
         func configure(baseURL: String, username: String?, password: String?) {}
         func health() async throws -> HealthResponse {
@@ -316,6 +432,27 @@ struct TurnStabilityAppendControls: View {
             .accessibilityIdentifier("w09-turn-append-step")
         }
         .font(.caption2)
+        .buttonStyle(.bordered)
+    }
+}
+
+/// Drives the thinking fixture: the turn starts, the reasoning arrives, the
+/// turn ends. The transcript has to show the pill at every step.
+struct TurnStabilityThinkingControls: View {
+    let state: AppState
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button("W09_FILL_REASONING") {
+                TurnStabilityFixture.fillReasoning(to: state)
+            }
+            .accessibilityIdentifier("w09-turn-fill-reasoning")
+            Button("W09_COMPLETE_TURN") {
+                TurnStabilityFixture.completeThinking(to: state)
+            }
+            .accessibilityIdentifier("w09-turn-complete")
+        }
+        .font(DesignTypography.micro)
         .buttonStyle(.bordered)
     }
 }

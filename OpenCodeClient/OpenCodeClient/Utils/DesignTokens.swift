@@ -182,6 +182,16 @@ enum DesignColors {
         scheme == .dark ? Opacity.surfaceFillDark : Opacity.surfaceFill
     }
 
+    /// The card / chip surface fill as a colour.
+    ///
+    /// The opacity lives here, not in the View: POL-COLOR-09 wants every
+    /// `.opacity(` out of the View layer, and the thinking pill and the
+    /// thinking card have to share one fill to look like one element.
+    @MainActor
+    static func surfaceFillColor(for scheme: ColorScheme) -> Color {
+        Neutral.text.opacity(scheme == .dark ? Opacity.surfaceFillDark : Opacity.surfaceFill)
+    }
+
     /// A fill dimmed to the "cannot run yet" strength.
     ///
     /// The opacity lives here rather than in the View: POL-COLOR-09 wants
@@ -251,6 +261,10 @@ enum DesignSpacing {
     /// Double extra large — major section breaks (24pt)
     static let xxl: CGFloat = 24
 
+    /// Inline chip padding — the thinking pill and the tool card header.
+    /// A chip is tighter than a card: it hugs its one-line label.
+    static let chipHorizontal: CGFloat = 10
+    static let chipVertical: CGFloat = 6
     /// Chat message vertical spacing
     static let messageVertical: CGFloat = 20
     /// Card internal padding

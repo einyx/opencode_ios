@@ -333,6 +333,11 @@ struct ContentView: View {
                     .padding(.trailing, 12)
                     .padding(.bottom, 140)
             }
+            if TurnStabilityFixture.showsThinkingControls {
+                TurnStabilityThinkingControls(state: state)
+                    .padding(.trailing, 12)
+                    .padding(.bottom, 140)
+            }
         }
         .overlay(alignment: .topTrailing) {
             if Tier4OfflineFixture.isActive {
