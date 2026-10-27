@@ -318,14 +318,19 @@ extension AppState {
                let delta = props["delta"]?.value as? String, !delta.isEmpty,
                 let messageID = props["messageID"]?.value as? String,
                 let partID = props["partID"]?.value as? String,
-                messageStore.partType(for: partID, inSession: sessionID) == "text" {
-                messageStore.recordVisibleToken(messageID, sessionID: sessionID)
-                // Streaming text: append in place. Only text parts reach this
-                // point (the partType guard above); reasoning text lands
-                // locally via its end frame. A part that is not loaded yet
-                // (reconnect missed the start frame) is a no-op — the end
-                // frame or the next reconciliation converges it.
-                messageStore.appendDelta(messageID: messageID, partID: partID, delta: delta)
+                let partType = messageStore.partType(for: partID, inSession: sessionID) {
+                // Both answer text and reasoning stream the same way. Leaving
+                // reasoning out meant the thinking card stayed empty until the
+                // turn ended: the reasoning only landed with its end frame.
+                if partType == "text" || partType == "reasoning" {
+                    if partType == "text" {
+                        messageStore.recordVisibleToken(messageID, sessionID: sessionID)
+                    }
+                    // Streaming text: append in place. A part that is not
+                    // loaded yet (reconnect missed the start frame) is a no-op —
+                    // the end frame or the next reconciliation converges it.
+                    messageStore.appendDelta(messageID: messageID, partID: partID, delta: delta)
+                }
             }
         case "message.part.updated":
             let eventSessionID = props["sessionID"]?.value as? String

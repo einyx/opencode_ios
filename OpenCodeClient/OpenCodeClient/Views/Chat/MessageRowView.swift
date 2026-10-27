@@ -839,9 +839,14 @@ struct MessageRowView: View {
     }
 
     private func thinkingCard(_ part: Part) -> some View {
-        ThinkingCard {
+        ThinkingCard(isStreaming: isTurnRunning) {
             markdownText(part.text ?? "", isUser: false, forcingMarkdown: true)
         }
+    }
+
+    /// The turn that owns this row is still producing output.
+    private var isTurnRunning: Bool {
+        message.info.time.completed == nil
     }
 
     @ViewBuilder
@@ -899,9 +904,17 @@ private struct ThinkingCard<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var expanded = false
+    /// Set once the reader taps the disclosure: their choice then wins over
+    /// the automatic open/close.
+    @State private var hasManualChoice = false
+    /// True while the turn that owns this reasoning is still running: the card
+    /// opens itself so the reasoning is readable as it streams, and the user
+    /// can still collapse it.
+    private let isStreaming: Bool
     private let content: Content
 
-    init(@ViewBuilder content: () -> Content) {
+    init(isStreaming: Bool = false, @ViewBuilder content: () -> Content) {
+        self.isStreaming = isStreaming
         self.content = content()
     }
 
@@ -911,6 +924,7 @@ private struct ThinkingCard<Content: View>: View {
             // its header is a one-line disclosure, not a band across the
             // transcript.
             Button {
+                hasManualChoice = true
                 withAnimation(reduceMotion ? nil : DesignAnimation.spring) { expanded.toggle() }
             } label: {
             HStack(spacing: 6) {
@@ -946,6 +960,18 @@ private struct ThinkingCard<Content: View>: View {
                     .padding(.leading, DesignSpacing.md)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+        }
+        .onChange(of: isStreaming) { _, streaming in
+            // Follow the turn: open when it starts, close when it ends — unless
+            // the reader made their own choice.
+            guard !hasManualChoice else { return }
+            withAnimation(reduceMotion ? nil : DesignAnimation.spring) {
+                expanded = streaming
+            }
+        }
+        .onAppear {
+            guard !hasManualChoice else { return }
+            expanded = isStreaming
         }
     }
 }

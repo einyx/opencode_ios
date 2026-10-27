@@ -521,6 +521,12 @@ final class SSHTunnelManager: ObservableObject {
         let params = NWParameters.tcp
         params.allowLocalEndpointReuse = true
         params.requiredInterfaceType = .loopback
+        // The server's event stream is a trickle of small frames. With Nagle on
+        // the kernel holds them until the previous segment is acked, so the
+        // stream arrived in bursts over the tunnel.
+        var tcpOptions = NWProtocolTCP.Options()
+        tcpOptions.noDelay = true
+        params.defaultProtocolStack.transportProtocol = tcpOptions
 
         let listener = try NWListener(using: params, on: localPort)
         self.listener = listener
@@ -573,6 +579,9 @@ final class SSHTunnelManager: ObservableObject {
         }
     }
 
+    /// The server's event stream is a trickle of small frames. With Nagle on,
+    /// the kernel holds them until the previous segment is acked, so the
+    /// stream arrived in bursts over the tunnel.
     private func handleLocalConnection(
         _ conn: NWConnection,
         sshClient: SSHClient,
