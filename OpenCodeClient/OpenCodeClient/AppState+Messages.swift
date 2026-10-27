@@ -191,13 +191,13 @@ extension AppState {
         }
         let host = captureHostRequestSnapshot()
         let selection = sessionLoadingID
-        // Only a model the user explicitly chose for this session is sent.
-        // The model lives on the server session, which other clients (the
-        // desktop app, the web UI) share: writing a default index into it
-        // silently moved their turns onto whichever model happened to sit at
-        // that index.
+        // Only choices the user explicitly made are sent. The model AND the
+        // agent live on the server session, which other clients (the desktop
+        // app, the web UI) share: writing defaults into them moved their
+        // turns onto models they never picked and agents that may not exist
+        // in their server's catalog ("Agent not found: Build").
         let model = sessionModelPreset.map { Message.ModelInfo(providerID: $0.providerID, modelID: $0.modelID) }
-        let agentName = agentNameForPrompt()
+        let agentName = agentForPrompt() ?? ""
         let directory = currentSession?.directory ?? effectiveProjectDirectory
         let messageID = Self.makeServerID(prefix: "msg")
         if sessions.first(where: { $0.id == sessionID })?.isArchived == true {

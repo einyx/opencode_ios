@@ -32,6 +32,7 @@ extension AppState {
         let visibleAgents = agents.filter { $0.isVisible }
         guard visibleAgents.indices.contains(index) else { return }
         selectedAgentIndex = index
+        agentExplicitlyChosen = true
         if hasServerAgentCatalog {
             selectedAgentName = visibleAgents[index].name
         }
@@ -48,10 +49,21 @@ extension AppState {
         }
     }
 
-    func agentNameForPrompt() -> String {
-        guard hasServerAgentCatalog else { return AgentInfo.fallbackAgentName }
+    /// The agent to ask the server for, or nil to let the server use its own
+    /// default. The agent lives on the server session like the model does:
+    /// writing a name the app cannot validate — because the catalog never
+    /// loaded, or the server's list changed — fails every prompt with
+    /// `Agent not found`. An unchosen agent is left alone.
+    func agentForPrompt() -> String? {
+        guard hasServerAgentCatalog, agentExplicitlyChosen else { return nil }
         reconcileSelectedAgent()
-        return selectedAgentName
+        let name = selectedAgentName
+        let known = agents.contains { $0.name.caseInsensitiveCompare(name) == .orderedSame }
+        return known ? name : nil
+    }
+
+    func agentNameForPrompt() -> String {
+        agentForPrompt() ?? AgentInfo.fallbackAgentName
     }
 
     func applySavedModelForCurrentSession() {

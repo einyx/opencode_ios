@@ -748,6 +748,8 @@ actor APIClient {
     ) async throws {
         let generation = try await resolvedGeneration()
         if generation == .v2 {
+            // V2 takes the agent and model on their own routes: an empty
+            // agent means "leave the session's as-is".
             try await promptAsyncV2(
                 sessionID: sessionID,
                 messageID: messageID,
@@ -758,6 +760,9 @@ actor APIClient {
             )
             return
         }
+        // V1 bodies carry the agent inline, and older servers have no default
+        // agent to fall back to: send the legacy name when the caller omits it.
+        let agentName = agent.isEmpty ? AgentInfo.fallbackAgentName : agent
         struct PromptBody: Encodable {
             let messageID: String
             let parts: [PartInput]

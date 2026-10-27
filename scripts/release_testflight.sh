@@ -38,27 +38,19 @@ fi
 log "target build: $TARGET"
 
 # --- 2) bump and commit --------------------------------------------------
-python3 - "$TARGET" <<'PY'
-import pathlib, re, sys
-target = sys.argv[1]
-p = pathlib.Path("OpenCodeClient/OpenCodeClient.xcodeproj/project.pbxproj")
-s = p.read_text()
-s = re.sub(r"CURRENT_PROJECT_VERSION = \d+;", f"CURRENT_PROJECT_VERSION = {target};", s)
-p.write_text(s)
-print(f"project version set to {target}")
-PY
+./scripts/bump_build.sh "$TARGET"
 
 git add "$PBXPROJ"
 git commit -m "build(release): bump the build number to $TARGET for the next TestFlight upload" >/dev/null
 
 # --- 3) archive ----------------------------------------------------------
 log "archiving"
-./scripts/archive_appstore.sh > "$LOG_DIR/archive-$TARGET.log" 2>&1
+OPENCODE_SKIP_BUILD_BUMP=1 ./scripts/archive_appstore.sh > "$LOG_DIR/archive-$TARGET.log" 2>&1
 
 ARCHIVED_BUILD=$(grep -E "^[[:space:]]+build:" "$LOG_DIR/archive-$TARGET.log" | tail -1 | awk '{print $2}')
 if [ "$ARCHIVED_BUILD" != "$TARGET" ]; then
     echo "ABORT: the archive contains build $ARCHIVED_BUILD, expected $TARGET." >&2
-    echo "Something changed the version during the archive. Fix the tree and retry." >&2
+    echo "The version moved during the archive. Fix the tree and retry." >&2
     exit 1
 fi
 log "archive verified: build $ARCHIVED_BUILD"

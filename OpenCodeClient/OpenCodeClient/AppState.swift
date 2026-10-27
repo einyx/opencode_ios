@@ -212,6 +212,7 @@ final class AppState {
     static let languagePreferenceKey = L10n.languagePreferenceUserDefaultsKey
     static let carSessionsByContextKey = "carSessionsByContext.v1"
     static let healthExportPermissionKey = "clientCapability.healthExportAll.permission.v1"
+    static let agentExplicitlyChosenKey = "agentExplicitlyChosen.v1"
     /// The host-configuration signature captured when the user chose "Always
     /// Allow". The automatic grant is only honored for the exact host it was
     /// given to — a different (or reconfigured) host asks again. See
@@ -292,6 +293,7 @@ final class AppState {
         voiceFirstInput = defaults.bool(forKey: Self.voiceFirstInputKey)
         composerActionSide = ComposerActionSide.resolved(from: defaults.string(forKey: Self.composerActionSideKey))
         showImageAttachmentButton = defaults.object(forKey: Self.showImageAttachmentButtonKey) as? Bool ?? true
+        agentExplicitlyChosen = defaults.bool(forKey: Self.agentExplicitlyChosenKey)
         healthExportPermission = ClientCapabilityPermission(
             rawValue: defaults.string(forKey: Self.healthExportPermissionKey) ?? ""
         ) ?? .ask
@@ -672,6 +674,14 @@ final class AppState {
     var selectedAgentIndex: Int = 0
     /// Name actually sent to the server. Not an index into a previous host's list.
     var selectedAgentName: String = AgentInfo.fallbackAgentName
+    /// True once the user picked an agent from the server catalog. Until
+    /// then the app sends no agent at all and the server uses its own default
+    /// — a stale or unvalidated name fails every prompt server-side.
+    var agentExplicitlyChosen = false {
+        didSet {
+            defaults.set(agentExplicitlyChosen, forKey: Self.agentExplicitlyChosenKey)
+        }
+    }
     /// True only after GET /agent succeeds for the current host.
     var hasServerAgentCatalog: Bool = false
     var isLoadingAgents: Bool = false
